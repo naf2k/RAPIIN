@@ -27,7 +27,7 @@ Status labels: `PASS` is covered by source plus automated/local verification; `P
 23. Persistent task/conversation jobs, status, cancellation, leases and recovery: PASS for one instance.
 24. Provider abstraction, tools, retry and streaming: PASS; three consecutive credentialed live contract runs covered streaming and structured tool calling.
 25. `/api/auth`, `/api/user`, `/api/supervisor` separation: PASS.
-26. Security controls: PASS in application; secret-file injection, TLS topology and CI image/security scans are configured; live TLS and penetration test remain PLATFORM GATES.
+26. Security controls: PASS in application and CI; secret scanning, source scanning, dependency audit, and final-image high/critical scanning are green. Secret-file injection and TLS topology are configured; live TLS and penetration test remain PLATFORM GATES.
 27. Concurrent devices and durable SQLite queues: PASS for supported single-instance V1; horizontal multi-instance scaling is out of the supported topology.
 28. Structured errors, safe retry, failed task, notifications and audit: PASS.
 29. Hash-aware verification and partial-result accounting: PASS.
@@ -46,3 +46,5 @@ Status labels: `PASS` is covered by source plus automated/local verification; `P
 - Container vulnerability scan and dependency audit have no unaccepted critical/high findings.
 - Backup restore drill, rollback drill, metrics ingestion and alerts are evidenced.
 - Versioned Python wheel, source archive, and checksums are published through an approved channel; native app signing/notarization is outside the V1 distribution model.
+
+Latest verified automated evidence: GitHub CI `34185814826` and Security `34185814824` on 2026-09-08. Re-run both workflows for the final tagged commit.

@@ -36,5 +36,7 @@ Current local evidence:
 - Terminal wheel exposes both the PRD `beresin` command and the administrative `beresin-agent` alias.
 - SQLite WAL backup/restore drill: identical SHA-256 backup and restored database, integrity check `ok`; empty/non-BERESIN databases are rejected.
 - Live provider contract soak: three consecutive `provider_contract_ok` runs for streaming text and structured tool calling.
+- GitHub CI run `34185814826`: pass on commit `9f77e139d58b8e249fc86fe8471188cbd340cd79`; backend on Python 3.12/3.13, agent tests and wheel builds on Linux/macOS/Windows with Python 3.10/3.13, browser tests, dependency audit, production image build, and high/critical Trivy image scan all passed.
+- GitHub Security run `34185814824`: Gitleaks, Trivy filesystem scan, and Bandit medium/high scan passed on the same release candidate line.
 
 These counts must be regenerated on the release commit; they are not a substitute for CI results or the external gates.

@@ -24,7 +24,6 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="optional JSON output path")
     args = parser.parse_args()
     report = {"generated_at_epoch": int(time.time()), "checks": {}, "external_gates": {
-        "docker_image_scan": "PASS only in CI or a host with Docker",
         "macos_windows_reboot": "requires physical/VM reboot evidence",
         "terminal_agent_os_matrix": "requires clean macOS and Windows hosts, including real reboot evidence",
         "tls_alerting_restore_rollback": "requires staging infrastructure",
