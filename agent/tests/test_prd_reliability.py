@@ -225,6 +225,35 @@ def test_mutation_refuses_symlink_escape(tmp_path, monkeypatch):
     assert target.exists()
 
 
+def test_scan_supports_multiple_allowed_roots(tmp_path, monkeypatch):
+    first = tmp_path / "Downloads"
+    second = tmp_path / "Documents"
+    first.mkdir()
+    second.mkdir()
+    (second / "laporan.txt").write_text("ok")
+    monkeypatch.setattr(config, "allowed_roots", lambda: [first, second])
+
+    result = local_tools.run_tool("filesystem_scanner", {"path": str(second)})
+
+    assert result["status"] == "OK"
+    assert result["file_count"] == 1
+
+
+def test_scan_rejects_outside_multi_root_and_sensitive_paths(tmp_path, monkeypatch):
+    allowed = tmp_path / "Documents"
+    outside = tmp_path / "Outside"
+    allowed.mkdir()
+    outside.mkdir()
+    monkeypatch.setattr(config, "allowed_roots", lambda: [allowed])
+    with pytest.raises(PermissionError, match="di luar workspace"):
+        local_tools.run_tool("filesystem_scanner", {"path": str(outside)})
+
+    home = Path.home()
+    monkeypatch.setattr(config, "allowed_roots", lambda: [home])
+    with pytest.raises(PermissionError, match="sensitif"):
+        local_tools.run_tool("filesystem_scanner", {"path": str(home / ".ssh")})
+
+
 def test_copy_verification_uses_hash_not_only_size(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "workspace_root", lambda: tmp_path)
     source = tmp_path / "source.txt"

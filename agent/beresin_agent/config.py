@@ -55,6 +55,27 @@ def workspace_root() -> Path:
     return default
 
 
+def allowed_roots() -> list[Path]:
+    """Folders explicitly available to every filesystem tool.
+
+    ``workspace`` remains supported for agents configured before multi-folder
+    access was introduced. New configurations store ``allowed_roots``.
+    """
+    cfg = _load(CONFIG_FILE)
+    raw_roots = cfg.get("allowed_roots")
+    if not isinstance(raw_roots, list) or not raw_roots:
+        return [workspace_root().resolve()]
+    roots: list[Path] = []
+    for raw in raw_roots:
+        try:
+            root = Path(str(raw)).expanduser().resolve()
+        except (OSError, RuntimeError):
+            continue
+        if root not in roots:
+            roots.append(root)
+    return roots or [workspace_root().resolve()]
+
+
 def _machine_identity() -> str:
     """A stable per-machine secret used to derive the encryption key."""
     candidates = []
@@ -164,6 +185,7 @@ def save_config(
     token: str,
     startup_mode: str = "manual",
     workspace: str | None = None,
+    allowed_folders: list[str] | None = None,
 ) -> None:
     data = {
         "server_url": server_url.rstrip("/"),
@@ -175,6 +197,8 @@ def save_config(
     }
     if workspace:
         data["workspace"] = workspace
+    if allowed_folders:
+        data["allowed_roots"] = allowed_folders
     _save(CONFIG_FILE, data)
 
 

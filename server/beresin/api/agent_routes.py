@@ -25,6 +25,7 @@ class PollRequest(BaseModel):
     device_id: int
     device_key: str
     workspace_root: str | None = None
+    allowed_roots: list[str] | None = None
 
 
 class ResultRequest(BaseModel):
@@ -60,6 +61,9 @@ def poll(body: PollRequest, conn=Depends(get_db)):
             "UPDATE devices SET workspace_root = ? WHERE id = ?",
             (body.workspace_root, device["id"]),
         )
+    encoded_roots = json.dumps(body.allowed_roots) if body.allowed_roots else None
+    if encoded_roots and encoded_roots != device.get("allowed_roots"):
+        conn.execute("UPDATE devices SET allowed_roots = ? WHERE id = ?", (encoded_roots, device["id"]))
     do_heartbeat(conn, body.device_key)
     job = claim_next_job(conn, device_id=device["id"], claimed_by_key_hash=device["device_key_hash"])
     setting = conn.execute(
@@ -112,7 +116,15 @@ def result(body: ResultRequest, conn=Depends(get_db)):
                 else:
                     processed = tool_result.get("verified_count") or tool_result.get("file_count") or 0
                     total = tool_result.get("planned_count") or tool_result.get("file_count") or processed
-                    update_task(conn, task["id"], status="COMPLETED", progress=100, processed_count=processed, total_count=total, completed=True, result=body.result)
+                    conversation_job = conn.execute(
+                        "SELECT 1 FROM conversation_jobs WHERE task_id = ?", (task["id"],)
+                    ).fetchone()
+                    if conversation_job:
+                        # The worker still needs to persist the model's final
+                        # answer after receiving this device tool result.
+                        update_task(conn, task["id"], status="RUNNING", progress=95, processed_count=processed, total_count=total, result=body.result)
+                    else:
+                        update_task(conn, task["id"], status="COMPLETED", progress=100, processed_count=processed, total_count=total, completed=True, result=body.result)
             else:
                 update_task(conn, task["id"], status="FAILED", error=body.error or "Job perangkat gagal.", completed=True)
     return {"job_id": job["id"], "status": job["status"]}

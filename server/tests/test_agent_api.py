@@ -98,8 +98,26 @@ def test_agent_poll_synchronizes_workspace_root(client):
     assert stored["workspace_root"] == "/Users/example/Downloads"
 
 
-def test_agent_result_updates_task(client):
-    """Completing a job marks the owning task COMPLETED."""
+def test_agent_poll_synchronizes_allowed_roots(client):
+    device_key, device_id = _register_user_with_key(client, "agent-multi-root@example.com")
+    response = client.post(
+        "/api/agent/poll",
+        json={
+            "device_id": device_id,
+            "device_key": device_key,
+            "workspace_root": "/Users/example/Downloads",
+            "allowed_roots": ["/Users/example/Downloads", "/Users/example/Documents"],
+        },
+    )
+    assert response.status_code == 200
+    from beresin.database import db_session
+    with db_session() as conn:
+        stored = conn.execute("SELECT allowed_roots FROM devices WHERE id = ?", (device_id,)).fetchone()
+    assert json.loads(stored["allowed_roots"]) == ["/Users/example/Downloads", "/Users/example/Documents"]
+
+
+def test_agent_result_keeps_conversation_running_until_final_answer(client):
+    """A tool result is not terminal until the AI loop stores its answer."""
     device_key, device_id = _register_user_with_key(client, "agent3@example.com")
 
     from beresin.agent_jobs import enqueue_job
@@ -137,3 +155,4 @@ def test_agent_result_updates_task(client):
     with db_session() as conn:
         task = get_task(conn, task_id)
     assert task["status"] == "COMPLETED"
+    assert task["progress"] == 100

@@ -254,7 +254,7 @@ def user_approval_respond(approval_id: int, body: ApprovalRespond, user=Depends(
 def user_devices(user=Depends(require_user), conn=Depends(get_db)):
     from ..devices import device_status_view
     rows = conn.execute(
-        "SELECT id, device_name, os, agent_version, status, last_heartbeat_at, capabilities FROM devices WHERE user_id = ?",
+        "SELECT id, device_name, os, agent_version, status, last_heartbeat_at, capabilities, workspace_root, allowed_roots FROM devices WHERE user_id = ?",
         (user["id"],),
     ).fetchall()
     return [device_status_view(conn, r) for r in rows]

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS devices (
     last_heartbeat_at TEXT,
     capabilities TEXT,
     workspace_root TEXT,
+    allowed_roots TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -250,6 +251,7 @@ MIGRATIONS = [
     "ALTER TABLE agent_jobs ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE agent_jobs ADD COLUMN idempotency_key TEXT",
     "ALTER TABLE devices ADD COLUMN workspace_root TEXT",
+    "ALTER TABLE devices ADD COLUMN allowed_roots TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_jobs_idempotency ON agent_jobs(idempotency_key) WHERE idempotency_key IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_agent_jobs_device_status ON agent_jobs(device_id, status, id)",
     "CREATE INDEX IF NOT EXISTS idx_tasks_status_created ON tasks(status, created_at)",

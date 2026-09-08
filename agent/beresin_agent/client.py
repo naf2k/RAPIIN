@@ -27,10 +27,10 @@ class AgentAPI:
     def login(self, email: str, password: str) -> dict:
         return self._post("/api/auth/login", {"email": email, "password": password})
 
-    def register_device(self, token: str, device_name: str, os_name: str, version: str, capabilities: list[str] | None = None, workspace_root: str | None = None) -> dict:
+    def register_device(self, token: str, device_name: str, os_name: str, version: str, capabilities: list[str] | None = None, workspace_root: str | None = None, allowed_roots: list[str] | None = None) -> dict:
         return self._post_with_token(
             "/api/auth/register-device",
-            {"device_name": device_name, "os": os_name, "agent_version": version, "capabilities": capabilities or [], "workspace_root": workspace_root},
+            {"device_name": device_name, "os": os_name, "agent_version": version, "capabilities": capabilities or [], "workspace_root": workspace_root, "allowed_roots": allowed_roots},
             token,
         )
 
@@ -46,11 +46,11 @@ class AgentAPI:
         return resp.json()
 
     def poll(self, device_id: int, device_key: str) -> dict:
-        from .config import workspace_root
+        from .config import allowed_roots, workspace_root
 
         return self._post(
             "/api/agent/poll",
-            {"device_id": device_id, "device_key": device_key, "workspace_root": str(workspace_root())},
+            {"device_id": device_id, "device_key": device_key, "workspace_root": str(workspace_root()), "allowed_roots": [str(root) for root in allowed_roots()]},
         )
 
     def report(self, job_id: int, device_id: int, device_key: str, status: str, result: dict | None = None, error: str | None = None) -> dict:

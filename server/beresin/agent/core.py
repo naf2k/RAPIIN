@@ -23,14 +23,15 @@ class HermesCore:
 
     # ------------------------------------------------------------------ user
 
-    def _user_prompt_with_context(self, root: str) -> str:
+    def _user_prompt_with_context(self, roots: list[str]) -> str:
+        listing = "\n".join(f"- {root}" for root in roots)
         return (
             USER_SYSTEM_PROMPT
             + "\n\nLokasi kerja file Anda saat ini adalah:\n"
-            + f"- Folder utama yang dapat diakses: {root}\n"
-            + "- Gunakan path absolut dari folder utama tersebut saat memanggil tool.\n"
-            + f'- Contoh: jika user berkata "folder Downloads", gunakan path "{root}".\n'
-            + "- Jangan mengakses path di luar folder utama."
+            + listing + "\n"
+            + "- Gunakan path absolut dari salah satu folder tersebut saat memanggil tool.\n"
+            + "- Pilih folder yang paling sesuai dengan permintaan user.\n"
+            + "- Jangan mengakses path di luar daftar tersebut."
         )
 
     def run_user_conversation(
@@ -45,9 +46,16 @@ class HermesCore:
         on_delta=None,
     ) -> dict:
         permissions = permissions or PermissionEngine(role="USER")
-        device = conn.execute("SELECT workspace_root FROM devices WHERE id=? AND user_id=?", (device_id, user_id)).fetchone() if device_id else None
-        root = (device["workspace_root"] if device and device["workspace_root"] else "workspace yang dikonfigurasi pada Desktop Agent")
-        system = {"role": "system", "content": self._user_prompt_with_context(root)}
+        device = conn.execute("SELECT workspace_root, allowed_roots FROM devices WHERE id=? AND user_id=?", (device_id, user_id)).fetchone() if device_id else None
+        roots = []
+        if device and device["allowed_roots"]:
+            try:
+                roots = json.loads(device["allowed_roots"])
+            except (TypeError, json.JSONDecodeError):
+                roots = []
+        if not roots:
+            roots = [device["workspace_root"]] if device and device["workspace_root"] else ["workspace yang dikonfigurasi pada Desktop Agent"]
+        system = {"role": "system", "content": self._user_prompt_with_context(roots)}
         history = [
             {"role": m["role"], "content": redact_text(m["content"])}
             for m in conversation_history

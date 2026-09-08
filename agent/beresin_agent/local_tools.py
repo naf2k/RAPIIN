@@ -209,17 +209,33 @@ def _verify(arguments: dict) -> dict:
 
 
 def _guard_mutation(path: Path, destination: bool = False) -> None:
-    """Refuse mutations outside the configured workspace root."""
-    from .config import workspace_root
+    """Refuse filesystem access outside allowed roots and sensitive paths."""
+    from .config import allowed_roots
 
-    root = workspace_root().resolve()
+    candidate = path.expanduser().resolve()
+    roots = [root.resolve() for root in allowed_roots()]
+    if not any(_is_relative_to(candidate, root) for root in roots):
+        shown = ", ".join(str(root) for root in roots)
+        raise PermissionError(f"Path di luar workspace/folder yang diizinkan ({shown}): {path}")
+    home = Path.home().resolve()
+    if _is_relative_to(candidate, home):
+        relative_parts = [part.casefold() for part in candidate.relative_to(home).parts]
+        protected = {
+            ".ssh", ".aws", ".gnupg", ".kube", ".docker", ".beresin",
+            ".git", "keychains", "credentials", "secrets",
+        }
+        if any(part in protected for part in relative_parts):
+            raise PermissionError(f"Path sensitif tidak dapat diakses BERESIN: {path}")
+    if candidate.name.casefold() in {".env", ".env.local", ".env.production"}:
+        raise PermissionError(f"File kredensial tidak dapat diakses BERESIN: {path}")
+
+
+def _is_relative_to(candidate: Path, root: Path) -> bool:
     try:
-        candidate = path.expanduser().resolve()
         candidate.relative_to(root)
-    except ValueError as exc:
-        raise PermissionError(
-            f"Path di luar workspace agent ({root}) tidak diizinkan: {path}"
-        ) from exc
+        return True
+    except ValueError:
+        return False
 
 
 def _collect_mutation_paths(arguments: dict) -> list[str]:

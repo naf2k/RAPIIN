@@ -50,6 +50,7 @@ class DeviceRegisterRequest(BaseModel):
     agent_version: str | None = None
     capabilities: list[str] | None = None
     workspace_root: str | None = None
+    allowed_roots: list[str] | None = None
 
 
 def _issue_token(conn, user_id: int) -> str:
@@ -167,8 +168,8 @@ def register_device_route(body: DeviceRegisterRequest, user=Depends(require_user
         # Rotate the device key so the desktop agent can (re)pair this device.
         new_key = os.urandom(32).hex()
         conn.execute(
-            "UPDATE devices SET device_key_hash = ?, os = ?, agent_version = ?, capabilities = ?, workspace_root = ?, status = 'ONLINE', last_heartbeat_at = ? WHERE id = ?",
-            (_hash_device_key(new_key), body.os, body.agent_version, json.dumps(body.capabilities or []), body.workspace_root, utcnow_iso(), existing["id"]),
+            "UPDATE devices SET device_key_hash = ?, os = ?, agent_version = ?, capabilities = ?, workspace_root = ?, allowed_roots = ?, status = 'ONLINE', last_heartbeat_at = ? WHERE id = ?",
+            (_hash_device_key(new_key), body.os, body.agent_version, json.dumps(body.capabilities or []), body.workspace_root, json.dumps(body.allowed_roots or []), utcnow_iso(), existing["id"]),
         )
         record_audit(
             conn,
@@ -188,6 +189,7 @@ def register_device_route(body: DeviceRegisterRequest, user=Depends(require_user
         agent_version=body.agent_version,
         capabilities=json.dumps(body.capabilities or []),
         workspace_root=body.workspace_root,
+        allowed_roots=body.allowed_roots,
     )
     return device
 

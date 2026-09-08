@@ -21,7 +21,7 @@ Desktop Agent ── filesystem user (workspace terbatas)
 - Frontend statis: `index.html`, `chat.js`, `supervisor/`, dan `user/`.
 - Backend: `server/beresin/`; memisahkan `/api/auth`, `/api/user`, `/api/supervisor`, dan `/api/agent`.
 - Worker: task conversation berjalan di background thread dan mengirim progress/token melalui SSE.
-- Desktop Agent: `agent/beresin_agent/`; hanya menjalankan tool terdaftar dalam workspace yang dikonfigurasi.
+- Desktop Agent: `agent/beresin_agent/`; hanya menjalankan tool terdaftar dalam folder yang diizinkan user.
 - Secret device disimpan di credential vault OS melalui `keyring`, dengan fallback Fernet terikat mesin. File konfigurasi dibatasi ke mode `0600` pada OS POSIX.
 
 ## Menjalankan lokal
@@ -102,6 +102,11 @@ Evidence tambahan: [acceptance PRD 35](docs/ACCEPTANCE_EVIDENCE.md), [startup te
 - Jangan menaruh password, token, device key, atau connection string di log maupun conversational memory.
 
 Dokumentasi komponen: [server/README.md](server/README.md) dan [agent/README.md](agent/README.md).
+
+Desktop Agent tidak terbatas pada Downloads. Instalasi baru mengizinkan
+Downloads, Documents, dan Desktop, sedangkan folder kerja lain dapat ditambah
+dengan `beresin folders add "/path/folder"`. Akses tetap berbasis allowlist;
+folder sistem dan kredensial tidak dibuka kepada AI.
 
 Untuk memasang agent pada laptop kedua melalui jaringan privat, ikuti
 [runbook laptop kedua](docs/SECOND_DEVICE_RUNBOOK.md). Installer rilis yang

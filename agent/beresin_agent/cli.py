@@ -37,6 +37,7 @@ from .config import (
     set_state,
     get_state,
     update_config_value,
+    allowed_roots,
 )
 from .local_tools import run_tool
 
@@ -80,9 +81,15 @@ def cmd_setup(args) -> int:
 
     device_name = args.device_name or _default_device_name()
     os_name = platform.system() + " " + platform.release()
-    configured_workspace = str(Path(args.workspace or Path.home() / "Downloads").expanduser().resolve())
+    requested = getattr(args, "allow_folder", None) or []
+    if args.workspace:
+        requested.insert(0, args.workspace)
+    if not requested:
+        requested = [str(Path.home() / name) for name in ("Downloads", "Documents", "Desktop")]
+    configured_roots = list(dict.fromkeys(str(Path(p).expanduser().resolve()) for p in requested))
+    configured_workspace = configured_roots[0]
     try:
-        reg = api.register_device(login["token"], device_name, os_name, __version__, CAPABILITIES, configured_workspace)
+        reg = api.register_device(login["token"], device_name, os_name, __version__, CAPABILITIES, configured_workspace, configured_roots)
     except ConnectionError as exc:
         print(f"[gagal] {exc}", file=sys.stderr)
         return 1
@@ -101,6 +108,7 @@ def cmd_setup(args) -> int:
         login["token"],
         startup_mode="auto" if autostart else "manual",
         workspace=configured_workspace,
+        allowed_folders=configured_roots,
     )
     print("[ok] Akun terautentikasi")
     print(f"[ok] Perangkat terdaftar: {device_name} (id {reg['device_id']})")
@@ -110,6 +118,33 @@ def cmd_setup(args) -> int:
     if autostart:
         _enable_autostart()
     print("\nJalankan 'beresin' untuk memulai agent (atau aktifkan autostart).")
+    return 0
+
+
+def cmd_folders(args) -> int:
+    roots = allowed_roots()
+    if args.action == "list":
+        print("Folder yang dapat diakses BERESIN:")
+        for root in roots:
+            print(f"- {root}")
+        return 0
+    target = Path(args.path).expanduser().resolve()
+    if args.action == "add":
+        if not target.is_dir():
+            print(f"[gagal] Folder tidak ditemukan: {target}", file=sys.stderr)
+            return 2
+        if target == Path.home().resolve() or target == Path(target.anchor):
+            print("[gagal] Pilih folder kerja tertentu; home/root disk terlalu luas.", file=sys.stderr)
+            return 2
+        updated = list(dict.fromkeys([*(str(root) for root in roots), str(target)]))
+    else:
+        updated = [str(root) for root in roots if root != target]
+        if not updated:
+            print("[gagal] Minimal satu folder harus tetap diizinkan.", file=sys.stderr)
+            return 2
+    update_config_value("allowed_roots", updated)
+    update_config_value("workspace", updated[0])
+    print(f"[ok] Daftar folder diperbarui ({len(updated)} folder).")
     return 0
 
 
@@ -441,6 +476,7 @@ def main(argv: list[str] | None = None) -> int:
     p_setup.add_argument("--password", default=None)
     p_setup.add_argument("--device-name", default=None)
     p_setup.add_argument("--workspace", default=None, help="folder yang boleh diubah agent (default ~/Downloads)")
+    p_setup.add_argument("--allow-folder", action="append", default=[], help="folder tambahan; dapat diulang")
     p_setup.add_argument("--autostart", action=argparse.BooleanOptionalAction, default=None, help="aktifkan autostart setelah setup")
 
     sub.add_parser("run", help="jalankan agent (poll loop)")
@@ -455,6 +491,9 @@ def main(argv: list[str] | None = None) -> int:
     p_uninstall.add_argument("--keep-config", action="store_true", help="pertahankan konfigurasi lokal")
     p_probe = sub.add_parser("startup-probe", help="buktikan autostart melewati reboot OS nyata")
     p_probe.add_argument("action", choices=["record", "verify"])
+    p_folders = sub.add_parser("folders", help="lihat/tambah/hapus folder yang dapat diakses")
+    p_folders.add_argument("action", choices=["list", "add", "remove"])
+    p_folders.add_argument("path", nargs="?")
 
     args = parser.parse_args(argv)
     if args.command is None:
@@ -463,7 +502,7 @@ def main(argv: list[str] | None = None) -> int:
         print("BERESIN belum dikonfigurasi; memulai first-run setup.\n")
         return cmd_setup(argparse.Namespace(
             server=None, email=None, password=None, device_name=None,
-            workspace=None, autostart=None,
+            workspace=None, allow_folder=[], autostart=None,
         ))
     if args.command == "setup":
         return cmd_setup(args)
@@ -484,6 +523,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_uninstall(args)
     if args.command == "startup-probe":
         return cmd_startup_probe(args)
+    if args.command == "folders":
+        if args.action != "list" and not args.path:
+            parser.error("folders add/remove memerlukan path")
+        return cmd_folders(args)
     return 0
 
 

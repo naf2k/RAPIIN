@@ -40,7 +40,17 @@ Opsi setup:
 - `--server URL` : alamat server BERESIN
 - `--email`, `--password` : kredensial (bisa dilewatkan agar tidak interaktif)
 - `--device-name NAMA` : nama perangkat (default `hostname-OS`)
+- `--allow-folder PATH` : folder yang dapat diakses (dapat diulang)
 - `--autostart` : aktifkan autostart setelah setup
+
+Instalasi baru mengizinkan `Downloads`, `Documents`, dan `Desktop` secara
+default. Folder kerja lain dapat dikelola tanpa instal ulang:
+
+```bash
+beresin folders list
+beresin folders add "/path/ke/folder-kerja"
+beresin folders remove "/path/ke/folder-kerja"
+```
 
 ## Menjalankan agent
 
@@ -93,6 +103,7 @@ dibatasi ke permission user pada platform POSIX. Jangan dibagikan.
 
 - Agent **tidak** menerima perintah shell bebas. Hanya menjalankan tool read/analisis
   yang terdaftar (scan, search, metadata, duplicate, parser, classifier, indexer).
-- Operasi mutasi hanya diterima setelah approval server dan tetap dibatasi ke
-  workspace lokal agent.
+- Semua tool file dibatasi ke daftar folder lokal yang dipilih. Home/root disk,
+  `.ssh`, `.aws`, `.gnupg`, keychain, konfigurasi BERESIN, dan file `.env`
+  tetap ditolak. Operasi mutasi hanya diterima setelah approval server.
 - Semua aktivitas dicatat di audit log server.

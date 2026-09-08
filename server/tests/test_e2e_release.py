@@ -25,6 +25,7 @@ def test_recommend_review_approve_execute_verify_end_to_end(client, tmp_path, mo
     for index in range(5):
         (workspace / f"laporan-{index}.pdf").write_bytes(f"PDF-{index}".encode())
     monkeypatch.setattr(agent_config, "workspace_root", lambda: workspace)
+    monkeypatch.setattr(agent_config, "allowed_roots", lambda: [workspace])
 
     paired = client.post("/api/auth/register-device", json={
         "device_name": "Release Device", "os": "Test OS", "agent_version": "1.0.0",

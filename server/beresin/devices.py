@@ -25,16 +25,17 @@ def register_device(
     agent_version: str | None,
     capabilities: str | None = None,
     workspace_root: str | None = None,
+    allowed_roots: list[str] | None = None,
 ) -> dict:
     device_key = os.urandom(32).hex()
     key_hash = _hash_device_key(device_key)
     cur = conn.execute(
         """
         INSERT INTO devices (user_id, device_name, device_key_hash, os, agent_version, status,
-                             last_heartbeat_at, capabilities, workspace_root, created_at)
-        VALUES (?, ?, ?, ?, ?, 'ONLINE', ?, ?, ?, ?)
+                             last_heartbeat_at, capabilities, workspace_root, allowed_roots, created_at)
+        VALUES (?, ?, ?, ?, ?, 'ONLINE', ?, ?, ?, ?, ?)
         """,
-        (user_id, device_name, key_hash, os_name, agent_version, utcnow_iso(), capabilities, workspace_root, utcnow_iso()),
+        (user_id, device_name, key_hash, os_name, agent_version, utcnow_iso(), capabilities, workspace_root, json.dumps(allowed_roots or []), utcnow_iso()),
     )
     device_id = cur.lastrowid
     record_audit(
@@ -105,6 +106,12 @@ def device_status_view(conn, row) -> dict:
         data["capabilities"] = json.loads(data.get("capabilities") or "[]")
     except (TypeError, json.JSONDecodeError):
         data["capabilities"] = []
+    try:
+        data["allowed_roots"] = json.loads(data.get("allowed_roots") or "[]")
+    except (TypeError, json.JSONDecodeError):
+        data["allowed_roots"] = []
+    if not data["allowed_roots"] and data.get("workspace_root"):
+        data["allowed_roots"] = [data["workspace_root"]]
     heartbeat = data.get("last_heartbeat_at")
     age = None
     if heartbeat:
