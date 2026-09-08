@@ -223,7 +223,18 @@ def _guard_mutation(path: Path, destination: bool = False) -> None:
 
 
 def _collect_mutation_paths(arguments: dict) -> list[str]:
-    raw = arguments.get("source") or arguments.get("path") or arguments.get("paths") or arguments.get("files")
+    listed = arguments.get("paths") or arguments.get("files")
+    source = arguments.get("source")
+    # Compatible models sometimes express a folder in `source` and put the
+    # selected filenames in `paths`. Resolve that unambiguous form instead of
+    # silently treating the whole folder as the mutation target.
+    if isinstance(listed, list) and listed:
+        base = Path(str(source)).expanduser() if source else None
+        return [
+            str(base / str(item)) if base and not Path(str(item)).expanduser().is_absolute() else str(item)
+            for item in listed
+        ]
+    raw = source or arguments.get("path") or listed
     if isinstance(raw, list):
         return [str(p) for p in raw]
     if raw:

@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/agent", tags=["agent"])
 class PollRequest(BaseModel):
     device_id: int
     device_key: str
+    workspace_root: str | None = None
 
 
 class ResultRequest(BaseModel):
@@ -54,6 +55,11 @@ def _authorize_device(conn, device_id: int, device_key: str) -> dict:
 def poll(body: PollRequest, conn=Depends(get_db)):
     """Claim the next pending job for this device, or return empty."""
     device = _authorize_device(conn, body.device_id, body.device_key)
+    if body.workspace_root and body.workspace_root != device.get("workspace_root"):
+        conn.execute(
+            "UPDATE devices SET workspace_root = ? WHERE id = ?",
+            (body.workspace_root, device["id"]),
+        )
     do_heartbeat(conn, body.device_key)
     job = claim_next_job(conn, device_id=device["id"], claimed_by_key_hash=device["device_key_hash"])
     setting = conn.execute(

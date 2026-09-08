@@ -105,6 +105,24 @@ def test_local_batch_copy():
         assert result["verified_count"] == 3
 
 
+def test_copy_resolves_relative_paths_against_source_directory():
+    with tempfile.TemporaryDirectory() as ws:
+        _set_workspace(ws)
+        source_dir = Path(ws, "Dokumen")
+        source_dir.mkdir()
+        source = source_dir / "catatan.txt"
+        source.write_text("isi")
+        result = local_tools.run_tool("file_copy", {
+            "source": str(source_dir),
+            "paths": ["catatan.txt"],
+            "destination": ws,
+        })
+        assert result["status"] == "OK"
+        assert result["verified_count"] == 1
+        assert source.is_file()
+        assert Path(ws, "catatan.txt").read_text() == "isi"
+
+
 def test_unknown_tool():
     result = local_tools.run_tool("file_foobar", {"path": "/x"})
     assert result["status"] == "ERROR"

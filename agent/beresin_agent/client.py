@@ -46,7 +46,12 @@ class AgentAPI:
         return resp.json()
 
     def poll(self, device_id: int, device_key: str) -> dict:
-        return self._post("/api/agent/poll", {"device_id": device_id, "device_key": device_key})
+        from .config import workspace_root
+
+        return self._post(
+            "/api/agent/poll",
+            {"device_id": device_id, "device_key": device_key, "workspace_root": str(workspace_root())},
+        )
 
     def report(self, job_id: int, device_id: int, device_key: str, status: str, result: dict | None = None, error: str | None = None) -> dict:
         return self._post(

@@ -81,6 +81,23 @@ def test_agent_rejects_wrong_key(client):
     assert poll.status_code == 403
 
 
+def test_agent_poll_synchronizes_workspace_root(client):
+    device_key, device_id = _register_user_with_key(client, "agent-workspace@example.com")
+    response = client.post(
+        "/api/agent/poll",
+        json={
+            "device_id": device_id,
+            "device_key": device_key,
+            "workspace_root": "/Users/example/Downloads",
+        },
+    )
+    assert response.status_code == 200, response.text
+    from beresin.database import db_session
+    with db_session() as conn:
+        stored = conn.execute("SELECT workspace_root FROM devices WHERE id = ?", (device_id,)).fetchone()
+    assert stored["workspace_root"] == "/Users/example/Downloads"
+
+
 def test_agent_result_updates_task(client):
     """Completing a job marks the owning task COMPLETED."""
     device_key, device_id = _register_user_with_key(client, "agent3@example.com")
