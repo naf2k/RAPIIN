@@ -157,6 +157,34 @@ def test_ai_provider_streams_text_and_rebuilds_tool_calls(monkeypatch):
     assert deltas == ["Halo ", "dunia"]
 
 
+def test_ai_provider_stream_retries_transient_status(monkeypatch):
+    from beresin.ai.provider import OpenAICompatibleProvider
+
+    attempts = {"count": 0}
+
+    class FakeResponse:
+        def __init__(self, status_code): self.status_code = status_code
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def read(self): return b"temporary"
+        def iter_lines(self):
+            return iter(['data: {"choices":[{"delta":{"content":"siap"}}]}', "data: [DONE]"])
+
+    class FakeClient:
+        def __init__(self, **_kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def stream(self, *_args, **_kwargs):
+            attempts["count"] += 1
+            return FakeResponse(503 if attempts["count"] == 1 else 200)
+
+    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
+    monkeypatch.setattr("beresin.ai.provider.time.sleep", lambda _seconds: None)
+    result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat_stream([])
+    assert attempts["count"] == 2
+    assert result["message"]["content"] == "siap"
+
+
 def test_recommendation_apply_uses_owned_task_snapshot(client):
     body = client.post("/api/auth/register", json={
         "email": "snapshot@example.com", "name": "Snapshot", "password": "Password123!",

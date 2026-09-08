@@ -20,14 +20,14 @@ Evidence date: 2026-09-08. `LOCAL PASS` means automated or runtime evidence exis
 | 14 | Supervisor monitors user/device/task | LOCAL PASS | Supervisor API/UI tests |
 | 15 | Supervisor handles approval by policy | LOCAL PASS | Policy and supervisor approval tests |
 | 16 | Important activity is audited | LOCAL PASS | Audit assertions in release E2E |
-| 17 | Mimo can serve as V1 provider | EXTERNAL GATE | `ops/provider_smoke.py` is ready; requires live production-compatible credential |
+| 17 | Mimo can serve as V1 provider | EXTERNAL GATE | Credential and model catalog are reachable, but live Mimo returned `402 insufficient credits` on `ai/mimo-v2.5-free` and repeated `503 provider error` on `rapiin/mimo-v2.5-free`; provider service/account must be restored before approval |
 | 18 | Provider can change without Hermes redesign | LOCAL PASS | Provider abstraction and streaming/tool contract tests |
 | 19 | Concurrent devices use queue safely | LOCAL PASS | Atomic ownership, lease/requeue/renewal and concurrent-device tests |
 | 20 | No unrestricted device access | LOCAL PASS | Agent workspace enforcement for read and mutation tools; traversal/symlink tests |
 
 Current local evidence:
 
-- Backend suite: 65 passing tests at the time this document was generated.
+- Backend suite: 66 passing tests at the time this document was generated.
 - Desktop Agent suite: 29 passing tests at the time this document was generated.
 - Browser/accessibility suite: 22 passing checks across desktop and mobile Chromium, including live authenticated pages.
 - Bounded HTTP load probe: 500 requests, concurrency 20, zero failures, p50 80.1 ms, p95 222.3 ms, 188.9 requests/second.

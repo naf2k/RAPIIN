@@ -132,37 +132,53 @@ class OpenAICompatibleProvider:
         started = time.monotonic()
         content_parts: list[str] = []
         calls: dict[int, dict] = {}
-        try:
-            with httpx.Client(timeout=self.timeout) as client:
-                with client.stream("POST", url, headers=headers, json=payload) as resp:
-                    if resp.status_code >= 400:
-                        raise AIProviderError(f"Penyedia AI mengembalikan status {resp.status_code}: {resp.read()[:500]!r}")
-                    for line in resp.iter_lines():
-                        if not line.startswith("data:"):
+        last_error: Exception | None = None
+        for attempt in range(self._max_retries):
+            try:
+                with httpx.Client(timeout=self.timeout) as client:
+                    with client.stream("POST", url, headers=headers, json=payload) as resp:
+                        if resp.status_code in {429, 500, 502, 503, 504} and attempt < self._max_retries - 1:
+                            last_error = AIProviderError(
+                                f"Penyedia AI mengembalikan status {resp.status_code}; mencoba ulang."
+                            )
+                            resp.read()
+                            time.sleep(1.5 * (attempt + 1))
                             continue
-                        raw = line[5:].strip()
-                        if not raw or raw == "[DONE]":
-                            continue
-                        try:
-                            chunk = json.loads(raw)
-                            delta = chunk.get("choices", [{}])[0].get("delta", {})
-                        except (ValueError, IndexError):
-                            continue
-                        text = delta.get("content") or ""
-                        if text:
-                            content_parts.append(text)
-                            if on_delta:
-                                on_delta(text)
-                        for tc in delta.get("tool_calls") or []:
-                            idx = int(tc.get("index", 0))
-                            merged = calls.setdefault(idx, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
-                            if tc.get("id"):
-                                merged["id"] += tc["id"]
-                            fn = tc.get("function") or {}
-                            merged["function"]["name"] += fn.get("name") or ""
-                            merged["function"]["arguments"] += fn.get("arguments") or ""
-        except httpx.HTTPError as exc:
-            raise AIProviderError(f"Penyedia AI tidak dapat dihubungi: {exc}") from exc
+                        if resp.status_code >= 400:
+                            raise AIProviderError(f"Penyedia AI mengembalikan status {resp.status_code}: {resp.read()[:500]!r}")
+                        for line in resp.iter_lines():
+                            if not line.startswith("data:"):
+                                continue
+                            raw = line[5:].strip()
+                            if not raw or raw == "[DONE]":
+                                continue
+                            try:
+                                chunk = json.loads(raw)
+                                delta = chunk.get("choices", [{}])[0].get("delta", {})
+                            except (ValueError, IndexError):
+                                continue
+                            text = delta.get("content") or ""
+                            if text:
+                                content_parts.append(text)
+                                if on_delta:
+                                    on_delta(text)
+                            for tc in delta.get("tool_calls") or []:
+                                idx = int(tc.get("index", 0))
+                                merged = calls.setdefault(idx, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
+                                if tc.get("id"):
+                                    merged["id"] += tc["id"]
+                                fn = tc.get("function") or {}
+                                merged["function"]["name"] += fn.get("name") or ""
+                                merged["function"]["arguments"] += fn.get("arguments") or ""
+                        break
+            except httpx.HTTPError as exc:
+                last_error = exc
+                if attempt < self._max_retries - 1 and not content_parts and not calls:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise AIProviderError(f"Penyedia AI tidak dapat dihubungi: {exc}") from exc
+        else:
+            raise AIProviderError(f"Penyedia AI tidak dapat dihubungi: {last_error}")
         message: dict = {"role": "assistant", "content": "".join(content_parts) or None}
         if calls:
             message["tool_calls"] = [calls[i] for i in sorted(calls)]
