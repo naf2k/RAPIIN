@@ -1,11 +1,16 @@
 # BERESIN production image - serves both the API and the frontend.
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1 \
     BERESIN_ENV=production
 
 WORKDIR /app
+
+# Pull current distribution security fixes into the immutable release image.
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
 
 # Frontend first (static assets served by FastAPI catch-all)
 COPY index.html app.js chat.js styles.css supervisor.js login.html ./
