@@ -1,5 +1,9 @@
 # BERESIN production image - serves both the API and the frontend.
-FROM ghcr.io/astral-sh/uv:python3.13-alpine
+FROM ghcr.io/astral-sh/uv:latest AS uv
+FROM python:3.13-alpine
+
+# Copy only the standalone package manager, not its build image's Python packages.
+COPY --from=uv /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1 \
