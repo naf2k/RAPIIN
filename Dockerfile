@@ -22,7 +22,8 @@ COPY supervisor/ ./supervisor/
 # Server package
 COPY server/pyproject.toml server/uv.lock* ./server/
 WORKDIR /app/server
-RUN uv sync --no-dev --no-install-project
+RUN uv sync --no-dev --no-install-project \
+    && uv cache clean
 COPY server/beresin ./beresin
 COPY server/run.py ./run.py
 COPY server/.env.example ./.env.example
