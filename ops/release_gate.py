@@ -27,6 +27,7 @@ def main() -> int:
         "docker_image_scan": "PASS only in CI or a host with Docker",
         "macos_windows_reboot": "requires physical/VM reboot evidence",
         "terminal_agent_os_matrix": "requires clean macOS and Windows hosts, including real reboot evidence",
+        "live_mimo_provider": "requires repeated successful contract runs with provider-reported Mimo V2.5 provenance",
         "tls_alerting_restore_rollback": "requires staging infrastructure",
         "penetration_test": "requires approved staging target and tester",
     }}
