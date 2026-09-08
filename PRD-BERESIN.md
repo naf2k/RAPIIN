@@ -5,7 +5,7 @@
 **Status:** Draft V1
 **Product:** BERESIN
 **AI Engine:** Hermes Agent (internal implementation)
-**V1 AI Provider:** Mimo V2.5 Free / compatible API
+**V1 AI Provider:** Configurable OpenAI-compatible AI provider
 **Future AI Provider:** Self-hosted Local AI
 **Target OS:** Windows-first, extensible to macOS/Linux
 
@@ -149,7 +149,7 @@ Contoh:
                   │
            ┌──────┴──────┐
            ▼             ▼
-        Mimo V2.5    Future Local AI
+      Cloud AI API   Future Local AI
                           │
                           ▼
                   Desktop Agents
@@ -1697,7 +1697,7 @@ BERESIN tidak boleh hardcode ke satu provider.
 
 ```
 AIProvider
- ├── MimoProvider
+ ├── OpenAICompatibleProvider
  ├── LocalProvider
  └── FutureProvider
 ```
@@ -1712,7 +1712,7 @@ Provider idealnya mendukung:
 
 V1:
 
-> Mimo V2.5 / compatible API
+> Configurable OpenAI-compatible API
 
 Future:
 
@@ -1904,7 +1904,7 @@ Supervisor hanya melihat versi yang relevan dan mudah dipahami.
 - User/Supervisor API separation;
 - Core Backend;
 - AI provider abstraction;
-- Mimo V2.5 integration;
+- configurable OpenAI-compatible provider integration;
 - queue;
 - database;
 - permission engine;
@@ -1934,7 +1934,7 @@ Supervisor hanya melihat versi yang relevan dan mudah dipahami.
 
 ## Phase 1 — Foundation
 
-Repository, backend, auth, roles, database, AI abstraction, Mimo provider, Hermes integration, API.
+Repository, backend, auth, roles, database, AI abstraction, compatible provider, Hermes integration, API.
 
 ## Phase 2 — Desktop Agent
 
@@ -2037,7 +2037,7 @@ V1 berhasil jika:
 14. Supervisor dapat monitor user/device/task.
 15. Supervisor dapat menangani approval sesuai policy.
 16. Aktivitas penting tercatat dalam audit.
-17. Mimo dapat digunakan sebagai V1 provider.
+17. Provider AI kompatibel dapat digunakan untuk chat, streaming, dan tool calling.
 18. Provider dapat diganti tanpa redesign Hermes Core.
 19. Sistem dapat menangani concurrent devices melalui queue.
 20. Tidak ada unrestricted access ke perangkat user.

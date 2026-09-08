@@ -20,7 +20,7 @@ Evidence date: 2026-09-08. `LOCAL PASS` means automated or runtime evidence exis
 | 14 | Supervisor monitors user/device/task | LOCAL PASS | Supervisor API/UI tests |
 | 15 | Supervisor handles approval by policy | LOCAL PASS | Policy and supervisor approval tests |
 | 16 | Important activity is audited | LOCAL PASS | Audit assertions in release E2E |
-| 17 | Mimo can serve as V1 provider | EXTERNAL GATE | The configured `ai-rapiin` alias passed one streaming/tool-call smoke run, but a subsequent live request returned invalid SSE and the alias did not prove the underlying model identity. Require repeated successful runs with provider-reported Mimo V2.5 provenance. |
+| 17 | Compatible AI provider serves V1 chat, streaming, and tools | EXTERNAL GATE | The configured provider passed one full contract smoke run, but later requests were unstable or routed to an unsuitable model. Require repeated successful runs against one explicitly selected chat-capable model. |
 | 18 | Provider can change without Hermes redesign | LOCAL PASS | Provider abstraction and streaming/tool contract tests |
 | 19 | Concurrent devices use queue safely | LOCAL PASS | Atomic ownership, lease/requeue/renewal and concurrent-device tests |
 | 20 | No unrestricted device access | LOCAL PASS | Agent workspace enforcement for read and mutation tools; traversal/symlink tests |
@@ -35,6 +35,6 @@ Current local evidence:
 - npm dependency audit: zero known vulnerabilities.
 - Terminal wheel exposes both the PRD `beresin` command and the administrative `beresin-agent` alias.
 - SQLite WAL backup/restore drill: identical SHA-256 backup and restored database, integrity check `ok`; empty/non-BERESIN databases are rejected.
-- Live provider contract: one `provider_contract_ok` run was recorded, but stability and Mimo V2.5 provenance remain unproven.
+- Live provider contract: one `provider_contract_ok` run was recorded, but stable routing to one chat-capable model remains unproven.
 
 These counts must be regenerated on the release commit; they are not a substitute for CI results or the external gates.
