@@ -9,12 +9,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from beresin_agent import local_tools
-from beresin_agent.config import CONFIG_DIR, CONFIG_FILE
+from beresin_agent import config
 
 
 def _set_workspace(tmp: str):
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(json.dumps({"workspace": tmp}), encoding="utf-8")
+    config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    config.CONFIG_FILE.write_text(json.dumps({"workspace": tmp}), encoding="utf-8")
 
 
 def test_local_scan():

@@ -76,7 +76,7 @@ Suite mencakup RBAC, approval/resume, isolasi user, queue agent, 1.000+ file, fi
 3. Gunakan volume persisten untuk database dan backup terjadwal.
 4. Pertahankan satu instance API untuk V1 SQLite. PostgreSQL + broker wajib sebelum menambah replica API.
 5. Sambungkan request log, endpoint metrics, health/readiness, dan alert ke stack observability produksi.
-6. Distribusikan Desktop Agent sebagai paket bertanda tangan dan gunakan URL HTTPS yang sama saat setup.
+6. Distribusikan Desktop Agent sebagai wheel rilis dengan checksum terverifikasi dan gunakan URL HTTPS privat yang sama saat setup.
 7. Uji install, auto-start, reboot, reconnect, revoke, dan upgrade pada setiap OS target sebelum rilis.
 
 Contoh satu-host:
@@ -102,3 +102,7 @@ Evidence tambahan: [acceptance PRD 35](docs/ACCEPTANCE_EVIDENCE.md), [startup te
 - Jangan menaruh password, token, device key, atau connection string di log maupun conversational memory.
 
 Dokumentasi komponen: [server/README.md](server/README.md) dan [agent/README.md](agent/README.md).
+
+Untuk memasang agent pada laptop kedua melalui jaringan privat, ikuti
+[runbook laptop kedua](docs/SECOND_DEVICE_RUNBOOK.md). Installer rilis yang
+memverifikasi checksum tersedia di `ops/install_agent_release.sh`.

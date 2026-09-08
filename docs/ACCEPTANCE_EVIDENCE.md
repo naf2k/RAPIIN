@@ -2,6 +2,17 @@
 
 Evidence date: 2026-09-08. `LOCAL PASS` means automated or runtime evidence exists in this checkout. `EXTERNAL GATE` cannot be honestly passed without release infrastructure, provider credentials, another OS host, or an OS reboot.
 
+## Multi-device targeting
+
+- Pesan menerima `device_id` milik user dan menolak device milik user lain atau
+  device offline.
+- Bila lebih dari satu device online, API menolak routing ambigu dan UI meminta
+  user memilih target pada kontrol `Kerjakan di`.
+- Penerapan rekomendasi selalu kembali ke device pembuat snapshot agar path file
+  lokal tidak pernah dialihkan ke komputer lain.
+- Bukti otomatis: `server/tests/test_prd_reliability.py`; bukti fisik laptop kedua
+  mengikuti `docs/SECOND_DEVICE_RUNBOOK.md`.
+
 | # | Acceptance criterion | Status | Evidence |
 |---:|---|---|---|
 | 1 | Install Desktop Agent via terminal | LOCAL PASS | Wheel build and clean-environment terminal install; CI verifies the wheel across supported OS/Python versions |

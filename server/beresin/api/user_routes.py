@@ -28,6 +28,7 @@ class ConversationCreate(BaseModel):
 
 class MessageCreate(BaseModel):
     content: str
+    device_id: int | None = None
 
 
 class ApprovalRespond(BaseModel):
@@ -46,6 +47,28 @@ def _get_user_conversation(conn, user_id: int, conversation_id: int) -> dict:
     if not row:
         raise HTTPException(status_code=404, detail="Percakapan tidak ditemukan.")
     return dict(row)
+
+
+def _resolve_online_device(conn, user_id: int, requested_device_id: int | None) -> int | None:
+    """Resolve an owned online target without silently misrouting multi-device work."""
+    if requested_device_id is not None:
+        row = conn.execute(
+            "SELECT id, status FROM devices WHERE id = ? AND user_id = ?",
+            (requested_device_id, user_id),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Perangkat tujuan tidak ditemukan.")
+        if row["status"] != "ONLINE":
+            raise HTTPException(status_code=409, detail="Perangkat tujuan sedang offline.")
+        return row["id"]
+
+    rows = conn.execute(
+        "SELECT id FROM devices WHERE user_id = ? AND status = 'ONLINE' ORDER BY id DESC LIMIT 2",
+        (user_id,),
+    ).fetchall()
+    if len(rows) > 1:
+        raise HTTPException(status_code=409, detail="Pilih perangkat tujuan sebelum mengirim perintah.")
+    return rows[0]["id"] if rows else None
 
 
 @router.post("/conversations")
@@ -89,15 +112,7 @@ def post_message_route(conversation_id: int, body: MessageCreate, user=Depends(r
     if not body.content.strip():
         raise HTTPException(status_code=422, detail="Pesan tidak boleh kosong.")
 
-    # Device selection: newest online device if available, otherwise newest device.
-    device_row = conn.execute(
-        """
-        SELECT id FROM devices WHERE user_id = ? AND status = 'ONLINE'
-        ORDER BY id DESC LIMIT 1
-        """,
-        (user["id"],),
-    ).fetchone()
-    device_id = device_row["id"] if device_row else None
+    device_id = _resolve_online_device(conn, user["id"], body.device_id)
 
     add_message(conn, conversation_id, "user", body.content)
 
@@ -382,11 +397,12 @@ def apply_recommendation(body: RecommendationApply, user=Depends(require_user), 
         "group_by_year": "Kelompokkan file berdasarkan tahun",
     }.get(kind, "Terapkan rekomendasi")
 
-    device_row = conn.execute(
-        "SELECT id FROM devices WHERE user_id = ? AND status = 'ONLINE' ORDER BY id DESC LIMIT 1",
-        (user["id"],),
-    ).fetchone()
-    device_id = device_row["id"] if device_row else None
+    # A recommendation contains paths from the device that produced its snapshot.
+    # Running it elsewhere could mutate unrelated files with coincidentally equal paths.
+    device_id = source_task.get("device_id")
+    if device_id is None:
+        raise HTTPException(status_code=409, detail="Snapshot tidak memiliki perangkat sumber.")
+    _resolve_online_device(conn, user["id"], device_id)
 
     task_id = create_task(conn, user_id=user["id"], device_id=device_id, type="organize")
     approval_id = create_approval(

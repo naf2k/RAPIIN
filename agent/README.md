@@ -12,6 +12,11 @@ uv tool install /path/beresin_agent-VERSION-py3-none-any.whl
 beresin --help
 ```
 
+Untuk laptop kedua yang mengakses Core Backend melalui Tailscale, gunakan
+`ops/install_agent_release.sh URL_SERVER_HTTPS`. Installer mengambil rilis
+privat melalui GitHub CLI, memverifikasi checksum, melakukan setup interaktif,
+dan mengaktifkan autostart. Lihat `docs/SECOND_DEVICE_RUNBOOK.md`.
+
 Untuk development lokal:
 
 ```bash

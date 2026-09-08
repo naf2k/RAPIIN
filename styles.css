@@ -543,6 +543,24 @@ h1 {
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
+.device-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 9px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.device-picker label {
+  white-space: nowrap;
+}
+
+.device-picker .select {
+  min-width: 180px;
+  max-width: 100%;
+}
+
 .composer:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgb(157 226 191 / 0.08), 0 10px 28px rgb(0 0 0 / 0.1);

@@ -48,6 +48,78 @@ def test_same_user_can_keep_multiple_devices_online(client):
     assert {row["status"] for row in rows} == {"ONLINE"}
 
 
+def test_message_targets_explicit_owned_online_device(client, monkeypatch):
+    body = client.post("/api/auth/register", json={
+        "email": "routing@example.com", "name": "Routing", "password": "Password123!",
+        "device_name": "Laptop", "os": "Test", "agent_version": "1.0",
+    }).json()
+    token = body["token"]
+    second = client.post(
+        "/api/auth/register-device",
+        json={"device_name": "Desktop", "os": "Test", "agent_version": "1.0"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    monkeypatch.setattr("beresin.worker.spawn_conversation_task", lambda **_kwargs: None)
+    conversation = client.post(
+        "/api/user/conversations", json={}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    response = client.post(
+        f"/api/user/conversations/{conversation['conversation_id']}/messages",
+        json={"content": "scan folder", "device_id": second["device_id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200, response.text
+    from beresin.database import db_session
+    with db_session() as conn:
+        task = conn.execute("SELECT device_id FROM tasks WHERE id = ?", (response.json()["task_id"],)).fetchone()
+    assert task["device_id"] == second["device_id"]
+
+
+def test_message_requires_selection_when_multiple_devices_are_online(client, monkeypatch):
+    body = client.post("/api/auth/register", json={
+        "email": "choose@example.com", "name": "Choose", "password": "Password123!",
+        "device_name": "Laptop", "os": "Test", "agent_version": "1.0",
+    }).json()
+    token = body["token"]
+    client.post(
+        "/api/auth/register-device",
+        json={"device_name": "Desktop", "os": "Test", "agent_version": "1.0"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    monkeypatch.setattr("beresin.worker.spawn_conversation_task", lambda **_kwargs: None)
+    conversation = client.post(
+        "/api/user/conversations", json={}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    response = client.post(
+        f"/api/user/conversations/{conversation['conversation_id']}/messages",
+        json={"content": "scan folder"}, headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 409
+    assert "Pilih perangkat" in response.json()["detail"]
+
+
+def test_message_rejects_unowned_or_offline_device(client, monkeypatch):
+    owner = client.post("/api/auth/register", json={
+        "email": "owner@example.com", "name": "Owner", "password": "Password123!",
+        "device_name": "Owner laptop", "os": "Test", "agent_version": "1.0",
+    }).json()
+    other = client.post("/api/auth/register", json={
+        "email": "other@example.com", "name": "Other", "password": "Password123!",
+        "device_name": "Other laptop", "os": "Test", "agent_version": "1.0",
+    }).json()
+    monkeypatch.setattr("beresin.worker.spawn_conversation_task", lambda **_kwargs: None)
+    headers = {"Authorization": f"Bearer {owner['token']}"}
+    conversation = client.post("/api/user/conversations", json={}, headers=headers).json()
+    endpoint = f"/api/user/conversations/{conversation['conversation_id']}/messages"
+    assert client.post(endpoint, json={"content": "x", "device_id": other["device"]["id"]}, headers=headers).status_code == 404
+    from beresin.database import db_session
+    with db_session() as conn:
+        conn.execute("UPDATE devices SET status = 'OFFLINE' WHERE id = ?", (owner["device"]["id"],))
+    offline = client.post(endpoint, json={"content": "x", "device_id": owner["device"]["id"]}, headers=headers)
+    assert offline.status_code == 409
+    assert "offline" in offline.json()["detail"]
+
+
 def test_expired_claim_is_requeued_and_claimed_again(client):
     from beresin.agent_jobs import claim_next_job, enqueue_job
     from beresin.database import db_session

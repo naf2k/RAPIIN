@@ -9,6 +9,8 @@
     sending: false,
     streamingDraft: null,
     currentTaskId: null,
+    devices: [],
+    selectedDeviceId: null,
   };
 
   var els = {};
@@ -26,6 +28,8 @@
     els.message = BERESIN.el("message");
     els.activeMessage = BERESIN.el("active-message");
     els.newChatBtn = BERESIN.el("new-chat-btn");
+    els.targetDevice = BERESIN.el("target-device");
+    els.activeTargetDevice = BERESIN.el("active-target-device");
 
     // Populate account info.
     var user = BERESIN.getUser();
@@ -40,6 +44,12 @@
     els.newChatBtn.addEventListener("click", startNewChat);
     els.composer.addEventListener("submit", onSubmitEmpty);
     els.activeComposer.addEventListener("submit", onSubmitActive);
+    [els.targetDevice, els.activeTargetDevice].forEach(function (select) {
+      select.addEventListener("change", function () {
+        state.selectedDeviceId = select.value ? Number(select.value) : null;
+        syncDevicePickers();
+      });
+    });
 
     // Prompt chips fill and submit the empty composer.
     document.querySelectorAll(".prompt-chip").forEach(function (chip) {
@@ -54,7 +64,44 @@
     els.message.addEventListener("input", function () { autoResize(els.message); });
     els.activeMessage.addEventListener("input", function () { autoResize(els.activeMessage); });
 
+    loadDevices();
     loadConversations();
+  }
+
+  async function loadDevices() {
+    try {
+      state.devices = await BERESIN.api("GET", "/user/devices");
+      var online = state.devices.filter(function (device) { return device.status === "ONLINE"; });
+      if (online.length === 1) state.selectedDeviceId = online[0].id;
+      if (state.selectedDeviceId && !online.some(function (device) { return device.id === state.selectedDeviceId; })) {
+        state.selectedDeviceId = null;
+      }
+      syncDevicePickers();
+    } catch (err) {
+      state.devices = [];
+      syncDevicePickers();
+      BERESIN.showError("Daftar perangkat gagal dimuat. " + err.message);
+    }
+  }
+
+  function syncDevicePickers() {
+    [els.targetDevice, els.activeTargetDevice].forEach(function (select) {
+      select.innerHTML = "";
+      var online = state.devices.filter(function (device) { return device.status === "ONLINE"; });
+      var prompt = document.createElement("option");
+      prompt.value = "";
+      prompt.textContent = online.length ? "Pilih perangkat" : "Tidak ada perangkat online";
+      select.appendChild(prompt);
+      state.devices.forEach(function (device) {
+        var option = document.createElement("option");
+        option.value = device.id;
+        option.disabled = device.status !== "ONLINE";
+        option.textContent = device.device_name + (device.status === "ONLINE" ? " · Online" : " · Offline");
+        select.appendChild(option);
+      });
+      select.value = state.selectedDeviceId ? String(state.selectedDeviceId) : "";
+      select.disabled = !state.devices.length;
+    });
   }
 
   function autoResize(t) {
@@ -242,6 +289,10 @@
   }
 
   async function sendMessage(text, composerInput) {
+    var onlineDevices = state.devices.filter(function (device) { return device.status === "ONLINE"; });
+    if (onlineDevices.length > 1 && !state.selectedDeviceId) {
+      throw new Error("Pilih perangkat tujuan terlebih dahulu.");
+    }
     if (!state.activeId) {
       // First message creates a conversation implicitly.
       var created = await BERESIN.api("POST", "/user/conversations", { title: text.slice(0, 60) });
@@ -256,7 +307,10 @@
     appendTyping();
     try {
       // The server queues the task and returns immediately (async worker).
-      var resp = await BERESIN.api("POST", "/user/conversations/" + state.activeId + "/messages", { content: text });
+      var resp = await BERESIN.api("POST", "/user/conversations/" + state.activeId + "/messages", {
+        content: text,
+        device_id: state.selectedDeviceId,
+      });
       if (resp.status === "PROCESSING") {
         state.currentTaskId = resp.task_id;
         consumeTaskStream(resp.task_id);

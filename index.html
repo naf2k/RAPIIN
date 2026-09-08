@@ -76,6 +76,13 @@
           <div class="empty-state" id="empty-state">
             <h1>Bagaimana saya dapat membantu?</h1>
             <div class="composer-wrap">
+              <div class="device-picker">
+                <label for="target-device">Kerjakan di</label>
+                <select class="select" id="target-device" aria-describedby="device-picker-help">
+                  <option value="">Memuat perangkat...</option>
+                </select>
+                <span id="device-picker-help" class="sr-only">Pilih laptop yang akan mengerjakan perintah file.</span>
+              </div>
               <form class="composer" id="composer">
                 <label class="sr-only" for="message">Tulis pesan untuk BERESIN</label>
                 <textarea id="message" name="message" rows="1" placeholder="Tulis permintaan Anda"></textarea>
@@ -106,6 +113,12 @@
           <!-- Persistent composer shown when a conversation is active -->
           <div class="chat-composer" id="chat-composer" hidden>
             <div class="composer-wrap">
+              <div class="device-picker">
+                <label for="active-target-device">Kerjakan di</label>
+                <select class="select" id="active-target-device">
+                  <option value="">Memuat perangkat...</option>
+                </select>
+              </div>
               <form class="composer" id="active-composer">
                 <label class="sr-only" for="active-message">Tulis pesan untuk BERESIN</label>
                 <textarea id="active-message" name="message" rows="1" placeholder="Tulis pesan Anda"></textarea>
