@@ -48,15 +48,15 @@ Current local evidence:
 - SQLite WAL backup/restore drill: identical SHA-256 backup and restored database, integrity check `ok`; empty/non-BERESIN databases are rejected.
 - Live provider soak: ten consecutive credentialed conversations passed while 220 parallel readiness probes had zero failures. Provider overload, empty stream, and non-stream compatibility responses are covered by retry regression tests.
 - Live disposable-folder drill: the on-device agent returned type/year/duplicate recommendation cards; Apply created a user approval; approval queued the mutation back to the same device; 5/5 moves were verified and five physical destination files were independently counted.
-- GitHub CI run `34185814826`: pass on commit `9f77e139d58b8e249fc86fe8471188cbd340cd79`; backend on Python 3.12/3.13, agent tests and wheel builds on Linux/macOS/Windows with Python 3.10/3.13, browser tests, dependency audit, production image build, and high/critical Trivy image scan all passed.
-- GitHub Security run `34185814824`: Gitleaks, Trivy filesystem scan, and Bandit medium/high scan passed on the same release candidate line.
+- GitHub CI run `34223193132`: pass on commit `6abfe2a8e55e8aada4ede39d626d411eb2c2b7bb`; backend on Python 3.12/3.13, agent tests and wheel builds on Linux/macOS/Windows with Python 3.10/3.13, browser tests, dependency audit, production image build, and high/critical Trivy image scan all passed.
+- GitHub Security run `34223193099`: Gitleaks, Trivy filesystem scan, and Bandit medium/high scan passed on the same release commit.
 - Local macOS reboot drill: `com.beresin.server` and `com.beresin.agent` started automatically after login; `/ready`, SQLite integrity, device verification, queue readiness, health monitoring, and credentialed AI UAT all passed.
 - Local operations drill: restore to a disposable database returned SQLite integrity `ok` with the expected user/task rows; the fresh 1,000-request load probe completed with zero failures and p95 239.0 ms.
 
 Open release blockers:
 
 - The AI provider credential used during diagnostics must be rotated before release, then the provider soak and release gate must be repeated.
-- The latest GitHub CI/Security runs listed above predate the current uncommitted fixes. They are historical baseline evidence only until the final commit is pushed and both workflows pass again.
+- CI and Security passed on the final source commit listed above. A documentation-only evidence commit may follow without changing runtime behavior.
 
 The pilot database now contains exactly two active supervisor accounts as required by PRD section 3. Two obsolete local/test identities were removed after creating the recoverable SQLite backup `server/data/backups/beresin-20260908T115222Z.db`.
 
