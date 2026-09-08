@@ -116,7 +116,8 @@ async def production_headers_and_request_log(request: Request, call_next):
 
 @app.get("/")
 def root():
-    return {"app": "BERESIN", "status": "ok"}
+    # The product URL opens the product; operators use /health and /ready.
+    return FileResponse(str(FRONTEND_DIR / "login.html"))
 
 
 @app.get("/health")

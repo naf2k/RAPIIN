@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     ai_model: str = "ai-rapiin"
     ai_timeout_seconds: float = 120.0
     ai_max_iterations: int = 12
+    ai_max_retries: int = 5
 
     # Seeded accounts
     beresin_init_supervisor_email: str = "supervisor@beresin.example.com"

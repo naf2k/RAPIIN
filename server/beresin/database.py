@@ -278,7 +278,10 @@ def init_db() -> sqlite3.Connection:
 
 @contextmanager
 def db_session():
-    conn = init_db()
+    # Schema initialization belongs to application startup. Running the full
+    # DDL script for every HTTP request takes SQLite schema/write locks and can
+    # stall health checks, agent heartbeats, and task polling during AI work.
+    conn = connect()
     try:
         yield conn
         conn.commit()

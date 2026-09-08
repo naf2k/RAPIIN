@@ -67,6 +67,10 @@ class HermesCore:
                 row = conn.execute("SELECT cancel_requested FROM tasks WHERE id = ?", (task_id,)).fetchone()
                 if row and row["cancel_requested"]:
                     return {"final_response": "Task dibatalkan sebelum perubahan berikutnya dijalankan.", "tool_events": tool_events, "cancelled": True}
+            # Never hold a SQLite write transaction while waiting on an
+            # external provider. Otherwise heartbeats and status endpoints can
+            # exhaust the HTTP threadpool behind the same database lock.
+            conn.commit()
             if on_delta and hasattr(self.provider, "chat_stream"):
                 result = self.provider.chat_stream(messages, tools=tools, on_delta=on_delta)
             else:

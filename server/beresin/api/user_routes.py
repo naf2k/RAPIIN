@@ -373,10 +373,14 @@ def apply_recommendation(body: RecommendationApply, user=Depends(require_user), 
         raise HTTPException(status_code=409, detail="Snapshot rekomendasi rusak.") from exc
     recommendation = None
     directory = None
+    organizer_results = []
+    delegated_result = result.get("tool_result")
+    if isinstance(delegated_result, dict):
+        organizer_results.append(delegated_result)
     for event in result.get("tool_events", []):
-        event_result = event.get("result") or {}
-        if event.get("tool") != "folder_organizer":
-            continue
+        if event.get("tool") == "folder_organizer" and isinstance(event.get("result"), dict):
+            organizer_results.append(event["result"])
+    for event_result in organizer_results:
         for candidate in event_result.get("recommendations", []):
             if str(candidate.get("id")) == str(body.recommendation_id):
                 recommendation = candidate

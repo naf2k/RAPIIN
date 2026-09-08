@@ -31,25 +31,33 @@ Evidence date: 2026-09-08. `LOCAL PASS` means automated or runtime evidence exis
 | 14 | Supervisor monitors user/device/task | LOCAL PASS | Supervisor API/UI tests |
 | 15 | Supervisor handles approval by policy | LOCAL PASS | Policy and supervisor approval tests |
 | 16 | Important activity is audited | LOCAL PASS | Audit assertions in release E2E |
-| 17 | Compatible AI provider serves V1 chat, streaming, and tools | LOCAL PASS | Three consecutive live contract runs passed for the configured provider on 2026-09-08; every run covered streaming text and structured tool calling. |
+| 17 | Compatible AI provider serves V1 chat, streaming, and tools | LOCAL PASS | Ten consecutive credentialed conversations passed on 2026-09-08; a live tool call also produced structured file recommendations on the paired device. |
 | 18 | Provider can change without Hermes redesign | LOCAL PASS | Provider abstraction and streaming/tool contract tests |
 | 19 | Concurrent devices use queue safely | LOCAL PASS | Atomic ownership, lease/requeue/renewal and concurrent-device tests |
 | 20 | No unrestricted device access | LOCAL PASS | Agent workspace enforcement for read and mutation tools; traversal/symlink tests |
 
 Current local evidence:
 
-- Backend suite: 66 passing tests at the time this document was generated.
-- Desktop Agent suite: 29 passing tests at the time this document was generated.
+- Backend suite: 76 passing tests at the time this document was generated.
+- Desktop Agent suite: 30 passing tests at the time this document was generated.
 - Browser/accessibility suite: 22 passing checks across desktop and mobile Chromium, including live authenticated pages.
-- Bounded HTTP load probe: 500 requests, concurrency 20, zero failures, p50 80.1 ms, p95 222.3 ms, 188.9 requests/second.
+- Bounded HTTP load probe: 1,000 requests, concurrency 20, zero failures, p50 142.6 ms, p95 239.0 ms, 135.9 requests/second.
 - Bandit medium/high scan: pass.
-- npm dependency audit: zero known vulnerabilities.
+- npm and Python dependency audits: zero known vulnerabilities (the unpublished local `beresin-agent` package itself is not present on PyPI and is therefore skipped by `pip-audit`).
 - Terminal wheel exposes both the PRD `beresin` command and the administrative `beresin-agent` alias.
 - SQLite WAL backup/restore drill: identical SHA-256 backup and restored database, integrity check `ok`; empty/non-BERESIN databases are rejected.
-- Live provider contract soak: three consecutive `provider_contract_ok` runs for streaming text and structured tool calling.
+- Live provider soak: ten consecutive credentialed conversations passed while 220 parallel readiness probes had zero failures. Provider overload, empty stream, and non-stream compatibility responses are covered by retry regression tests.
+- Live disposable-folder drill: the on-device agent returned type/year/duplicate recommendation cards; Apply created a user approval; approval queued the mutation back to the same device; 5/5 moves were verified and five physical destination files were independently counted.
 - GitHub CI run `34185814826`: pass on commit `9f77e139d58b8e249fc86fe8471188cbd340cd79`; backend on Python 3.12/3.13, agent tests and wheel builds on Linux/macOS/Windows with Python 3.10/3.13, browser tests, dependency audit, production image build, and high/critical Trivy image scan all passed.
 - GitHub Security run `34185814824`: Gitleaks, Trivy filesystem scan, and Bandit medium/high scan passed on the same release candidate line.
 - Local macOS reboot drill: `com.beresin.server` and `com.beresin.agent` started automatically after login; `/ready`, SQLite integrity, device verification, queue readiness, health monitoring, and credentialed AI UAT all passed.
-- Local operations drill: daily LaunchAgent backup completed; restore to a disposable database returned `ok` and an identical SHA-256; 1,000-request load probe completed with zero failures and p95 170.2 ms.
+- Local operations drill: restore to a disposable database returned SQLite integrity `ok` with the expected user/task rows; the fresh 1,000-request load probe completed with zero failures and p95 239.0 ms.
+
+Open release blockers:
+
+- The AI provider credential used during diagnostics must be rotated before release, then the provider soak and release gate must be repeated.
+- The latest GitHub CI/Security runs listed above predate the current uncommitted fixes. They are historical baseline evidence only until the final commit is pushed and both workflows pass again.
+
+The pilot database now contains exactly two active supervisor accounts as required by PRD section 3. Two obsolete local/test identities were removed after creating the recoverable SQLite backup `server/data/backups/beresin-20260908T115222Z.db`.
 
 These counts must be regenerated on the release commit; they are not a substitute for CI results or the external gates.

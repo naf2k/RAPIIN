@@ -135,6 +135,10 @@ def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: in
                            + "; ".join(f"{k}={v}" for k, v in memory.items()),
             })
 
+        # Persist RUNNING before the potentially slow provider request. The
+        # Hermes loop also commits before every subsequent provider turn.
+        conn.commit()
+
         try:
             core = HermesCore(provider_mod.get_provider())
             result = core.run_user_conversation(

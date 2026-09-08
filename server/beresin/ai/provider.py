@@ -50,7 +50,7 @@ class OpenAICompatibleProvider:
         self.api_key = api_key if api_key is not None else settings.ai_api_key
         self.model = model or settings.ai_model
         self.timeout = settings.ai_timeout_seconds
-        self._max_retries = 3
+        self._max_retries = max(1, min(settings.ai_max_retries, 10))
 
     def chat(
         self,
@@ -87,20 +87,19 @@ class OpenAICompatibleProvider:
                         data = _parse_sse_json(resp.text)
                     else:
                         data = resp.json()
-                except (ValueError, AIProviderError) as exc:
-                    raise AIProviderError(
-                        "Penyedia AI tidak mengembalikan data percakapan yang valid."
-                    ) from exc
-
-                latency_ms = (time.monotonic() - started) * 1000
-                try:
                     message = data["choices"][0]["message"]
-                except (KeyError, IndexError) as exc:
-                    raise AIProviderError("Respons penyedia AI tidak valid.") from exc
+                except (ValueError, AIProviderError, KeyError, IndexError) as exc:
+                    last_error = AIProviderError(
+                        "Penyedia AI tidak mengembalikan data percakapan yang valid."
+                    )
+                    if attempt < self._max_retries - 1:
+                        time.sleep(1.5 * (attempt + 1))
+                        continue
+                    raise last_error from exc
 
                 return {
                     "message": message,
-                    "latency_ms": latency_ms,
+                    "latency_ms": (time.monotonic() - started) * 1000,
                     "raw": data,
                 }
 
@@ -137,6 +136,7 @@ class OpenAICompatibleProvider:
             try:
                 with httpx.Client(timeout=self.timeout) as client:
                     with client.stream("POST", url, headers=headers, json=payload) as resp:
+                        stream_error: AIProviderError | None = None
                         if resp.status_code in {429, 500, 502, 503, 504} and attempt < self._max_retries - 1:
                             last_error = AIProviderError(
                                 f"Penyedia AI mengembalikan status {resp.status_code}; mencoba ulang."
@@ -146,6 +146,24 @@ class OpenAICompatibleProvider:
                             continue
                         if resp.status_code >= 400:
                             raise AIProviderError(f"Penyedia AI mengembalikan status {resp.status_code}: {resp.read()[:500]!r}")
+                        # Some OpenAI-compatible gateways ignore stream=true and
+                        # return one regular JSON completion. Treat that as a
+                        # valid compatibility response instead of producing an
+                        # empty assistant message and a misleading fallback.
+                        content_type = getattr(resp, "headers", {}).get("content-type", "")
+                        if "text/event-stream" not in content_type and content_type:
+                            try:
+                                message = resp.json()["choices"][0]["message"]
+                            except (ValueError, KeyError, IndexError) as exc:
+                                raise AIProviderError("Respons streaming penyedia AI tidak valid.") from exc
+                            text = message.get("content") or ""
+                            if text and on_delta:
+                                on_delta(text)
+                            return {
+                                "message": message,
+                                "latency_ms": (time.monotonic() - started) * 1000,
+                                "raw": None,
+                            }
                         for line in resp.iter_lines():
                             if not line.startswith("data:"):
                                 continue
@@ -154,6 +172,9 @@ class OpenAICompatibleProvider:
                                 continue
                             try:
                                 chunk = json.loads(raw)
+                                if chunk.get("error"):
+                                    stream_error = AIProviderError("Penyedia AI sementara tidak tersedia.")
+                                    continue
                                 delta = chunk.get("choices", [{}])[0].get("delta", {})
                             except (ValueError, IndexError):
                                 continue
@@ -170,6 +191,12 @@ class OpenAICompatibleProvider:
                                 fn = tc.get("function") or {}
                                 merged["function"]["name"] += fn.get("name") or ""
                                 merged["function"]["arguments"] += fn.get("arguments") or ""
+                        if stream_error and not content_parts and not calls:
+                            last_error = stream_error
+                            if attempt < self._max_retries - 1:
+                                time.sleep(1.5 * (attempt + 1))
+                                continue
+                            raise stream_error
                         break
             except httpx.HTTPError as exc:
                 last_error = exc
@@ -182,6 +209,15 @@ class OpenAICompatibleProvider:
         message: dict = {"role": "assistant", "content": "".join(content_parts) or None}
         if calls:
             message["tool_calls"] = [calls[i] for i in sorted(calls)]
+        if not message.get("content") and not message.get("tool_calls"):
+            # A few compatible gateways intermittently acknowledge streaming
+            # but close before sending a chunk. Nothing has been emitted or
+            # executed at this point, so a non-stream retry is safe.
+            fallback = self.chat(messages, tools=tools)
+            fallback_text = fallback["message"].get("content") or ""
+            if fallback_text and on_delta:
+                on_delta(fallback_text)
+            return fallback
         return {"message": message, "latency_ms": (time.monotonic() - started) * 1000, "raw": None}
 
     def tools_schema(self) -> list[dict]:

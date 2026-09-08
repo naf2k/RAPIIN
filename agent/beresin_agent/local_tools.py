@@ -361,12 +361,12 @@ def _run_explicit_moves(moves: list[dict], operation: str) -> dict:
             if dest.is_dir():
                 dest = dest / src.name
                 _guard_mutation(dest)
-            if dest.exists():
-                raise FileExistsError(f"Tujuan sudah ada; file tidak ditimpa: {dest}")
             else:
                 dest.mkdir(parents=True, exist_ok=True)
                 dest = dest / src.name
                 _guard_mutation(dest)
+            if dest.exists():
+                raise FileExistsError(f"Tujuan sudah ada; file tidak ditimpa: {dest}")
             if operation == "move":
                 shutil.move(str(src), str(dest))
             else:

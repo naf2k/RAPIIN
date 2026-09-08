@@ -47,7 +47,7 @@ Gunakan folder disposable pada setiap laptop, bukan dokumen asli.
   kedua, lalu pastikan job hanya diambil target yang dipilih.
 - Buat minimal satu file PDF dan satu duplikat di workspace laptop kedua.
   Verifikasi scan, rekomendasi terstruktur, Review, Approve, hasil mutasi, audit,
-  dan Undo.
+  dan hasil fisik file. Undo bukan persyaratan PRD V1.
 - Matikan agent laptop kedua saat job read-only berjalan, hidupkan kembali,
   lalu verifikasi reconnect dan lease job pulih tanpa eksekusi ganda.
 - Reboot laptop kedua. Setelah login jalankan `beresin startup-probe verify` dan

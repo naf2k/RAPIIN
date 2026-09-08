@@ -66,7 +66,14 @@ def main() -> int:
             headers=user_headers,
         )
         messages.raise_for_status()
-        assert any(item["role"] == "assistant" and item["content"].strip() for item in messages.json())
+        assistant_messages = [
+            item["content"].strip() for item in messages.json()
+            if item["role"] == "assistant" and item["content"].strip()
+        ]
+        assert assistant_messages, "AI tidak menghasilkan jawaban"
+        latest = assistant_messages[-1].lower()
+        assert "siap" in latest, f"jawaban AI tidak sesuai kontrak: {assistant_messages[-1]}"
+        assert "belum dapat menyelesaikan" not in latest, "fallback error dianggap sebagai sukses"
     print("local_uat_ok: login, RBAC, online device, supervisor view, and live AI chat passed")
     return 0
 

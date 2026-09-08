@@ -25,9 +25,9 @@ Status labels: `PASS` is covered by source plus automated/local verification; `P
 21. Supervisor natural-language monitoring chat without permission bypass: PASS.
 22. Append-only logical audit events: PASS at API level; external immutable log export is a PLATFORM GATE.
 23. Persistent task/conversation jobs, status, cancellation, leases and recovery: PASS for one instance.
-24. Provider abstraction, tools, retry and streaming: PASS; three consecutive credentialed live contract runs covered streaming and structured tool calling.
+24. Provider abstraction, tools, retry and streaming: PASS locally; ten consecutive credentialed conversations passed, including compatibility retries for overload, invalid HTTP-200 payloads, empty SSE streams, and non-stream responses.
 25. `/api/auth`, `/api/user`, `/api/supervisor` separation: PASS.
-26. Security controls: PASS for loopback-only local macOS operation and CI; the API binds to `127.0.0.1`, secret files use mode `0600`, public registration is disabled, and secret/source/dependency/image scans are green. Public TLS and internet penetration testing are not applicable while the service remains inaccessible from LAN and internet.
+26. Security controls: PASS for the selected local macOS/Tailscale pilot; the API binds to `127.0.0.1`, Tailscale Serve provides tailnet-only HTTPS, exact CORS origin is configured, secret files use mode `0600`, public registration is disabled, and local dependency/Bandit scans are green. Internet penetration testing remains a PLATFORM GATE for a later public deployment.
 27. Concurrent devices and durable SQLite queues: PASS for supported single-instance V1; horizontal multi-instance scaling is out of the supported topology.
 28. Structured errors, safe retry, failed task, notifications and audit: PASS.
 29. Hash-aware verification and partial-result accounting: PASS.
@@ -47,4 +47,6 @@ Status labels: `PASS` is covered by source plus automated/local verification; `P
 - Backup restore drill, rollback drill, metrics ingestion and alerts are evidenced.
 - Versioned Python wheel, source archive, and checksums are published through an approved channel; native app signing/notarization is outside the V1 distribution model.
 
-Latest verified automated evidence: GitHub CI `34185814826` and Security `34185814824` on 2026-09-08. Re-run both workflows for the final tagged commit.
+Current local gate: 76 backend, 30 agent, and 22 browser/accessibility checks pass; credentialed UAT, reboot probe, and health checks pass. A live approval-gated filesystem drill physically verified 5/5 moves. GitHub CI `34185814826` and Security `34185814824` are the latest historical baseline runs; re-run both for the final commit.
+
+The pilot database now has exactly two active supervisor accounts, matching PRD section 3. Release remains blocked until the operator rotates the AI provider credential exposed during local diagnostics. After rotation, repeat the provider soak, release gate, and final CI/Security workflows.

@@ -66,6 +66,13 @@ def test_readiness_and_security_headers(client):
     assert response.status_code == 200
     assert response.json()["database"] == "ok"
     assert response.headers["x-request-id"] == "test-request-id"
+
+
+def test_root_opens_login_application(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Masuk ke BERESIN" in response.text
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["permissions-policy"].startswith("camera=()")
 

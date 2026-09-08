@@ -272,3 +272,24 @@ def test_read_tools_refuse_paths_outside_workspace(tmp_path, monkeypatch):
     ):
         with pytest.raises(PermissionError, match="di luar workspace"):
             local_tools.run_tool(tool, arguments)
+
+
+def test_batch_moves_multiple_files_into_same_new_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "workspace_root", lambda: tmp_path)
+    first = tmp_path / "laporan-2025.txt"
+    second = tmp_path / "laporan-2025-copy.txt"
+    first.write_text("sama", encoding="utf-8")
+    second.write_text("sama", encoding="utf-8")
+    destination = tmp_path / "2025"
+    result = local_tools.run_tool("batch_executor", {
+        "operation": "move",
+        "moves": [
+            {"source": str(first), "destination": str(destination)},
+            {"source": str(second), "destination": str(destination)},
+        ],
+    })
+    assert result["status"] == "OK"
+    assert result["verified_count"] == 2
+    assert (destination / first.name).is_file()
+    assert (destination / second.name).is_file()
+    assert not (destination / second.name).is_dir()

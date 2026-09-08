@@ -197,6 +197,44 @@ def test_device_local_path_is_delegated_without_server_path_rewrite(monkeypatch)
     assert result["directory"] == external_device_path
 
 
+def test_ai_wait_does_not_hold_sqlite_write_lock(client):
+    from beresin.agent.core import HermesCore
+    from beresin.database import connect, db_session
+    from beresin.tasks import create_task, update_task
+
+    body = client.post("/api/auth/register", json={
+        "email": "lock-release@example.com", "name": "Lock", "password": "Password123!",
+        "device_name": "PC", "os": "Test", "agent_version": "1.0",
+    }).json()
+
+    class Provider:
+        def tools_schema(self): return []
+        def chat_stream(self, _messages, tools=None, on_delta=None):
+            other = connect()
+            try:
+                other.execute("PRAGMA busy_timeout=100")
+                other.execute(
+                    "INSERT INTO metric_events(name,value,timestamp) VALUES ('concurrent_write',1,'now')"
+                )
+                other.commit()
+            finally:
+                other.close()
+            return {"message": {"role": "assistant", "content": "siap"}, "latency_ms": 1}
+
+    with db_session() as conn:
+        task_id = create_task(conn, user_id=body["user_id"], device_id=body["device"]["id"], type="chat")
+        update_task(conn, task_id, status="RUNNING", started=True)
+        result = HermesCore(Provider()).run_user_conversation(
+            conn,
+            user_id=body["user_id"],
+            conversation_history=[{"role": "user", "content": "halo"}],
+            task_id=task_id,
+            device_id=body["device"]["id"],
+            on_delta=lambda _text: None,
+        )
+    assert result["final_response"] == "siap"
+
+
 def test_ai_provider_streams_text_and_rebuilds_tool_calls(monkeypatch):
     import json
     from beresin.ai.provider import OpenAICompatibleProvider
@@ -257,6 +295,116 @@ def test_ai_provider_stream_retries_transient_status(monkeypatch):
     assert result["message"]["content"] == "siap"
 
 
+def test_ai_provider_stream_accepts_non_stream_json_compatibility_response(monkeypatch):
+    from beresin.ai.provider import OpenAICompatibleProvider
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "application/json"}
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def json(self):
+            return {"choices": [{"message": {"role": "assistant", "content": "siap"}}]}
+
+    class FakeClient:
+        def __init__(self, **_kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def stream(self, *_args, **_kwargs): return FakeResponse()
+
+    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
+    deltas = []
+    result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat_stream([], on_delta=deltas.append)
+    assert result["message"]["content"] == "siap"
+    assert deltas == ["siap"]
+
+
+def test_ai_provider_empty_stream_falls_back_to_non_stream(monkeypatch):
+    from beresin.ai.provider import OpenAICompatibleProvider
+
+    class StreamResponse:
+        status_code = 200
+        headers = {"content-type": "text/event-stream"}
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def iter_lines(self): return iter(["data: [DONE]"])
+
+    class JsonResponse:
+        status_code = 200
+        headers = {"content-type": "application/json"}
+        def json(self):
+            return {"choices": [{"message": {"role": "assistant", "content": "pulih"}}]}
+
+    class FakeClient:
+        def __init__(self, **_kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def stream(self, *_args, **_kwargs): return StreamResponse()
+        def post(self, *_args, **_kwargs): return JsonResponse()
+
+    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
+    deltas = []
+    result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat_stream([], on_delta=deltas.append)
+    assert result["message"]["content"] == "pulih"
+    assert deltas == ["pulih"]
+
+
+def test_ai_provider_retries_invalid_success_payload(monkeypatch):
+    from beresin.ai.provider import OpenAICompatibleProvider
+
+    attempts = {"count": 0}
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "application/json"}
+        def json(self):
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                return {"accepted": True}
+            return {"choices": [{"message": {"role": "assistant", "content": "siap"}}]}
+
+    class FakeClient:
+        def __init__(self, **_kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def post(self, *_args, **_kwargs): return FakeResponse()
+
+    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
+    monkeypatch.setattr("beresin.ai.provider.time.sleep", lambda _seconds: None)
+    result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat([])
+    assert result["message"]["content"] == "siap"
+    assert attempts["count"] == 2
+
+
+def test_ai_provider_retries_error_embedded_in_http_200_stream(monkeypatch):
+    from beresin.ai.provider import OpenAICompatibleProvider
+
+    attempts = {"count": 0}
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "text/event-stream"}
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def iter_lines(self):
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                return iter(['data: {"choices":[],"error":{"code":502}}', "data: [DONE]"])
+            return iter(['data: {"choices":[{"delta":{"content":"siap"}}]}', "data: [DONE]"])
+
+    class FakeClient:
+        def __init__(self, **_kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def stream(self, *_args, **_kwargs): return FakeResponse()
+
+    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
+    monkeypatch.setattr("beresin.ai.provider.time.sleep", lambda _seconds: None)
+    result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat_stream([])
+    assert result["message"]["content"] == "siap"
+    assert attempts["count"] == 2
+
+
 def test_recommendation_apply_uses_owned_task_snapshot(client):
     body = client.post("/api/auth/register", json={
         "email": "snapshot@example.com", "name": "Snapshot", "password": "Password123!",
@@ -287,6 +435,35 @@ def test_recommendation_apply_uses_owned_task_snapshot(client):
         approval = conn.execute("SELECT tool_name, tool_args FROM approvals WHERE id = ?", (response.json()["approval_id"],)).fetchone()
     assert approval["tool_name"] == "batch_executor"
     assert "/tampered" not in approval["tool_args"]
+
+
+def test_recommendation_apply_accepts_device_agent_result_shape(client):
+    body = client.post("/api/auth/register", json={
+        "email": "device-snapshot@example.com", "name": "Device Snapshot", "password": "Password123!",
+        "device_name": "PC", "os": "Test", "agent_version": "1.0",
+    }).json()
+    from beresin.database import db_session
+    from beresin.tasks import create_task, update_task
+    snapshot = {"tool_result": {
+        "status": "OK", "directory": "/device/Downloads", "recommendations": [{
+            "id": "by-year", "kind": "group_by_year", "apply": {
+                "tool_name": "batch_executor", "tool_args": {"operation": "move", "moves": [{
+                    "source": "/device/Downloads/laporan-2025.pdf",
+                    "destination": "/device/Downloads/2025",
+                    "expected": {"path": "/device/Downloads/laporan-2025.pdf", "size": 1,
+                                 "mtime_ns": 1, "sha256": "abc"},
+                }]},
+            },
+        }],
+    }}
+    with db_session() as conn:
+        task_id = create_task(conn, user_id=body["user_id"], device_id=body["device"]["id"], type="chat")
+        update_task(conn, task_id, status="COMPLETED", result=snapshot, completed=True)
+    response = client.post("/api/user/recommendations/apply", json={
+        "source_task_id": task_id, "recommendation_id": "by-year",
+    }, headers={"Authorization": f"Bearer {body['token']}"})
+    assert response.status_code == 200, response.text
+    assert response.json()["tool"] == "batch_executor"
 
 
 def test_expired_and_tampered_approval_snapshots_are_rejected(client):
