@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -149,7 +150,10 @@ def test_config_file_permissions_and_no_plaintext_secrets(tmp_path, monkeypatch)
     raw = config.CONFIG_FILE.read_text()
     assert "device-secret" not in raw
     assert "token-secret" not in raw
-    assert config.CONFIG_FILE.stat().st_mode & 0o777 == 0o600
+    # POSIX permission bits are not meaningful on Windows. Secrets are still
+    # absent from the file there and stored through the OS credential vault.
+    if os.name != "nt":
+        assert config.CONFIG_FILE.stat().st_mode & 0o777 == 0o600
 
 
 def test_index_is_incremental_versioned_and_removes_stale_entries(tmp_path, monkeypatch):
