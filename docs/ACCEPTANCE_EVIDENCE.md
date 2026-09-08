@@ -20,7 +20,7 @@ Evidence date: 2026-09-08. `LOCAL PASS` means automated or runtime evidence exis
 | 14 | Supervisor monitors user/device/task | LOCAL PASS | Supervisor API/UI tests |
 | 15 | Supervisor handles approval by policy | LOCAL PASS | Policy and supervisor approval tests |
 | 16 | Important activity is audited | LOCAL PASS | Audit assertions in release E2E |
-| 17 | Mimo can serve as V1 provider | EXTERNAL GATE | Credential and model catalog are reachable, but live Mimo returned `402 insufficient credits` on `ai/mimo-v2.5-free` and repeated `503 provider error` on `rapiin/mimo-v2.5-free`; provider service/account must be restored before approval |
+| 17 | Mimo can serve as V1 provider | LOCAL PASS | Live configured provider passed both streaming text and tool-calling contracts using `ops/provider_smoke.py` on 2026-09-08 |
 | 18 | Provider can change without Hermes redesign | LOCAL PASS | Provider abstraction and streaming/tool contract tests |
 | 19 | Concurrent devices use queue safely | LOCAL PASS | Atomic ownership, lease/requeue/renewal and concurrent-device tests |
 | 20 | No unrestricted device access | LOCAL PASS | Agent workspace enforcement for read and mutation tools; traversal/symlink tests |
@@ -35,5 +35,6 @@ Current local evidence:
 - npm dependency audit: zero known vulnerabilities.
 - Terminal wheel exposes both the PRD `beresin` command and the administrative `beresin-agent` alias.
 - SQLite WAL backup/restore drill: identical SHA-256 backup and restored database, integrity check `ok`; empty/non-BERESIN databases are rejected.
+- Live provider contract: `provider_contract_ok` for streaming text and structured tool calling.
 
 These counts must be regenerated on the release commit; they are not a substitute for CI results or the external gates.
