@@ -25,7 +25,7 @@ Status labels: `PASS` is covered by source plus automated/local verification; `P
 21. Supervisor natural-language monitoring chat without permission bypass: PASS.
 22. Append-only logical audit events: PASS at API level; external immutable log export is a PLATFORM GATE.
 23. Persistent task/conversation jobs, status, cancellation, leases and recovery: PASS for one instance.
-24. Provider abstraction, tools, retry and streaming: PASS in source; repeated credentialed runs against one explicit chat-capable model remain a PLATFORM GATE.
+24. Provider abstraction, tools, retry and streaming: PASS; three consecutive credentialed live contract runs covered streaming and structured tool calling.
 25. `/api/auth`, `/api/user`, `/api/supervisor` separation: PASS.
 26. Security controls: PASS in application; secret-file injection, TLS topology and CI image/security scans are configured; live TLS and penetration test remain PLATFORM GATES.
 27. Concurrent devices and durable SQLite queues: PASS for supported single-instance V1; horizontal multi-instance scaling is out of the supported topology.
