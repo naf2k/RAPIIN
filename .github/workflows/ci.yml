@@ -73,6 +73,10 @@ jobs:
           push: false
           tags: beresin:test
           load: true
+          # Trivy scans the loaded final filesystem directly. BuildKit provenance
+          # otherwise includes packages from discarded build stages as a third-party
+          # SBOM and produces false positives for files absent from the final image.
+          provenance: false
       - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: beresin:test
