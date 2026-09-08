@@ -1,5 +1,5 @@
 # BERESIN production image - serves both the API and the frontend.
-FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim
+FROM ghcr.io/astral-sh/uv:python3.13-alpine
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1 \
@@ -8,9 +8,7 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy \
 WORKDIR /app
 
 # Pull current distribution security fixes into the immutable release image.
-RUN apt-get update \
-    && apt-get upgrade -y \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk upgrade --no-cache
 
 # Frontend first (static assets served by FastAPI catch-all)
 COPY index.html app.js chat.js styles.css supervisor.js login.html ./
@@ -27,7 +25,8 @@ COPY server/.env.example ./.env.example
 
 # Runtime data directory (SQLite + sandbox)
 RUN mkdir -p /app/server/data
-RUN useradd --system --uid 10001 --home /nonexistent --shell /usr/sbin/nologin beresin \
+RUN addgroup -S -g 10001 beresin \
+    && adduser -S -D -H -u 10001 -G beresin beresin \
     && chown -R beresin:beresin /app/server/data
 VOLUME ["/app/server/data"]
 
