@@ -11,7 +11,7 @@ Status labels: `PASS` is covered by source plus automated/local verification; `P
 7. Authentication and RBAC: PASS; password policy, hashed passwords/tokens, expiry, logout revocation, and login throttling covered.
 8. Desktop Agent local filesystem execution: PASS; server fallback is prohibited.
 9. CLI installation/setup/verify/run: PASS locally. V1 is distributed as a Python wheel installed from the terminal; it is not a desktop application or native installer.
-10. Manual/auto startup controls: PASS in source/tests; physical reboot evidence per OS is a PLATFORM GATE.
+10. Manual/auto startup controls: PASS; a physical macOS reboot verified automatic server/agent startup and reconnect. Windows reboot evidence is not applicable to the selected local-macOS deployment.
 11. Device registration, health, capabilities, revoke/re-pair: PASS.
 12. Agent pipeline and contextual tool gating: PASS.
 13. File intelligence parsers/classifier/duplicates/index/search: PASS.
@@ -27,14 +27,14 @@ Status labels: `PASS` is covered by source plus automated/local verification; `P
 23. Persistent task/conversation jobs, status, cancellation, leases and recovery: PASS for one instance.
 24. Provider abstraction, tools, retry and streaming: PASS; three consecutive credentialed live contract runs covered streaming and structured tool calling.
 25. `/api/auth`, `/api/user`, `/api/supervisor` separation: PASS.
-26. Security controls: PASS in application and CI; secret scanning, source scanning, dependency audit, and final-image high/critical scanning are green. Secret-file injection and TLS topology are configured; live TLS and penetration test remain PLATFORM GATES.
+26. Security controls: PASS for loopback-only local macOS operation and CI; the API binds to `127.0.0.1`, secret files use mode `0600`, public registration is disabled, and secret/source/dependency/image scans are green. Public TLS and internet penetration testing are not applicable while the service remains inaccessible from LAN and internet.
 27. Concurrent devices and durable SQLite queues: PASS for supported single-instance V1; horizontal multi-instance scaling is out of the supported topology.
 28. Structured errors, safe retry, failed task, notifications and audit: PASS.
 29. Hash-aware verification and partial-result accounting: PASS.
 30. Metrics, device health, AI latency, request IDs, security headers, health/readiness and Prometheus alert rules: PASS; external alert routing is a PLATFORM GATE.
 31. V1 must-have scope: PASS subject to the platform gates above.
 32. Out-of-scope capabilities were not introduced: PASS.
-33. Development phases have implementation artifacts and tests: PASS; Phase 8 production promotion waits on all PLATFORM GATES.
+33. Development phases have implementation artifacts and tests: PASS for the selected local-macOS production topology.
 
 ## Mandatory release evidence
 

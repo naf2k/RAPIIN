@@ -7,7 +7,7 @@ Evidence date: 2026-09-08. `LOCAL PASS` means automated or runtime evidence exis
 | 1 | Install Desktop Agent via terminal | LOCAL PASS | Wheel build and clean-environment terminal install; CI verifies the wheel across supported OS/Python versions |
 | 2 | Login and register device | LOCAL PASS | API/auth tests and runtime smoke |
 | 3 | Select Manual or Auto Start | LOCAL PASS | CLI and startup-mode tests |
-| 4 | Auto Start survives PC restart | EXTERNAL GATE | `startup-probe record/verify` now produces real boot-ID evidence; must run on macOS and Windows |
+| 4 | Auto Start survives PC restart | LOCAL PASS | A real macOS reboot changed the boot identifier; server and agent LaunchAgents restarted with new PIDs, and `startup-probe verify` confirmed connectivity and queue readiness on 2026-09-08. Windows is not part of the selected local-macOS deployment scope. |
 | 5 | Natural-language interaction | LOCAL PASS | Fake-provider conversation/E2E tests |
 | 6 | Casual conversation does not invoke tools | LOCAL PASS | Deterministic tool gating test |
 | 7 | Filesystem task produces understandable plan | LOCAL PASS | On-device structured recommendation snapshot |
@@ -38,5 +38,7 @@ Current local evidence:
 - Live provider contract soak: three consecutive `provider_contract_ok` runs for streaming text and structured tool calling.
 - GitHub CI run `34185814826`: pass on commit `9f77e139d58b8e249fc86fe8471188cbd340cd79`; backend on Python 3.12/3.13, agent tests and wheel builds on Linux/macOS/Windows with Python 3.10/3.13, browser tests, dependency audit, production image build, and high/critical Trivy image scan all passed.
 - GitHub Security run `34185814824`: Gitleaks, Trivy filesystem scan, and Bandit medium/high scan passed on the same release candidate line.
+- Local macOS reboot drill: `com.beresin.server` and `com.beresin.agent` started automatically after login; `/ready`, SQLite integrity, device verification, queue readiness, health monitoring, and credentialed AI UAT all passed.
+- Local operations drill: daily LaunchAgent backup completed; restore to a disposable database returned `ok` and an identical SHA-256; 1,000-request load probe completed with zero failures and p95 170.2 ms.
 
 These counts must be regenerated on the release commit; they are not a substitute for CI results or the external gates.
