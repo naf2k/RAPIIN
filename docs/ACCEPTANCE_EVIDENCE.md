@@ -27,7 +27,7 @@ Evidence date: 2026-09-08. `LOCAL PASS` means automated or runtime evidence exis
 
 Current local evidence:
 
-- Backend suite: 64 passing tests at the time this document was generated.
+- Backend suite: 65 passing tests at the time this document was generated.
 - Desktop Agent suite: 29 passing tests at the time this document was generated.
 - Browser/accessibility suite: 22 passing checks across desktop and mobile Chromium, including live authenticated pages.
 - Bounded HTTP load probe: 500 requests, concurrency 20, zero failures, p50 80.1 ms, p95 222.3 ms, 188.9 requests/second.
