@@ -72,6 +72,17 @@ textarea:focus-visible {
   min-height: 100dvh;
 }
 
+/* The chat is an application viewport: only the message list scrolls. */
+.user-chat-page {
+  overflow: hidden;
+}
+
+.user-chat-page .app-shell,
+.user-chat-page .workspace {
+  height: 100dvh;
+  min-height: 0;
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -403,6 +414,11 @@ textarea:focus-visible {
   place-items: center;
   min-height: 0;
   padding: 40px 32px 28px;
+}
+
+.user-chat-page .conversation-area {
+  height: 100%;
+  overflow: hidden;
 }
 
 .empty-state {
@@ -1436,8 +1452,11 @@ textarea::placeholder {
 }
 
 .chat-shell .chat-composer {
+  position: relative;
+  z-index: 2;
   padding-top: 12px;
   padding-bottom: 6px;
+  background: var(--background);
 }
 
 .chat-shell .empty-state {

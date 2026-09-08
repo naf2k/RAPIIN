@@ -39,6 +39,50 @@ test("login is keyboard operable with visible focus", async ({ page }) => {
   expect(outline).not.toBe("none");
 });
 
+test("user chat composer remains visible while messages scroll internally", async ({ page, request }) => {
+  const email = `composer-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
+  const registered = await request.post("/api/auth/register", { data: {
+    email, name: "Pengguna Composer", password: "Password123!", device_name: "Browser Device",
+    os: "Playwright", agent_version: "1.0.0"
+  }});
+  expect(registered.ok()).toBeTruthy();
+  const user = await registered.json();
+  await page.goto("/login.html");
+  await page.evaluate(({ token }) => {
+    localStorage.setItem("beresin_token", token);
+    localStorage.setItem("beresin_user", JSON.stringify({ role: "USER", name: "Pengguna Composer" }));
+  }, { token: user.token });
+  await page.goto("/index.html");
+  await page.evaluate(() => {
+    document.querySelector("#empty-state").hidden = true;
+    const messages = document.querySelector("#chat-messages");
+    const composer = document.querySelector("#chat-composer");
+    messages.hidden = false;
+    composer.hidden = false;
+    for (let index = 0; index < 40; index += 1) {
+      const message = document.createElement("div");
+      message.className = "message message--assistant";
+      message.textContent = `Pesan pengujian ${index + 1}`;
+      messages.appendChild(message);
+    }
+  });
+  const layout = await page.evaluate(() => {
+    const composer = document.querySelector("#chat-composer").getBoundingClientRect();
+    const messages = document.querySelector("#chat-messages");
+    return {
+      composerTop: composer.top,
+      composerBottom: composer.bottom,
+      viewportHeight: window.innerHeight,
+      pageOverflow: document.documentElement.scrollHeight - window.innerHeight,
+      messagesScrollable: messages.scrollHeight > messages.clientHeight,
+    };
+  });
+  expect(layout.composerTop).toBeGreaterThanOrEqual(0);
+  expect(layout.composerBottom).toBeLessThanOrEqual(layout.viewportHeight + 1);
+  expect(layout.pageOverflow).toBeLessThanOrEqual(1);
+  expect(layout.messagesScrollable).toBeTruthy();
+});
+
 test("authenticated user and supervisor pages render live API data accessibly", async ({ page, request }) => {
   const email = `ui-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
   const registered = await request.post("/api/auth/register", { data: {

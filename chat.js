@@ -284,7 +284,7 @@
   }
 
   function scrollToBottom() {
-    var area = qs(".workspace");
+    var area = els.chatMessages;
     if (area) area.scrollTop = area.scrollHeight;
   }
 
