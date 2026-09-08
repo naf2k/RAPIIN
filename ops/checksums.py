@@ -20,7 +20,15 @@ def main() -> int:
     parser.add_argument("directory", type=Path)
     parser.add_argument("--output", type=Path, default=Path("SHA256SUMS"))
     args = parser.parse_args()
-    files = sorted(path for path in args.directory.iterdir() if path.is_file() and path.resolve() != args.output.resolve())
+    release_suffixes = (".whl", ".tar.gz")
+    files = sorted(
+        path for path in args.directory.iterdir()
+        if path.is_file()
+        and path.resolve() != args.output.resolve()
+        and path.name.endswith(release_suffixes)
+    )
+    if not files:
+        raise SystemExit("no Python release artifacts found")
     args.output.write_text("".join(f"{digest(path)}  {path.name}\n" for path in files), encoding="utf-8")
     print(args.output)
     return 0

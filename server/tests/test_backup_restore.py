@@ -39,3 +39,20 @@ def test_restore_rejects_empty_sqlite_file(tmp_path):
     )
     assert result.returncode != 0
     assert "not a BERESIN database" in result.stderr
+
+
+def test_checksums_include_only_terminal_release_artifacts(tmp_path):
+    (tmp_path / "beresin_agent-1.0.0.whl").write_bytes(b"wheel")
+    (tmp_path / "beresin_agent-1.0.0.tar.gz").write_bytes(b"source")
+    (tmp_path / "stale-native-binary").write_bytes(b"binary")
+    (tmp_path / ".gitignore").write_text("*", encoding="utf-8")
+    output = tmp_path / "SHA256SUMS"
+    subprocess.run(
+        [sys.executable, str(ROOT / "ops/checksums.py"), str(tmp_path), "--output", str(output)],
+        check=True,
+    )
+    text = output.read_text(encoding="utf-8")
+    assert "beresin_agent-1.0.0.whl" in text
+    assert "beresin_agent-1.0.0.tar.gz" in text
+    assert "stale-native-binary" not in text
+    assert ".gitignore" not in text
