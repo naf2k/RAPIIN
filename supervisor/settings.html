@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Pengaturan akun supervisor BERESIN." />
+    <title>Settings | Supervisor | BERESIN</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body class="supervisor-page" data-require-role="SUPERVISOR" data-page="settings">
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Navigasi Supervisor BERESIN">
+        <div class="sidebar-top">
+          <a class="brand" href="overview.html" aria-label="BERESIN, kembali ke overview"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><span>BERESIN</span></a>
+          <div class="supervisor-label">Supervisor</div>
+          <nav class="supervisor-nav" aria-label="Menu supervisor">
+            <a class="sidebar-link" href="overview.html"><span class="nav-symbol" aria-hidden="true">□</span><span>Overview</span></a>
+            <a class="sidebar-link" href="tasks.html"><span class="nav-symbol" aria-hidden="true">≡</span><span>Tasks</span></a>
+            <a class="sidebar-link" href="employees.html"><span class="nav-symbol" aria-hidden="true">○</span><span>Employees</span></a>
+            <a class="sidebar-link" href="approvals.html"><span class="nav-symbol" aria-hidden="true">!</span><span>Approvals</span></a>
+            <a class="sidebar-link" href="activity.html"><span class="nav-symbol" aria-hidden="true">◷</span><span>Activity</span></a>
+          </nav>
+        </div>
+        <div class="sidebar-bottom">
+          <a class="sidebar-link" href="settings.html" aria-current="page"><span class="line-icon settings-icon" aria-hidden="true"></span><span>Settings</span></a>
+          <a class="sidebar-link" href="#" data-logout><span aria-hidden="true">→</span><span>Keluar</span></a>
+          <a class="account-link" href="settings.html"><span class="avatar" aria-hidden="true" id="avatar-letter">S</span><span class="account-copy"><strong id="account-name">Supervisor</strong><small>Supervisor</small></span></a>
+        </div>
+      </aside>
+      <section class="workspace" aria-label="Pengaturan supervisor">
+        <header class="topbar"><div class="mobile-brand brand" aria-label="BERESIN"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><span>BERESIN</span></div><div class="connection-status"><span class="status-dot" aria-hidden="true"></span><span>Sistem terhubung</span></div></header>
+        <main class="page-content">
+          <div class="page-header"><div class="page-header-copy"><h1 class="page-title">Settings</h1><p class="page-description">Kelola profil akun supervisor Anda.</p></div></div>
+
+          <section class="section"><h2 class="section-title">Profil supervisor</h2><div class="panel"><div class="panel-body">
+            <form id="profile-form" class="form-grid form-grid--two">
+              <div class="field"><label class="field-label" for="profile-name">Nama</label><input class="input" id="profile-name" type="text" /></div>
+              <div class="field"><label class="field-label" for="profile-email">Email</label><input class="input" id="profile-email" type="email" disabled /></div>
+              <div class="field"><label class="field-label" for="profile-password">Kata sandi baru (min. 12, huruf besar/kecil + angka)</label><input class="input" id="profile-password" type="password" minlength="12" autocomplete="new-password" placeholder="Kosongkan jika tidak diubah" /></div>
+              <div class="form-actions" style="align-self:end"><button class="button button--primary" type="submit">Simpan profil</button></div>
+            </form>
+          </div></div></section>
+
+          <section class="section"><h2 class="section-title">Akun supervisor</h2><p class="section-description">BERESIN V1 mendukung maksimal 2 akun supervisor.</p>
+            <div class="panel"><div class="panel-body" id="accounts-box"><p class="history-empty">Memuat...</p></div></div>
+            <div class="panel section" id="supervisor-create-panel"><div class="panel-body"><form id="supervisor-create-form" class="form-grid form-grid--two">
+              <div class="field"><label class="field-label" for="supervisor-name">Nama supervisor kedua</label><input class="input" id="supervisor-name" required /></div>
+              <div class="field"><label class="field-label" for="supervisor-email">Email</label><input class="input" id="supervisor-email" type="email" required /></div>
+              <div class="field"><label class="field-label" for="supervisor-password">Kata sandi awal (minimal 12 karakter)</label><input class="input" id="supervisor-password" type="password" minlength="12" required /></div>
+              <div class="form-actions"><button class="button button--primary" type="submit">Tambah supervisor</button></div>
+            </form></div></div>
+          </section>
+          <section class="section"><h2 class="section-title">Kebijakan tindakan</h2><p class="section-description">Tentukan siapa yang harus menyetujui setiap capability. Operasi destruktif tidak dapat dibuat otomatis.</p>
+            <div class="panel data-table-wrap"><table class="data-table"><thead><tr><th>Tool</th><th>Persetujuan</th><th>Threshold bulk</th><th>Aksi</th></tr></thead><tbody id="policy-table"><tr><td colspan="4">Memuat...</td></tr></tbody></table></div>
+          </section>
+        </main>
+      </section>
+    </main>
+    <script src="../app.js"></script>
+    <script src="../supervisor.js"></script>
+  </body>
+</html>

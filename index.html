@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="BERESIN adalah asisten kerja AI untuk membantu membereskan pekerjaan digital." />
+    <title>BERESIN | Asisten Kerja AI</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-require-role="USER">
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Navigasi BERESIN">
+        <div class="sidebar-top">
+          <a class="brand" href="index.html" aria-label="BERESIN, kembali ke percakapan">
+            <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+            <span>BERESIN</span>
+          </a>
+
+          <button class="new-chat-button" id="new-chat-btn" type="button">
+            <span class="plus-icon" aria-hidden="true">+</span>
+            <span>Percakapan baru</span>
+          </button>
+
+          <nav class="chat-history" aria-label="Riwayat percakapan">
+            <p class="nav-label">Percakapan</p>
+            <div class="history-list" id="history-list"></div>
+          </nav>
+        </div>
+
+        <div class="sidebar-bottom">
+          <a class="sidebar-link" href="user/settings.html">
+            <span class="line-icon settings-icon" aria-hidden="true"></span>
+            <span>Pengaturan</span>
+          </a>
+          <a class="sidebar-link" href="#" data-logout>
+            <span aria-hidden="true">→</span>
+            <span>Keluar</span>
+          </a>
+          <a class="account-link" href="user/settings.html">
+            <span class="avatar" aria-hidden="true" id="avatar-letter">A</span>
+            <span class="account-copy">
+              <strong id="account-name">Pengguna</strong>
+              <small>Akun pengguna</small>
+            </span>
+            <span class="chevron" aria-hidden="true">›</span>
+          </a>
+        </div>
+      </aside>
+
+      <section class="workspace" id="main-content" aria-label="Percakapan BERESIN">
+        <header class="topbar">
+          <div class="mobile-brand brand" aria-label="BERESIN">
+            <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+            <span>BERESIN</span>
+          </div>
+          <div class="topbar-actions">
+            <div class="connection-status" aria-label="Status BERESIN: terhubung">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span>Terhubung</span>
+            </div>
+            <div class="notif-wrap">
+              <button class="notif-bell" id="notification-bell" type="button" aria-label="Notifikasi">
+                <span class="bell-icon" aria-hidden="true"></span>
+                <span class="notif-badge" hidden></span>
+              </button>
+              <div class="notif-panel" id="notification-panel" hidden>
+                <div class="notif-panel-header">Notifikasi</div>
+                <div class="notif-list" id="notification-list"></div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div class="conversation-area chat-shell">
+          <!-- Empty state shown before any conversation exists -->
+          <div class="empty-state" id="empty-state">
+            <h1>Bagaimana saya dapat membantu?</h1>
+            <div class="composer-wrap">
+              <form class="composer" id="composer">
+                <label class="sr-only" for="message">Tulis pesan untuk BERESIN</label>
+                <textarea id="message" name="message" rows="1" placeholder="Tulis permintaan Anda"></textarea>
+                <button class="send-button" type="submit" aria-label="Kirim pesan">
+                  <span aria-hidden="true">↑</span>
+                </button>
+              </form>
+            </div>
+            <div class="prompt-suggestions" aria-label="Contoh permintaan">
+              <button class="prompt-chip" type="button" data-prompt="Rapikan folder Downloads saya">
+                <span class="prompt-icon folder-icon" aria-hidden="true"></span>
+                <span>Rapikan folder Downloads saya</span>
+              </button>
+              <button class="prompt-chip" type="button" data-prompt="Temukan laporan bulan lalu">
+                <span class="prompt-icon document-icon" aria-hidden="true"></span>
+                <span>Temukan laporan bulan lalu</span>
+              </button>
+              <button class="prompt-chip" type="button" data-prompt="Periksa file yang duplikat">
+                <span class="prompt-icon duplicate-icon" aria-hidden="true"></span>
+                <span>Periksa file yang duplikat</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Active conversation messages -->
+          <div class="chat-messages" id="chat-messages" hidden></div>
+
+          <!-- Persistent composer shown when a conversation is active -->
+          <div class="chat-composer" id="chat-composer" hidden>
+            <div class="composer-wrap">
+              <form class="composer" id="active-composer">
+                <label class="sr-only" for="active-message">Tulis pesan untuk BERESIN</label>
+                <textarea id="active-message" name="message" rows="1" placeholder="Tulis pesan Anda"></textarea>
+                <button class="send-button" type="submit" aria-label="Kirim pesan">
+                  <span aria-hidden="true">↑</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+    <script src="chat.js"></script>
+  </body>
+</html>

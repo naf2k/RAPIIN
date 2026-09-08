@@ -1,0 +1,35 @@
+services:
+  beresin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: beresin
+    ports:
+      - "8000:8000"
+    environment:
+      BERESIN_DB_PATH: /app/server/data/beresin.db
+      BERESIN_DATA_DIR: /app/server/data
+      BERESIN_ENV: production
+      BERESIN_HOST: 0.0.0.0
+      AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:20128/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-ai-rapiin}
+      BERESIN_SECRET_KEY: ${BERESIN_SECRET_KEY:?Set BERESIN_SECRET_KEY}
+      BERESIN_ALLOWED_ORIGINS: ${BERESIN_ALLOWED_ORIGINS:?Set BERESIN_ALLOWED_ORIGINS to the HTTPS production origin}
+      BERESIN_INIT_SUPERVISOR_EMAIL: ${BERESIN_INIT_SUPERVISOR_EMAIL:?Set supervisor email}
+      BERESIN_INIT_SUPERVISOR_PASSWORD: ${BERESIN_INIT_SUPERVISOR_PASSWORD:?Set a unique supervisor password}
+    volumes:
+      - beresin_data:/app/server/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  beresin_data:

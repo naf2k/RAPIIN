@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: cd server && uv sync --extra dev --locked
+      - run: cd server && uv run pytest -q
+      - run: cd server && uv run --with pip-audit pip-audit
+
+  agent:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: cd agent && uv sync --extra dev --locked
+      - run: cd agent && uv run pytest -q
+      - run: cd agent && uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-${{ matrix.os }}-py${{ matrix.python }}
+          path: agent/dist/*
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - run: cd server && uv sync --locked
+      - run: node --check app.js && node --check chat.js && node --check supervisor.js
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: beresin:test
+          load: true
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: beresin:test
+          severity: CRITICAL,HIGH
+          exit-code: "1"

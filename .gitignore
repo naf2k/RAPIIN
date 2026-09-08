@@ -1,0 +1,39 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+!*.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Runtime data
+server/data/
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Agent runtime state (credentials on employee machines)
+agent/.venv/
+.beresin/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Node (jika dipakai nanti)
+node_modules/
+playwright-report/
+test-results/
+agent/build/
+agent/*.spec
+
+# Local editor/agent metadata
+.commandcode/

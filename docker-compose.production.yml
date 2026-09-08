@@ -1,0 +1,78 @@
+services:
+  beresin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      BERESIN_DB_PATH: /app/server/data/beresin.db
+      BERESIN_DATA_DIR: /app/server/data
+      BERESIN_ENV: production
+      BERESIN_ALLOW_PUBLIC_REGISTRATION: "false"
+      BERESIN_HOST: 0.0.0.0
+      BERESIN_ALLOWED_ORIGINS: https://${BERESIN_DOMAIN:?Set BERESIN_DOMAIN}
+      BERESIN_INIT_SUPERVISOR_EMAIL: ${BERESIN_INIT_SUPERVISOR_EMAIL:?Set supervisor email}
+      BERESIN_SECRET_KEY_FILE: /run/secrets/beresin_secret_key
+      BERESIN_INIT_SUPERVISOR_PASSWORD_FILE: /run/secrets/supervisor_password
+      BERESIN_MONITORING_TOKEN_FILE: /run/secrets/monitoring_token
+      AI_API_KEY_FILE: /run/secrets/ai_api_key
+      AI_BASE_URL: ${AI_BASE_URL:?Set HTTPS or private AI provider URL}
+      AI_MODEL: ${AI_MODEL:-ai-rapiin}
+    expose: ["8000"]
+    volumes:
+      - beresin_data:/app/server/data
+    secrets:
+      - beresin_secret_key
+      - supervisor_password
+      - monitoring_token
+      - ai_api_key
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "5"}
+
+  caddy:
+    image: caddy:2.10-alpine
+    environment:
+      BERESIN_DOMAIN: ${BERESIN_DOMAIN:?Set BERESIN_DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [beresin]
+    restart: unless-stopped
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    security_opt: ["no-new-privileges:true"]
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    secrets: [monitoring_token]
+    ports: ["127.0.0.1:9090:9090"]
+    depends_on: [beresin]
+    restart: unless-stopped
+
+secrets:
+  beresin_secret_key:
+    file: ${BERESIN_SECRETS_DIR:?Set protected secrets directory}/beresin_secret_key
+  supervisor_password:
+    file: ${BERESIN_SECRETS_DIR:?Set protected secrets directory}/supervisor_password
+  monitoring_token:
+    file: ${BERESIN_SECRETS_DIR:?Set protected secrets directory}/monitoring_token
+  ai_api_key:
+    file: ${BERESIN_SECRETS_DIR:?Set protected secrets directory}/ai_api_key
+
+volumes:
+  beresin_data:
+  caddy_data:
+  caddy_config:
+  prometheus_data:

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Pantau pengguna dan perangkat BERESIN." />
+    <title>Employees | Supervisor | BERESIN</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body class="supervisor-page" data-require-role="SUPERVISOR" data-page="employees">
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Navigasi Supervisor BERESIN">
+        <div class="sidebar-top">
+          <a class="brand" href="overview.html" aria-label="BERESIN, kembali ke overview"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><span>BERESIN</span></a>
+          <div class="supervisor-label">Supervisor</div>
+          <nav class="supervisor-nav" aria-label="Menu supervisor">
+            <a class="sidebar-link" href="overview.html"><span class="nav-symbol" aria-hidden="true">□</span><span>Overview</span></a>
+            <a class="sidebar-link" href="tasks.html"><span class="nav-symbol" aria-hidden="true">≡</span><span>Tasks</span></a>
+            <a class="sidebar-link" href="employees.html" aria-current="page"><span class="nav-symbol" aria-hidden="true">○</span><span>Employees</span></a>
+            <a class="sidebar-link" href="approvals.html"><span class="nav-symbol" aria-hidden="true">!</span><span>Approvals</span></a>
+            <a class="sidebar-link" href="activity.html"><span class="nav-symbol" aria-hidden="true">◷</span><span>Activity</span></a>
+          </nav>
+        </div>
+        <div class="sidebar-bottom">
+          <a class="sidebar-link" href="settings.html"><span class="line-icon settings-icon" aria-hidden="true"></span><span>Settings</span></a>
+          <a class="sidebar-link" href="#" data-logout><span aria-hidden="true">→</span><span>Keluar</span></a>
+          <a class="account-link" href="#"><span class="avatar" aria-hidden="true">S</span><span class="account-copy"><strong id="account-name">Supervisor</strong><small>Supervisor</small></span></a>
+        </div>
+      </aside>
+      <section class="workspace" aria-label="Daftar employees">
+        <header class="topbar"><div class="mobile-brand brand" aria-label="BERESIN"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><span>BERESIN</span></div><div class="connection-status"><span class="status-dot" aria-hidden="true"></span><span>Sistem terhubung</span></div></header>
+        <main class="page-content">
+          <div class="page-header"><div class="page-header-copy"><h1 class="page-title">Employees</h1><p class="page-description">Lihat status akun, perangkat, dan tugas aktif pengguna.</p></div>
+            <button class="button button--primary" id="btn-add-employee" type="button">Tambah employee</button>
+          </div>
+
+          <section class="panel section" id="add-employee-panel" hidden>
+            <div class="panel-body">
+              <form id="add-employee-form" class="form-grid form-grid--two">
+                <div class="field"><label class="field-label" for="new-emp-name">Nama</label><input class="input" id="new-emp-name" type="text" required /></div>
+                <div class="field"><label class="field-label" for="new-emp-email">Email</label><input class="input" id="new-emp-email" type="email" required /></div>
+                <div class="field"><label class="field-label" for="new-emp-password">Kata sandi awal (min. 12, huruf besar/kecil + angka)</label><input class="input" id="new-emp-password" type="password" required minlength="12" /></div>
+                <p class="form-error" id="add-employee-error" role="alert" hidden></p>
+                <div class="form-actions" style="grid-column: 1 / -1">
+                  <button class="button button--secondary" type="button" id="btn-cancel-add">Batal</button>
+                  <button class="button button--primary" type="submit">Buat akun</button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <div class="data-toolbar"><div></div>
+            <label class="search-wrap"><span class="sr-only">Cari employee</span><input class="search-field" id="employee-search" type="search" placeholder="Cari employee atau perangkat" /></label>
+          </div>
+          <section class="panel data-table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Employee</th><th>Device</th><th>Koneksi</th><th>Tugas aktif</th><th>Aktivitas</th><th>Aksi</th></tr></thead>
+              <tbody id="employees-table-body"><tr><td colspan="6">Memuat...</td></tr></tbody>
+            </table>
+          </section>
+          <p class="privacy-note section">Supervisor dapat melihat status perangkat dan tugas yang relevan, bukan isi percakapan pribadi atau seluruh isi file pengguna.</p>
+        </main>
+      </section>
+    </main>
+    <script src="../app.js"></script>
+    <script src="../supervisor.js"></script>
+  </body>
+</html>

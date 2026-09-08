@@ -1,0 +1,21 @@
+groups:
+  - name: beresin
+    rules:
+      - alert: BeresinHighFailureRate
+        expr: beresin_failure_rate > 10 and beresin_tasks_total >= 10
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "BERESIN task failure rate di atas 10 persen"
+      - alert: BeresinQueueBacklog
+        expr: beresin_queue_length > 25
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Antrean BERESIN menumpuk"
+      - alert: BeresinNoOnlineDevice
+        expr: beresin_online_devices == 0 and beresin_tasks_total > 0
+        for: 30m
+        labels: {severity: info}
+        annotations:
+          summary: "Tidak ada Desktop Agent online"

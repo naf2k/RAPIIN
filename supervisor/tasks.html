@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Pantau tugas pengguna BERESIN." />
+    <title>Tasks | Supervisor | BERESIN</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body class="supervisor-page" data-require-role="SUPERVISOR" data-page="tasks">
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Navigasi Supervisor BERESIN">
+        <div class="sidebar-top">
+          <a class="brand" href="overview.html" aria-label="BERESIN, kembali ke overview"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><span>BERESIN</span></a>
+          <div class="supervisor-label">Supervisor</div>
+          <nav class="supervisor-nav" aria-label="Menu supervisor">
+            <a class="sidebar-link" href="overview.html"><span class="nav-symbol" aria-hidden="true">□</span><span>Overview</span></a>
+            <a class="sidebar-link" href="tasks.html" aria-current="page"><span class="nav-symbol" aria-hidden="true">≡</span><span>Tasks</span></a>
+            <a class="sidebar-link" href="employees.html"><span class="nav-symbol" aria-hidden="true">○</span><span>Employees</span></a>
+            <a class="sidebar-link" href="approvals.html"><span class="nav-symbol" aria-hidden="true">!</span><span>Approvals</span></a>
+            <a class="sidebar-link" href="activity.html"><span class="nav-symbol" aria-hidden="true">◷</span><span>Activity</span></a>
+          </nav>
+        </div>
+        <div class="sidebar-bottom">
+          <a class="sidebar-link" href="settings.html"><span class="line-icon settings-icon" aria-hidden="true"></span><span>Settings</span></a>
+          <a class="sidebar-link" href="#" data-logout><span aria-hidden="true">→</span><span>Keluar</span></a>
+          <a class="account-link" href="#"><span class="avatar" aria-hidden="true">S</span><span class="account-copy"><strong id="account-name">Supervisor</strong><small>Supervisor</small></span></a>
+        </div>
+      </aside>
+      <section class="workspace" aria-label="Daftar tasks">
+        <header class="topbar"><div class="mobile-brand brand" aria-label="BERESIN"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><span>BERESIN</span></div><div class="connection-status"><span class="status-dot" aria-hidden="true"></span><span>Sistem terhubung</span></div></header>
+        <main class="page-content">
+          <div class="page-header"><div class="page-header-copy"><h1 class="page-title">Tasks</h1><p class="page-description">Pantau status dan kemajuan pekerjaan yang sedang dijalankan pengguna.</p></div></div>
+          <div class="data-toolbar">
+            <div class="filter-list" id="task-status-filter-row" aria-label="Filter task">
+              <input type="hidden" id="task-status-filter" data-status="ALL" />
+              <button class="filter-button is-active" type="button" data-status="ALL">Semua</button>
+              <button class="filter-button" type="button" data-status="RUNNING">Berjalan</button>
+              <button class="filter-button" type="button" data-status="WAITING_APPROVAL">Menunggu</button>
+              <button class="filter-button" type="button" data-status="COMPLETED">Selesai</button>
+              <button class="filter-button" type="button" data-status="FAILED">Gagal</button>
+            </div>
+            <label class="search-wrap"><span class="sr-only">Cari task</span><input class="search-field" id="task-search" type="search" placeholder="Cari task" /></label>
+          </div>
+          <section class="panel data-table-wrap" aria-label="Daftar task">
+            <table class="data-table">
+              <thead><tr><th>Pengguna</th><th>Task</th><th>Perangkat</th><th>Status</th><th>Progress</th><th>Waktu</th></tr></thead>
+              <tbody id="tasks-table-body"><tr><td colspan="6">Memuat...</td></tr></tbody>
+            </table>
+          </section>
+        </main>
+      </section>
+    </main>
+    <script src="../app.js"></script>
+    <script src="../supervisor.js"></script>
+  </body>
+</html>

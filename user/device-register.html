@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Daftarkan perangkat Anda ke BERESIN." />
+    <title>Daftarkan Perangkat | BERESIN</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body data-require-role="USER">
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Navigasi BERESIN">
+        <div class="sidebar-top">
+          <a class="brand" href="../index.html" aria-label="BERESIN, kembali ke percakapan"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><span>BERESIN</span></a>
+          <a class="new-chat-button" href="../index.html"><span class="plus-icon" aria-hidden="true">+</span><span>Percakapan baru</span></a>
+        </div>
+        <div class="sidebar-bottom">
+          <a class="sidebar-link" href="settings.html"><span class="line-icon settings-icon" aria-hidden="true"></span><span>Pengaturan</span></a>
+          <a class="sidebar-link" href="#" data-logout><span aria-hidden="true">→</span><span>Keluar</span></a>
+        </div>
+      </aside>
+      <section class="workspace" aria-label="Daftarkan perangkat">
+        <header class="topbar"><div class="mobile-brand brand" aria-label="BERESIN"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><span>BERESIN</span></div><div class="connection-status"><span class="status-dot" aria-hidden="true"></span><span>Terhubung</span></div></header>
+        <main class="page-content">
+          <div class="page-header"><div class="page-header-copy"><a class="breadcrumb" href="../index.html">Percakapan <span class="breadcrumb-separator">/</span> Perangkat</a><h1 class="page-title">Daftarkan perangkat</h1><p class="page-description">Hubungkan komputer ini agar BERESIN dapat menjalankan pekerjaan file secara lokal dan aman.</p></div></div>
+          <section class="section panel">
+            <div class="panel-body">
+              <form id="device-form" class="form-grid">
+                <div class="field">
+                  <label class="field-label" for="device-name">Nama perangkat</label>
+                  <input class="input" id="device-name" type="text" placeholder="cth: PC-ANDI-01" required />
+                </div>
+                <div class="field">
+                  <label class="field-label" for="device-os">Sistem operasi</label>
+                  <input class="input" id="device-os" type="text" placeholder="Windows 11 / macOS" />
+                </div>
+                <p class="form-error" id="device-error" role="alert" hidden></p>
+                <div class="form-actions">
+                  <a class="button button--secondary" href="../index.html">Nanti saja</a>
+                  <button class="button button--primary" id="device-submit" type="submit">Daftarkan perangkat</button>
+                </div>
+              </form>
+            </div>
+          </section>
+          <section class="state state--success section" id="device-success" hidden>
+            <h2>Perangkat berhasil didaftarkan</h2>
+            <p>BERESIN dapat menghubungi komputer Anda melalui perangkat ini.</p>
+            <div class="button-row"><a class="button button--secondary" href="../index.html">Buka percakapan</a></div>
+          </section>
+        </main>
+      </section>
+    </main>
+    <script src="../app.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        var form = BERESIN.el("device-form");
+        var successBox = BERESIN.el("device-success");
+        var errorBox = BERESIN.el("device-error");
+        var submit = BERESIN.el("device-submit");
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+          errorBox.hidden = true;
+          submit.disabled = true;
+          submit.textContent = "Mendaftarkan...";
+          try {
+            var name = BERESIN.el("device-name").value.trim();
+            await BERESIN.api("POST", "/auth/register-device", {
+              device_name: name,
+              os: BERESIN.el("device-os").value.trim() || null,
+              agent_version: "1.0.0",
+            });
+            form.hidden = true;
+            successBox.hidden = false;
+            BERESIN.showToast("Perangkat berhasil didaftarkan.", "success");
+          } catch (err) {
+            errorBox.textContent = err.message;
+            errorBox.hidden = false;
+            submit.disabled = false;
+            submit.textContent = "Daftarkan perangkat";
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

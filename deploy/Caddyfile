@@ -1,0 +1,10 @@
+{$BERESIN_DOMAIN} {
+    encode zstd gzip
+    header {
+        -Server
+    }
+    reverse_proxy beresin:8000 {
+        health_uri /ready
+        health_interval 15s
+    }
+}

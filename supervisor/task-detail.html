@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Detail task BERESIN untuk supervisor." />
+    <title>Detail Task | Supervisor | BERESIN</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body class="supervisor-page" data-require-role="SUPERVISOR" data-page="taskDetail">
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Navigasi Supervisor BERESIN">
+        <div class="sidebar-top">
+          <a class="brand" href="overview.html" aria-label="BERESIN, kembali ke overview"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><span>BERESIN</span></a>
+          <div class="supervisor-label">Supervisor</div>
+          <nav class="supervisor-nav" aria-label="Menu supervisor">
+            <a class="sidebar-link" href="overview.html"><span class="nav-symbol" aria-hidden="true">□</span><span>Overview</span></a>
+            <a class="sidebar-link" href="tasks.html"><span class="nav-symbol" aria-hidden="true">≡</span><span>Tasks</span></a>
+            <a class="sidebar-link" href="employees.html"><span class="nav-symbol" aria-hidden="true">○</span><span>Employees</span></a>
+            <a class="sidebar-link" href="approvals.html"><span class="nav-symbol" aria-hidden="true">!</span><span>Approvals</span></a>
+            <a class="sidebar-link" href="activity.html"><span class="nav-symbol" aria-hidden="true">◷</span><span>Activity</span></a>
+          </nav>
+        </div>
+        <div class="sidebar-bottom">
+          <a class="sidebar-link" href="settings.html"><span class="line-icon settings-icon" aria-hidden="true"></span><span>Settings</span></a>
+          <a class="sidebar-link" href="#" data-logout><span aria-hidden="true">→</span><span>Keluar</span></a>
+          <a class="account-link" href="#"><span class="avatar" aria-hidden="true">S</span><span class="account-copy"><strong id="account-name">Supervisor</strong><small>Supervisor</small></span></a>
+        </div>
+      </aside>
+      <section class="workspace" aria-label="Detail task">
+        <header class="topbar"><div class="mobile-brand brand" aria-label="BERESIN"><span class="brand-mark" aria-hidden="true"><span></span><span></span></span><span>BERESIN</span></div><div class="connection-status"><span class="status-dot" aria-hidden="true"></span><span>Sistem terhubung</span></div></header>
+        <main class="page-content" id="task-detail">
+          <a class="breadcrumb" href="tasks.html">Tasks <span class="breadcrumb-separator">/</span> Detail</a>
+          <div class="page-header"><div class="page-header-copy"><h1 class="page-title" id="detail-title">Task</h1></div><span id="detail-status-badge"></span></div>
+          <section class="section panel"><div class="panel-body"><dl class="detail-grid">
+            <div class="detail-item"><dt>Pengguna</dt><dd id="detail-user">-</dd></div>
+            <div class="detail-item"><dt>Perangkat</dt><dd id="detail-device">-</dd></div>
+            <div class="detail-item"><dt>Status</dt><dd id="detail-status">-</dd></div>
+            <div class="detail-item"><dt>Progress</dt><dd id="detail-progress">-</dd></div>
+            <div class="detail-item"><dt>Dimulai</dt><dd id="detail-started">-</dd></div>
+            <div class="detail-item"><dt>Error</dt><dd id="detail-error">-</dd></div>
+          </dl></div></section>
+          <section class="section panel"><div class="panel-header"><div><h2 class="panel-title">Aktivitas</h2></div></div><div class="panel-body"><div class="timeline" id="detail-timeline"></div></div></section>
+        </main>
+      </section>
+    </main>
+    <script src="../app.js"></script>
+    <script src="../supervisor.js"></script>
+  </body>
+</html>
