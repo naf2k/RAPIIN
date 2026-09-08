@@ -1,5 +1,27 @@
 # BERESIN Production Runbook
 
+## Loopback-only macOS deployment
+
+For a single-user local deployment, bind the API to `127.0.0.1` and use exact
+loopback origins. This topology is not reachable from LAN or the internet, so
+public-domain TLS and Windows validation are not applicable. Keep the server,
+agent, health monitor, and daily backup as separate user LaunchAgents:
+
+- `com.beresin.server`
+- `com.beresin.agent`
+- `com.beresin.monitor`
+- `com.beresin.backup`
+
+The monitor runs `ops/local_health_monitor.py` every minute and emits a macOS
+notification only when readiness changes. The daily backup targets
+`~/BeresinBackups`. Run `server/.venv/bin/python ops/local_uat.py` for a
+credentialed local smoke test. Secret and UAT credential files remain ignored
+under `server/data`, mode `0600`; never commit them.
+
+Before the reboot drill run `beresin startup-probe record`. After logging in
+again, run `beresin startup-probe verify`, require `/ready` to return HTTP 200,
+and confirm all four LaunchAgents are present.
+
 ## Supported release topology
 
 V1 supports one API instance with its SQLite database on a local persistent volume. Do not mount SQLite on NFS and do not run multiple API replicas against one database. Horizontal API scaling requires a PostgreSQL adapter and external durable queue; that is a post-V1 architecture gate, not a safe configuration switch.
