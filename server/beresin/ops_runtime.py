@@ -152,6 +152,20 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
 def dispatch_incident(conn, incident_id: int, runner=None) -> list[dict]:
     ids = assign_default_roles(conn, incident_id)
     results = [run_assignment(conn, assignment_id, runner=runner) for assignment_id in ids]
+    completed_roles = {
+        row["role"] for row in conn.execute(
+            "SELECT DISTINCT g.role FROM ops_agent_assignments a JOIN ops_agents g ON g.id=a.agent_id WHERE a.incident_id=? AND a.status='COMPLETED'",
+            (incident_id,),
+        ).fetchall()
+    }
+    synthesis = conn.execute("SELECT id,status FROM ops_agent_assignments WHERE incident_id=? AND assignment='LEAD synthesis' ORDER BY id DESC LIMIT 1", (incident_id,)).fetchone()
+    if completed_roles >= READ_ONLY_ROLES and not synthesis:
+        lead = _agent(conn, "LEAD")
+        synthesis_id = conn.execute(
+            "INSERT INTO ops_agent_assignments(incident_id,agent_id,assignment,status,created_at) VALUES(?,?,?,'PENDING',?)",
+            (incident_id, lead["id"], "LEAD synthesis", utcnow_iso()),
+        ).lastrowid
+        results.append(run_assignment(conn, synthesis_id, runner=runner))
     finalize_agent_triage(conn, incident_id)
     return results
 
@@ -162,7 +176,8 @@ def finalize_agent_triage(conn, incident_id: int) -> bool:
         "WHERE a.incident_id=? AND a.status='COMPLETED'",
         (incident_id,),
     ).fetchall()
-    if {row["role"] for row in roles} >= READ_ONLY_ROLES:
+    synthesis = conn.execute("SELECT 1 FROM ops_agent_assignments WHERE incident_id=? AND assignment='LEAD synthesis' AND status='COMPLETED'", (incident_id,)).fetchone()
+    if {row["role"] for row in roles} >= READ_ONLY_ROLES and synthesis:
         exists = conn.execute("SELECT 1 FROM ops_incident_events WHERE incident_id=? AND event_type='AGENT_TRIAGE_COMPLETED'", (incident_id,)).fetchone()
         if not exists:
             now = utcnow_iso()

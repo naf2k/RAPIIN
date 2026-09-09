@@ -71,9 +71,10 @@ def test_default_agents_exchange_durable_reports():
     conn = connect(); seed_ops(conn)
     incident = ingest_signal(conn, source="runtime", title="Provider failure", severity="HIGH", summary="Provider unavailable")
     results = dispatch_incident(conn, incident["id"], runner=lambda role, prompt: json.dumps({"summary": role, "confidence": 0.9}))
-    assert [r["status"] for r in results] == ["COMPLETED"] * 3
-    assert conn.execute("SELECT COUNT(*) n FROM ops_agent_assignments WHERE incident_id=?", (incident["id"],)).fetchone()["n"] == 3
-    assert conn.execute("SELECT COUNT(*) n FROM ops_agent_messages WHERE incident_id=?", (incident["id"],)).fetchone()["n"] == 3
+    assert [r["status"] for r in results] == ["COMPLETED"] * 4
+    assert conn.execute("SELECT COUNT(*) n FROM ops_agent_assignments WHERE incident_id=?", (incident["id"],)).fetchone()["n"] == 4
+    assert conn.execute("SELECT COUNT(*) n FROM ops_agent_messages WHERE incident_id=?", (incident["id"],)).fetchone()["n"] == 4
+    assert conn.execute("SELECT status FROM ops_incidents WHERE id=?", (incident["id"],)).fetchone()["status"] == "INVESTIGATING"
     conn.close()
 
 
@@ -87,6 +88,7 @@ def test_later_agents_receive_prior_structured_reports():
     dispatch_incident(conn, incident["id"], runner=runner)
     assert "LEAD report" in prompts[1][1]
     assert "SECURITY report" in prompts[2][1]
+    assert "DIAGNOSTIC report" in prompts[3][1]
     conn.close()
 
 

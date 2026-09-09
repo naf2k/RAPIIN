@@ -70,8 +70,7 @@ def _ops_tick() -> None:
             rows = conn.execute(
                 "SELECT i.id FROM ops_incidents i WHERE i.status IN ('OPEN','INVESTIGATING') "
                 "AND NOT EXISTS (SELECT 1 FROM ops_agent_assignments a WHERE a.incident_id=i.id AND a.status IN ('PENDING','ACTIVE')) "
-                "AND (SELECT COUNT(DISTINCT g.role) FROM ops_agent_assignments a JOIN ops_agents g ON g.id=a.agent_id "
-                "     WHERE a.incident_id=i.id AND a.status='COMPLETED' AND g.role IN ('LEAD','SECURITY','DIAGNOSTIC')) < 3 "
+                "AND NOT EXISTS (SELECT 1 FROM ops_incident_events e WHERE e.incident_id=i.id AND e.event_type='AGENT_TRIAGE_COMPLETED') "
                 "ORDER BY CASE i.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END, i.id LIMIT 5"
             ).fetchall()
             for row in rows:
