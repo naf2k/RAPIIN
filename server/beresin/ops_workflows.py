@@ -14,7 +14,7 @@ from .config import settings
 from .database import utcnow_iso
 from .ops_incidents import _event, get_incident, operations_frozen
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _run(command: list[str], cwd: Path, timeout: int = 300, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -86,10 +86,21 @@ def run_coder(conn, code_change_id: int, runner=None) -> dict:
                 raise RuntimeError("Hermes CLI tidak ditemukan oleh service account.")
             command = [hermes_command, "--cli", "--in", str(worktree), "--yolo", "-z", prompt]
             if shutil.which("sandbox-exec"):
-                profile = f'(version 1) (allow default) (deny file-write*) (allow file-write* (subpath "{worktree}")) (allow file-write* (subpath "/tmp"))'
+                hermes_state = (settings.data_dir / "ops-hermes").resolve()
+                profile = (
+                    '(version 1) (allow default) (deny file-write*) '
+                    '(allow file-write* (literal "/dev/null")) '
+                    f'(allow file-write* (subpath "{worktree}")) '
+                    f'(allow file-write* (subpath "{hermes_state}")) '
+                    '(allow file-write* (subpath "/tmp")) '
+                    '(allow file-write* (subpath "/private/tmp"))'
+                )
                 command = ["sandbox-exec", "-p", profile, *command]
             from .ops_runtime import hermes_process_environment
-            completed = _run(command, worktree, timeout=settings.ops_agent_timeout_seconds, env=hermes_process_environment())
+            try:
+                completed = _run(command, worktree, timeout=max(settings.ops_agent_timeout_seconds, 300), env=hermes_process_environment())
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError("Coder mencapai batas waktu 300 detik; perubahan parsial dipertahankan untuk review/retry.") from exc
             if completed.returncode:
                 raise RuntimeError(f"Coder gagal: {(completed.stderr or completed.stdout)[-1000:]}")
             output = completed.stdout
@@ -107,19 +118,29 @@ def run_checks(conn, code_change_id: int) -> list[dict]:
     if not change:
         raise LookupError("Code change tidak ditemukan.")
     worktree = Path(change["worktree_path"])
+    node_command = shutil.which("node") or str(Path.home() / ".local/bin/node")
     commands = [
         ("backend", [str(REPO_ROOT / "server/.venv/bin/python"), "-m", "pytest", "-q", "server/tests"]),
         ("agent", [str(REPO_ROOT / "agent/.venv/bin/python"), "-m", "pytest", "-q", "agent/tests"]),
-        ("javascript", ["node", "--check", "supervisor.js"]),
+        ("javascript", [node_command, "--check", "supervisor.js"]),
     ]
+    conn.execute(
+        "UPDATE ops_check_runs SET status='FAILED',output_summary=?,finished_at=? "
+        "WHERE code_change_id=? AND status='RUNNING'",
+        ("Check terputus sebelum menghasilkan hasil akhir.", utcnow_iso(), code_change_id),
+    )
     results = []
     for name, command in commands:
         started = utcnow_iso()
         check_id = conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status,command,started_at) VALUES(?,?,'RUNNING',?,?)", (code_change_id, name, " ".join(command), started)).lastrowid
         conn.commit()
-        completed = _run(command, worktree, timeout=900)
-        status = "PASSED" if completed.returncode == 0 else "FAILED"
-        summary = ((completed.stdout or "") + "\n" + (completed.stderr or ""))[-8000:]
+        try:
+            completed = _run(command, worktree, timeout=900)
+            status = "PASSED" if completed.returncode == 0 else "FAILED"
+            summary = ((completed.stdout or "") + "\n" + (completed.stderr or ""))[-8000:]
+        except Exception as exc:
+            status = "FAILED"
+            summary = f"Check tidak dapat dijalankan: {type(exc).__name__}: {exc}"[-8000:]
         conn.execute("UPDATE ops_check_runs SET status=?,output_summary=?,finished_at=? WHERE id=?", (status, summary, utcnow_iso(), check_id))
         results.append({"id": check_id, "name": name, "status": status, "output_summary": summary})
         if status == "FAILED":
@@ -128,10 +149,18 @@ def run_checks(conn, code_change_id: int) -> list[dict]:
     return results
 
 
+def _latest_checks_passed(conn, code_change_id: int) -> bool:
+    rows = conn.execute(
+        "SELECT name,status FROM ops_check_runs WHERE code_change_id=? ORDER BY id",
+        (code_change_id,),
+    ).fetchall()
+    latest = {row["name"]: row["status"] for row in rows}
+    return all(latest.get(name) == "PASSED" for name in ("backend", "agent", "javascript"))
+
+
 def create_pull_request(conn, code_change_id: int) -> dict:
     change = conn.execute("SELECT * FROM ops_code_changes WHERE id=?", (code_change_id,)).fetchone()
-    checks = conn.execute("SELECT status FROM ops_check_runs WHERE code_change_id=?", (code_change_id,)).fetchall()
-    if not checks or any(row["status"] != "PASSED" for row in checks):
+    if not _latest_checks_passed(conn, code_change_id):
         raise PermissionError("Semua check wajib lulus sebelum PR dibuat.")
     worktree = Path(change["worktree_path"])
     _run(["git", "add", "-A"], worktree)
@@ -158,8 +187,7 @@ def deploy(conn, incident_id: int, code_change_id: int, approval_id: int, enviro
     change = conn.execute("SELECT * FROM ops_code_changes WHERE id=? AND incident_id=?", (code_change_id, incident_id)).fetchone()
     if not change or not change["commit_sha"]:
         raise PermissionError("Artifact commit belum tersedia.")
-    checks = conn.execute("SELECT status FROM ops_check_runs WHERE code_change_id=?", (code_change_id,)).fetchall()
-    if not checks or any(r["status"] != "PASSED" for r in checks):
+    if not _latest_checks_passed(conn, code_change_id):
         raise PermissionError("Deployment hanya boleh memakai artifact dengan green checks.")
     artifact = change["commit_sha"]
     previous = conn.execute("SELECT artifact_ref FROM ops_deployments WHERE environment=? AND status='SUCCEEDED' ORDER BY id DESC LIMIT 1", (environment,)).fetchone()

@@ -7,11 +7,48 @@ from beresin.database import connect, utcnow_iso
 from beresin.ops_incidents import create_proposal, ingest_signal, respond_approval, seed_ops
 from beresin.ops_notifications import deliver_pending
 from beresin.ops_runtime import dispatch_incident
-from beresin.ops_workflows import deploy, provision_worktree, run_coder
+from beresin.ops_workflows import REPO_ROOT, _latest_checks_passed, deploy, provision_worktree, run_checks, run_coder
 
 
 def _actor(conn):
     return dict(conn.execute("SELECT * FROM users WHERE role='SUPERVISOR' LIMIT 1").fetchone())
+
+
+def test_operations_repo_root_points_to_checkout():
+    assert (REPO_ROOT / ".git").exists()
+    assert (REPO_ROOT / "server" / "beresin").is_dir()
+
+
+def test_check_runner_records_launch_failure_instead_of_leaving_running(tmp_path, monkeypatch):
+    conn = connect(); incident, approval = _incident_and_approval(conn)
+    now = utcnow_iso()
+    change_id = conn.execute(
+        "INSERT INTO ops_code_changes(incident_id,approval_id,branch_name,worktree_path,base_commit,status,created_at,updated_at) "
+        "VALUES(?,?,?,?,?,'READY_FOR_REVIEW',?,?)",
+        (incident["id"], approval["approval_id"], "ops/test-check", str(tmp_path), "base", now, now),
+    ).lastrowid
+    monkeypatch.setattr("beresin.ops_workflows._run", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing")))
+    results = run_checks(conn, change_id)
+    assert results[0]["status"] == "FAILED"
+    row = conn.execute("SELECT status,finished_at FROM ops_check_runs WHERE code_change_id=?", (change_id,)).fetchone()
+    assert row["status"] == "FAILED"
+    assert row["finished_at"]
+    conn.close()
+
+
+def test_latest_successful_rerun_supersedes_old_failure():
+    conn = connect(); incident, approval = _incident_and_approval(conn)
+    now = utcnow_iso()
+    change_id = conn.execute(
+        "INSERT INTO ops_code_changes(incident_id,approval_id,branch_name,worktree_path,base_commit,status,created_at,updated_at) "
+        "VALUES(?,?,?,?,?,'READY_FOR_REVIEW',?,?)",
+        (incident["id"], approval["approval_id"], "ops/test-rerun", "/tmp/test-rerun", "base", now, now),
+    ).lastrowid
+    conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'FAILED')", (change_id, "javascript"))
+    for name in ("backend", "agent", "javascript"):
+        conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'PASSED')", (change_id, name))
+    assert _latest_checks_passed(conn, change_id)
+    conn.close()
 
 
 def _incident_and_approval(conn, action_type="CODE_FIX"):
@@ -78,7 +115,8 @@ def test_deployment_uses_second_approval_and_rolls_back(monkeypatch):
     conn = connect(); incident, fix = _incident_and_approval(conn)
     now = utcnow_iso()
     change_id = conn.execute("INSERT INTO ops_code_changes(incident_id,approval_id,branch_name,worktree_path,base_commit,commit_sha,status,created_at,updated_at) VALUES(?,?,?,?,?,?,'READY_FOR_REVIEW',?,?)", (incident["id"], fix["approval_id"], "ops/test", "/tmp/test", "base", "artifact123", now, now)).lastrowid
-    conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'PASSED')", (change_id, "tests"))
+    for name in ("backend", "agent", "javascript"):
+        conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'PASSED')", (change_id, name))
     try:
         deploy(conn, incident["id"], change_id, fix["approval_id"], command_runner=lambda action, artifact: True)
         assert False, "code approval must not authorize deployment"
