@@ -105,6 +105,41 @@ def test_home_style_scan_skips_system_directories_and_source_projects():
         assert result["files"][0]["name"] == "visible.txt"
 
 
+def test_file_inventory_and_analysis_hashes_are_reused(tmp_path, monkeypatch):
+    _set_workspace(str(tmp_path))
+    first = tmp_path / "first.txt"
+    second = tmp_path / "second.txt"
+    first.write_text("same")
+    second.write_text("same")
+    local_tools._FILE_LIST_CACHE.clear()
+    local_tools._HASH_CACHE.clear()
+    walk_calls = 0
+    hash_calls = 0
+    original_walk = local_tools.os.walk
+    original_hash = local_tools._hash
+
+    def counted_walk(*args, **kwargs):
+        nonlocal walk_calls
+        walk_calls += 1
+        return original_walk(*args, **kwargs)
+
+    def counted_hash(path):
+        nonlocal hash_calls
+        hash_calls += 1
+        return original_hash(path)
+
+    monkeypatch.setattr(local_tools.os, "walk", counted_walk)
+    monkeypatch.setattr(local_tools, "_hash", counted_hash)
+
+    local_tools.run_tool("filesystem_scanner", {"path": str(tmp_path)})
+    local_tools.run_tool("file_classifier", {"path": str(tmp_path)})
+    local_tools.run_tool("duplicate_detector", {"path": str(tmp_path)})
+    local_tools.run_tool("duplicate_detector", {"path": str(tmp_path)})
+
+    assert walk_calls == 1
+    assert hash_calls == 2
+
+
 def test_local_classifier():
     with tempfile.TemporaryDirectory() as d:
         _set_workspace(d)

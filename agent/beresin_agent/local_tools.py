@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import time
 import zipfile
 from pathlib import Path
 
@@ -33,6 +34,9 @@ NON_USER_DUPLICATE_SUFFIXES = {
     ".sqlite-wal",
     ".lock",
 }
+FILE_LIST_CACHE_TTL_SECONDS = 30.0
+_FILE_LIST_CACHE: dict[str, tuple[float, list[Path], dict[str, int]]] = {}
+_HASH_CACHE: dict[tuple[str, int, int], str] = {}
 
 try:
     from pypdf import PdfReader  # type: ignore
@@ -67,9 +71,29 @@ def _metadata(path: Path) -> dict:
 
 def _files_under(root: Path) -> list[Path]:
     """Return user-visible files without descending into app-managed bundles."""
+    cache_key = str(root.expanduser().resolve())
+    cached = _FILE_LIST_CACHE.get(cache_key)
+    now = time.monotonic()
+    if cached and now - cached[0] <= FILE_LIST_CACHE_TTL_SECONDS:
+        directories_unchanged = True
+        for directory, previous_mtime_ns in cached[2].items():
+            try:
+                if Path(directory).stat().st_mtime_ns != previous_mtime_ns:
+                    directories_unchanged = False
+                    break
+            except OSError:
+                directories_unchanged = False
+                break
+        if directories_unchanged:
+            return list(cached[1])
     out: list[Path] = []
+    directory_mtimes: dict[str, int] = {}
     for current, directory_names, file_names in os.walk(root, followlinks=False):
         current_path = Path(current)
+        try:
+            directory_mtimes[str(current_path)] = current_path.stat().st_mtime_ns
+        except OSError:
+            continue
         directory_names[:] = [
             name
             for name in directory_names
@@ -90,7 +114,9 @@ def _files_under(root: Path) -> list[Path]:
                 continue
             out.append(entry)
             if len(out) >= MAX_FILES:
+                _FILE_LIST_CACHE[cache_key] = (now, list(out), directory_mtimes)
                 return out
+    _FILE_LIST_CACHE[cache_key] = (now, list(out), directory_mtimes)
     return out
 
 
@@ -100,6 +126,26 @@ def _hash(path: Path) -> str:
         while chunk := handle.read(65536):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _cached_hash(path: Path) -> str:
+    """Cache analysis hashes while keeping mutation verification uncached."""
+    stat = path.stat()
+    key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+    cached = _HASH_CACHE.get(key)
+    if cached is not None:
+        return cached
+    digest = _hash(path)
+    _HASH_CACHE[key] = digest
+    if len(_HASH_CACHE) > MAX_FILES * 2:
+        _HASH_CACHE.clear()
+        _HASH_CACHE[key] = digest
+    return digest
+
+
+def _invalidate_analysis_caches() -> None:
+    _FILE_LIST_CACHE.clear()
+    _HASH_CACHE.clear()
 
 
 def _fingerprint(path: Path) -> dict:
@@ -302,6 +348,8 @@ def _collect_mutation_paths(arguments: dict) -> list[str]:
 def _mutate(arguments: dict, operation: str) -> dict:
     """Move/copy/rename/delete/batch inside the agent workspace."""
     from .config import workspace_root
+
+    _invalidate_analysis_caches()
 
     destination = arguments.get("destination")
     new_name = arguments.get("new_name")
@@ -513,7 +561,7 @@ def _duplicates(arguments: dict) -> dict:
         try:
             if f.stat().st_size == 0 or f.suffix.casefold() in NON_USER_DUPLICATE_SUFFIXES:
                 continue
-            by_hash.setdefault(_hash(f), []).append(f)
+            by_hash.setdefault(_cached_hash(f), []).append(f)
         except OSError:
             continue
     groups = []
@@ -595,7 +643,7 @@ def _organize(arguments: dict) -> dict:
             match = YEAR_RE.search(path.name)
             if match:
                 by_year.setdefault(match.group(0), []).append(path)
-            by_hash.setdefault(_hash(path), []).append(path)
+            by_hash.setdefault(_cached_hash(path), []).append(path)
         except OSError:
             continue
 
