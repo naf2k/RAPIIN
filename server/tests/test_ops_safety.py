@@ -26,3 +26,16 @@ def test_agent_report_is_schema_validated_and_sanitized():
     with pytest.raises(ValueError):
         parse_agent_report('{"summary":"missing confidence"}')
     assert parse_agent_report('{"summary":"compatible", "confidence":"high"}')["confidence"] == 0.85
+
+
+def test_hermes_profiles_are_isolated_and_do_not_write_credentials(tmp_path, monkeypatch):
+    from beresin.config import settings
+    from beresin.ops_runtime import hermes_process_environment
+    monkeypatch.setattr(settings, "beresin_data_dir", str(tmp_path))
+    monkeypatch.setattr(settings, "ai_api_key", "secret-only-in-process")
+    lead = hermes_process_environment("lead")
+    coder = hermes_process_environment("coder")
+    assert lead["HERMES_HOME"] != coder["HERMES_HOME"]
+    assert lead["OPENAI_API_KEY"] == "secret-only-in-process"
+    assert not (tmp_path / "ops-hermes" / "lead" / ".env").exists()
+    assert not (tmp_path / "ops-hermes" / "coder" / ".env").exists()

@@ -124,7 +124,7 @@ def run_coder(conn, code_change_id: int, runner=None) -> dict:
                 command = ["sandbox-exec", "-p", profile, *command]
             from .ops_runtime import hermes_process_environment
             try:
-                completed = _run(command, worktree, timeout=max(settings.ops_agent_timeout_seconds, 300), env=hermes_process_environment())
+                completed = _run(command, worktree, timeout=max(settings.ops_agent_timeout_seconds, 300), env=hermes_process_environment("coder"))
             except subprocess.TimeoutExpired as exc:
                 raise RuntimeError("Coder mencapai batas waktu 300 detik; perubahan parsial dipertahankan untuk review/retry.") from exc
             if completed.returncode:

@@ -22,9 +22,12 @@ ROLE_PROMPTS = {
 }
 
 
-def hermes_process_environment() -> dict:
+def hermes_process_environment(profile: str = "shared") -> dict:
     """Create a private profile without persisting the provider credential."""
-    home = settings.data_dir / "ops-hermes"
+    safe_profile = profile.strip().lower()
+    if safe_profile not in {"lead", "security", "diagnostic", "coder", "shared"}:
+        raise ValueError("Profile Operations Hermes tidak valid.")
+    home = settings.data_dir / "ops-hermes" / safe_profile
     home.mkdir(parents=True, exist_ok=True, mode=0o700)
     config = home / "config.yaml"
     config.write_text(
@@ -122,7 +125,7 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
             if not Path(hermes_command).is_file():
                 raise RuntimeError("Hermes CLI tidak ditemukan oleh service account.")
             command = [hermes_command, "--safe-mode", "--cli", "--provider", "custom", "-m", settings.ai_model, "-z", prompt]
-            completed = subprocess.run(command, cwd=str(settings.data_dir), capture_output=True, text=True, timeout=settings.ops_agent_timeout_seconds, check=False, env=hermes_process_environment())
+            completed = subprocess.run(command, cwd=str(settings.data_dir), capture_output=True, text=True, timeout=settings.ops_agent_timeout_seconds, check=False, env=hermes_process_environment(row["role"]))
             combined = (completed.stdout or "") + "\n" + (completed.stderr or "")
             if completed.returncode or "HTTP 4" in combined or "Error from provider" in combined:
                 raise RuntimeError(f"Hermes exit {completed.returncode}: {(completed.stderr or '')[-500:]}")
