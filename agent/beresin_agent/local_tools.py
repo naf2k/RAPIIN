@@ -328,8 +328,9 @@ def _mutate(arguments: dict, operation: str) -> dict:
 
     dest_dir = Path(destination).expanduser()
     _guard_mutation(dest_dir, destination=True)
-    if not dest_dir.is_dir():
-        return {"status": "ERROR", "message": f"Folder tujuan tidak ditemukan: {dest_dir}"}
+    if dest_dir.exists() and not dest_dir.is_dir():
+        return {"status": "ERROR", "message": f"Tujuan bukan folder: {dest_dir}"}
+    dest_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
     errors = []

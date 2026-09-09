@@ -209,6 +209,20 @@ def test_mutation_refuses_destination_collision(tmp_path, monkeypatch):
     assert (destination / "same.txt").read_text() == "existing"
 
 
+def test_file_move_creates_new_destination_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "workspace_root", lambda: tmp_path)
+    source = tmp_path / "foto.png"
+    source.write_bytes(b"image")
+    destination = tmp_path / "Gambar"
+
+    result = local_tools.run_tool("file_move", {"path": str(source), "destination": str(destination)})
+
+    assert result["status"] == "OK"
+    assert result["verified_count"] == 1
+    assert not source.exists()
+    assert (destination / "foto.png").read_bytes() == b"image"
+
+
 def test_mutation_refuses_symlink_escape(tmp_path, monkeypatch):
     workspace = tmp_path / "workspace"
     outside = tmp_path / "outside"

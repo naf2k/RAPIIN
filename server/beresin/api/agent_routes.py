@@ -117,9 +117,10 @@ def result(body: ResultRequest, conn=Depends(get_db)):
                     processed = tool_result.get("verified_count") or tool_result.get("file_count") or 0
                     total = tool_result.get("planned_count") or tool_result.get("file_count") or processed
                     conversation_job = conn.execute(
-                        "SELECT 1 FROM conversation_jobs WHERE task_id = ?", (task["id"],)
+                        "SELECT 1 FROM conversation_jobs WHERE task_id = ? AND status = 'CLAIMED'",
+                        (task["id"],),
                     ).fetchone()
-                    if conversation_job:
+                    if conversation_job and task.get("approval_status") != "APPROVED":
                         # The worker still needs to persist the model's final
                         # answer after receiving this device tool result.
                         update_task(conn, task["id"], status="RUNNING", progress=95, processed_count=processed, total_count=total, result=body.result)

@@ -121,12 +121,20 @@ def test_agent_result_keeps_conversation_running_until_final_answer(client):
     device_key, device_id = _register_user_with_key(client, "agent3@example.com")
 
     from beresin.agent_jobs import enqueue_job
-    from beresin.database import db_session
+    from beresin.database import db_session, utcnow_iso
     from beresin.tasks import create_task, get_task
 
     with db_session() as conn:
         user_id = conn.execute("SELECT id FROM users WHERE email = 'agent3@example.com'").fetchone()["id"]
         task_id = create_task(conn, user_id=user_id, device_id=device_id, type="conversation")
+        conversation_id = conn.execute(
+            "INSERT INTO conversations(user_id, title, created_at, updated_at) VALUES (?, 'active', ?, ?)",
+            (user_id, utcnow_iso(), utcnow_iso()),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO conversation_jobs(task_id, user_id, conversation_id, device_id, status, created_at) VALUES (?, ?, ?, ?, 'CLAIMED', ?)",
+            (task_id, user_id, conversation_id, device_id, utcnow_iso()),
+        )
         job_id = enqueue_job(
             conn,
             task_id=task_id,
@@ -154,5 +162,5 @@ def test_agent_result_keeps_conversation_running_until_final_answer(client):
     )
     with db_session() as conn:
         task = get_task(conn, task_id)
-    assert task["status"] == "COMPLETED"
-    assert task["progress"] == 100
+    assert task["status"] == "RUNNING"
+    assert task["progress"] == 95
