@@ -493,3 +493,11 @@ def test_expired_and_tampered_approval_snapshots_are_rejected(client):
             assert False, "tampered approval should fail"
         except ValueError as exc:
             assert "Snapshot approval berubah" in str(exc)
+
+
+def test_device_wait_budget_supports_large_folder_scans():
+    """A healthy leased agent may need over a minute for a large folder."""
+    from beresin.agent_jobs import LEASE_SECONDS, WAIT_BUDGET_SECONDS
+
+    assert WAIT_BUDGET_SECONDS >= 120
+    assert WAIT_BUDGET_SECONDS > LEASE_SECONDS

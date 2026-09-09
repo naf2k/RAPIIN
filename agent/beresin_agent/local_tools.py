@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 import re
 import shutil
 import zipfile
@@ -16,6 +17,14 @@ from pathlib import Path
 
 MAX_FILES = 5000
 MAX_TEXT_CHARS = 50_000
+PROTECTED_PACKAGE_SUFFIXES = {
+    ".photoslibrary",
+    ".photolibrary",
+    ".musiclibrary",
+    ".imovielibrary",
+    ".localized",
+}
+PROTECTED_PACKAGE_NAMES = {"photo booth library"}
 
 try:
     from pypdf import PdfReader  # type: ignore
@@ -49,16 +58,28 @@ def _metadata(path: Path) -> dict:
 
 
 def _files_under(root: Path) -> list[Path]:
+    """Return user-visible files without descending into app-managed bundles."""
     out: list[Path] = []
-    for entry in root.rglob("*"):
-        try:
-            if not entry.is_file():
+    for current, directory_names, file_names in os.walk(root, followlinks=False):
+        directory_names[:] = [
+            name
+            for name in directory_names
+            if not name.startswith(".")
+            and name.lower() not in PROTECTED_PACKAGE_NAMES
+            and Path(name).suffix.lower() not in PROTECTED_PACKAGE_SUFFIXES
+        ]
+        for name in file_names:
+            if name.startswith("."):
                 continue
-        except OSError:
-            continue
-        out.append(entry)
-        if len(out) >= MAX_FILES:
-            break
+            entry = Path(current) / name
+            try:
+                if not entry.is_file() or entry.is_symlink():
+                    continue
+            except OSError:
+                continue
+            out.append(entry)
+            if len(out) >= MAX_FILES:
+                return out
     return out
 
 

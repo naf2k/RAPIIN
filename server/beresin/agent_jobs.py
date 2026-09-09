@@ -17,7 +17,10 @@ from datetime import datetime, timedelta, timezone
 from .audit import record_audit
 from .database import connect, utcnow_iso
 
-WAIT_BUDGET_SECONDS = 60
+# Large user folders can legitimately take longer than a minute to enumerate
+# and hash. The desktop agent renews its lease while it works, so the server
+# must keep waiting long enough to receive that valid result.
+WAIT_BUDGET_SECONDS = 180
 LEASE_SECONDS = 90
 
 

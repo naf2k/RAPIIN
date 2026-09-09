@@ -47,6 +47,34 @@ def test_local_duplicates():
         assert result["duplicate_files"] == 1
 
 
+def test_scan_and_duplicates_ignore_hidden_files_and_app_bundles():
+    with tempfile.TemporaryDirectory() as d:
+        _set_workspace(d)
+        Path(d, "visible-a.txt").write_text("same")
+        Path(d, "visible-b.txt").write_text("same")
+        Path(d, ".hidden.txt").write_text("same")
+        bundle = Path(d, "Photos Library.photoslibrary", "originals")
+        bundle.mkdir(parents=True)
+        Path(bundle, "managed-a.jpg").write_text("managed")
+        Path(bundle, "managed-b.jpg").write_text("managed")
+        photo_booth = Path(d, "Photo Booth Library", "Originals")
+        photo_booth.mkdir(parents=True)
+        Path(photo_booth, "managed-c.jpg").write_text("managed")
+        Path(photo_booth, "managed-d.jpg").write_text("managed")
+
+        scan = local_tools.run_tool("filesystem_scanner", {"path": d})
+        assert scan["file_count"] == 2
+        duplicates = local_tools.run_tool("duplicate_detector", {"path": d})
+        assert duplicates["duplicate_groups"] == 1
+        assert duplicates["duplicate_files"] == 1
+        duplicates = local_tools.run_tool("duplicate_detector", {"path": d})
+
+        assert scan["file_count"] == 2
+        assert duplicates["duplicate_groups"] == 1
+        assert duplicates["duplicate_files"] == 1
+        assert all("photoslibrary" not in path.lower() for group in duplicates["groups"] for path in group["duplicates"])
+
+
 def test_local_classifier():
     with tempfile.TemporaryDirectory() as d:
         _set_workspace(d)

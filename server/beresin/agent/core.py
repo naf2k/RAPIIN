@@ -224,7 +224,7 @@ class HermesCore:
         import json
         import time
 
-        from ..agent_jobs import enqueue_job, get_job
+        from ..agent_jobs import WAIT_BUDGET_SECONDS, enqueue_job, get_job
         from ..database import connect
 
         if not device_id:
@@ -254,7 +254,7 @@ class HermesCore:
         # Poll through a separate read connection so the agent can write.
         poll_conn = connect()
         try:
-            deadline = time.monotonic() + 25  # seconds to wait for the agent
+            deadline = time.monotonic() + WAIT_BUDGET_SECONDS
             while time.monotonic() < deadline:
                 time.sleep(1.0)
                 try:
