@@ -317,6 +317,8 @@ CREATE TABLE IF NOT EXISTS ops_notifications (
     delivery_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (delivery_status IN ('PENDING','SENT','FAILED','SKIPPED')),
     delivered_at TEXT,
     last_error TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -445,6 +447,8 @@ MIGRATIONS = [
     "ALTER TABLE ops_notifications ADD COLUMN delivery_status TEXT NOT NULL DEFAULT 'PENDING'",
     "ALTER TABLE ops_notifications ADD COLUMN delivered_at TEXT",
     "ALTER TABLE ops_notifications ADD COLUMN last_error TEXT",
+    "ALTER TABLE ops_notifications ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE ops_notifications ADD COLUMN next_attempt_at TEXT",
     "ALTER TABLE ops_approvals ADD COLUMN idempotency_key TEXT",
     "ALTER TABLE ops_approvals ADD COLUMN expires_at TEXT",
     "ALTER TABLE ops_agent_assignments ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0",

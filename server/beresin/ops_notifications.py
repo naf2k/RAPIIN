@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 from .config import settings
 from .database import utcnow_iso
@@ -43,15 +44,20 @@ def deliver_pending(conn, limit: int = 10) -> list[dict]:
     rows = conn.execute(
         """SELECT n.*, i.title incident_title, i.status incident_status, i.summary incident_summary
            FROM ops_notifications n LEFT JOIN ops_incidents i ON i.id=n.incident_id
-           WHERE n.delivery_status='PENDING' ORDER BY n.id LIMIT ?""", (limit,),
+           WHERE (n.delivery_status='PENDING' OR (n.delivery_status='FAILED' AND n.next_attempt_at <= ?))
+             AND n.attempt_count < 3 ORDER BY n.id LIMIT ?""", (utcnow_iso(), limit),
     ).fetchall()
     results = []
     for row in rows:
         incident = {"id": row["incident_id"], "title": row["incident_title"] or row["title"], "severity": row["severity"], "status": row["incident_status"] or "OPEN", "summary": row["incident_summary"] or row["body"]}
         result = notify_owner(incident)
+        attempts = row["attempt_count"] + (1 if result["status"] in {"SENT", "FAILED"} else 0)
+        retry_at = None
+        if result["status"] == "FAILED" and attempts < 3:
+            retry_at = (datetime.now(timezone.utc) + timedelta(minutes=(1, 5, 15)[attempts - 1])).isoformat()
         conn.execute(
-            "UPDATE ops_notifications SET delivery_status=?,delivered_at=?,last_error=? WHERE id=?",
-            (result["status"], utcnow_iso() if result["status"] == "SENT" else None, result.get("reason"), row["id"]),
+            "UPDATE ops_notifications SET delivery_status=?,delivered_at=?,last_error=?,attempt_count=?,next_attempt_at=? WHERE id=?",
+            (result["status"], utcnow_iso() if result["status"] == "SENT" else None, result.get("reason"), attempts, retry_at, row["id"]),
         )
         results.append({"notification_id": row["id"], **result})
     return results

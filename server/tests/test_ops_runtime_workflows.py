@@ -134,7 +134,9 @@ def test_telegram_failure_falls_back_to_database(monkeypatch):
     conn = connect(); ingest_signal(conn, source="notify", title="Notify owner", severity="CRITICAL")
     result = deliver_pending(conn)
     assert result[-1]["status"] == "FAILED"
-    assert conn.execute("SELECT COUNT(*) n FROM ops_notifications WHERE delivery_status='FAILED'").fetchone()["n"] >= 1
+    notification = conn.execute("SELECT delivery_status,attempt_count,next_attempt_at FROM ops_notifications WHERE delivery_status='FAILED' ORDER BY id DESC LIMIT 1").fetchone()
+    assert notification["attempt_count"] == 1
+    assert notification["next_attempt_at"]
     conn.close()
 
 
