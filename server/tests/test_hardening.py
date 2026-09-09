@@ -155,6 +155,22 @@ def test_production_config_accepts_https_and_strong_secrets():
     assert safe.allowed_origins == ["https://beresin.example.com"]
 
 
+def test_production_operations_config_requires_bounded_runtime_and_secure_telegram():
+    from beresin.config import Settings
+    base = dict(
+        beresin_env="production", beresin_secret_key="a-unique-long-random-secret-value",
+        beresin_init_supervisor_email="ops@beresin.example.id",
+        beresin_init_supervisor_password="A-unique-password-123!",
+        beresin_allowed_origins="https://beresin.example.com",
+        beresin_monitoring_token="monitoring-token-with-at-least-32-characters",
+        beresin_allow_public_registration=False,
+    )
+    with pytest.raises(RuntimeError, match="MAX_CONCURRENCY"):
+        Settings(**base, ops_agent_max_concurrency=0).validate_for_startup()
+    with pytest.raises(RuntimeError, match="PUBLIC_BASE_URL"):
+        Settings(**base, ops_telegram_bot_token="secret", ops_telegram_chat_id="owner", ops_public_base_url="http://localhost").validate_for_startup()
+
+
 def test_production_config_loads_secret_files(tmp_path):
     from beresin.config import Settings
     secret = tmp_path / "server-secret"

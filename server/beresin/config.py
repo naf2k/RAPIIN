@@ -102,6 +102,18 @@ class Settings(BaseSettings):
             errors.append("BERESIN_MONITORING_TOKEN wajib minimal 32 karakter")
         if self.beresin_allow_public_registration:
             errors.append("BERESIN_ALLOW_PUBLIC_REGISTRATION wajib false di production")
+        if self.ops_agent_max_concurrency < 1 or self.ops_agent_max_concurrency > 8:
+            errors.append("OPS_AGENT_MAX_CONCURRENCY wajib antara 1 dan 8")
+        if self.ops_agent_daily_run_limit < self.ops_agent_max_concurrency:
+            errors.append("OPS_AGENT_DAILY_RUN_LIMIT tidak boleh lebih kecil dari concurrency")
+        if self.ops_agent_timeout_seconds < 30 or self.ops_agent_timeout_seconds > 900:
+            errors.append("OPS_AGENT_TIMEOUT_SECONDS wajib antara 30 dan 900 detik")
+        if self.ops_agents_enabled and not self.ops_hermes_commit:
+            errors.append("OPS_HERMES_COMMIT wajib dipin saat Operations Agent aktif")
+        if self.ops_telegram_bot_token and not self.ops_telegram_chat_id:
+            errors.append("OPS_TELEGRAM_CHAT_ID wajib saat Telegram aktif")
+        if self.ops_telegram_bot_token and not self.ops_public_base_url.startswith("https://"):
+            errors.append("OPS_PUBLIC_BASE_URL wajib HTTPS saat Telegram aktif di production")
         if errors:
             raise RuntimeError("Konfigurasi production tidak aman: " + "; ".join(errors))
 

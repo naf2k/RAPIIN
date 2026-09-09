@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> int:
     commands = [
-        [str(ROOT / "server/.venv/bin/python"), "-m", "pytest", "-q", "server/tests/test_operations_center.py", "server/tests/test_ops_runtime_workflows.py"],
+        [str(ROOT / "server/.venv/bin/python"), "-m", "pytest", "-q", "server/tests/test_operations_center.py", "server/tests/test_ops_runtime_workflows.py", "server/tests/test_ops_adapter.py", "server/tests/test_ops_safety.py"],
         [str(ROOT / "agent/.venv/bin/python"), "-m", "pytest", "-q", "agent/tests"],
         ["node", "--check", "supervisor.js"],
     ]
@@ -28,6 +28,13 @@ def main() -> int:
         "scenarios": [
             "signal deduplication and audit timeline",
             "Lead Security Diagnostic durable coordination",
+            "role-scoped Operations tool gateway",
+            "prompt injection and recursive secret redaction",
+            "assignment lease recovery and bounded retry",
+            "Lead final synthesis and read-only proposal",
+            "daily digest grouping and notification backoff",
+            "approval expiry idempotency and snapshot integrity",
+            "audit hash-chain tamper detection",
             "Telegram failure database fallback",
             "unapproved Coder rejection",
             "isolated worktree source protection",
