@@ -110,6 +110,13 @@ def get_incident(conn, incident_id: int) -> dict | None:
     result["events"] = [{**dict(e), "payload": json.loads(e["payload_json"])} for e in conn.execute("SELECT * FROM ops_incident_events WHERE incident_id=? ORDER BY id", (incident_id,)).fetchall()]
     result["proposals"] = [dict(r) for r in conn.execute("SELECT * FROM ops_action_proposals WHERE incident_id=? ORDER BY id DESC", (incident_id,)).fetchall()]
     result["approvals"] = [dict(r) for r in conn.execute("SELECT * FROM ops_approvals WHERE incident_id=? ORDER BY id DESC", (incident_id,)).fetchall()]
+    result["assignments"] = [dict(r) for r in conn.execute("SELECT a.*,g.role,g.name agent_name FROM ops_agent_assignments a JOIN ops_agents g ON g.id=a.agent_id WHERE a.incident_id=? ORDER BY a.id", (incident_id,)).fetchall()]
+    result["agent_messages"] = [dict(r) for r in conn.execute("SELECT m.*,g.role sender_role FROM ops_agent_messages m LEFT JOIN ops_agents g ON g.id=m.sender_agent_id WHERE m.incident_id=? ORDER BY m.id", (incident_id,)).fetchall()]
+    changes = [dict(r) for r in conn.execute("SELECT * FROM ops_code_changes WHERE incident_id=? ORDER BY id DESC", (incident_id,)).fetchall()]
+    for change in changes:
+        change["checks"] = [dict(r) for r in conn.execute("SELECT * FROM ops_check_runs WHERE code_change_id=? ORDER BY id", (change["id"],)).fetchall()]
+    result["code_changes"] = changes
+    result["deployments"] = [dict(r) for r in conn.execute("SELECT * FROM ops_deployments WHERE incident_id=? ORDER BY id DESC", (incident_id,)).fetchall()]
     return result
 
 
@@ -127,9 +134,14 @@ def create_proposal(conn, incident_id: int, *, action_type: str, title: str, des
     approval_id = None
     if action_type in {"CODE_FIX", "DEPLOYMENT"}:
         approval_type = action_type
+        snapshot_hash = hashlib.sha256(json.dumps({
+            "incident_id": incident_id, "proposal_id": cur.lastrowid,
+            "action_type": action_type, "title": title, "description": description,
+            "risk": risk,
+        }, sort_keys=True).encode()).hexdigest()
         approval_id = conn.execute(
-            "INSERT INTO ops_approvals(incident_id,proposal_id,approval_type,requested_at) VALUES(?,?,?,?)",
-            (incident_id, cur.lastrowid, approval_type, now),
+            "INSERT INTO ops_approvals(incident_id,proposal_id,approval_type,snapshot_hash,requested_at) VALUES(?,?,?,?,?)",
+            (incident_id, cur.lastrowid, approval_type, snapshot_hash, now),
         ).lastrowid
         conn.execute("UPDATE ops_incidents SET status=?,updated_at=? WHERE id=?", ("AWAITING_APPROVAL" if action_type == "CODE_FIX" else "AWAITING_DEPLOY_APPROVAL", now, incident_id))
     _event(conn, incident_id, "PROPOSAL_CREATED", actor["name"], actor["role"], {"proposal_id": cur.lastrowid, "approval_id": approval_id, "action_type": action_type})
@@ -213,10 +225,33 @@ def collect_runtime_signals(conn) -> list[dict]:
     stale = conn.execute("SELECT COUNT(*) n FROM devices WHERE status='OFFLINE'").fetchone()["n"]
     if stale:
         created.append(ingest_signal(conn, source="device-monitor", title="Desktop agent offline", severity="HIGH", summary=f"{stale} perangkat offline.", resource="devices"))
+    else:
+        auto_resolve(conn, source="device-monitor", resource="devices", note="Semua desktop agent kembali online.")
     failed = conn.execute("SELECT COUNT(*) n FROM tasks WHERE status='FAILED' AND created_at >= datetime('now','-24 hours')").fetchone()["n"]
     if failed:
         created.append(ingest_signal(conn, source="task-monitor", title="Task execution failed", severity="HIGH", summary=f"{failed} task gagal dalam 24 jam.", resource="tasks"))
+    else:
+        auto_resolve(conn, source="task-monitor", resource="tasks", note="Tidak ada task gagal dalam jendela 24 jam.")
     stuck = conn.execute("SELECT COUNT(*) n FROM agent_jobs WHERE status IN ('PENDING','CLAIMED') AND created_at < datetime('now','-15 minutes')").fetchone()["n"]
     if stuck:
         created.append(ingest_signal(conn, source="queue-monitor", title="Agent queue stuck", severity="CRITICAL", summary=f"{stuck} job melewati 15 menit.", resource="agent_jobs"))
+    else:
+        auto_resolve(conn, source="queue-monitor", resource="agent_jobs", note="Antrean kembali mengalir normal.")
+    auto_resolve(conn, source="local-health-monitor", title="Server recovered after readiness failure", note="Recovery berhasil diverifikasi oleh readiness monitor.")
     return created
+
+
+def auto_resolve(conn, *, source: str, resource: str | None = None, title: str | None = None, note: str) -> int:
+    where = ["source=?", f"status IN ({','.join('?' for _ in ACTIVE_STATUSES)})"]
+    args: list = [source, *ACTIVE_STATUSES]
+    if resource is not None:
+        where.append("affected_resource=?"); args.append(resource)
+    if title is not None:
+        where.append("title=?"); args.append(title)
+    rows = conn.execute("SELECT id FROM ops_incidents WHERE " + " AND ".join(where), args).fetchall()
+    now = utcnow_iso()
+    for row in rows:
+        conn.execute("UPDATE ops_incidents SET status='RESOLVED',resolved_at=?,updated_at=? WHERE id=?", (now, now, row["id"]))
+        _event(conn, row["id"], "AUTO_RESOLVED", "system", "SYSTEM", {"note": note})
+        record_audit(conn, actor="system", actor_role="SYSTEM", action="ops_incident_auto_resolved", resource=f"ops-incident:{row['id']}")
+    return len(rows)

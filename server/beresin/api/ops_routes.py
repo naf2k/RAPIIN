@@ -56,6 +56,16 @@ class FreezeBody(BaseModel):
     reason: str = Field(default="", max_length=2000)
 
 
+class CodeActionBody(BaseModel):
+    approval_id: int
+
+
+class DeployBody(BaseModel):
+    code_change_id: int
+    approval_id: int
+    environment: str = Field(default="production", pattern="^(staging|production)$")
+
+
 @router.get("/overview")
 def ops_overview(refresh: bool = False, conn=Depends(get_db), user=Depends(require_supervisor)):
     seed_ops(conn)
@@ -132,6 +142,61 @@ def ops_emergency_pause(body: FreezeBody, conn=Depends(get_db), user=Depends(req
 @router.get("/notifications")
 def ops_notifications(conn=Depends(get_db), user=Depends(require_supervisor)):
     return [dict(r) for r in conn.execute("SELECT * FROM ops_notifications ORDER BY id DESC LIMIT 100").fetchall()]
+
+
+@router.post("/incidents/{incident_id}/agents/dispatch")
+def ops_dispatch_agents(incident_id: int, conn=Depends(get_db), user=Depends(require_supervisor)):
+    from ..ops_runtime import dispatch_incident
+    if not get_incident(conn, incident_id):
+        raise HTTPException(status_code=404, detail="Insiden tidak ditemukan.")
+    return {"results": dispatch_incident(conn, incident_id)}
+
+
+@router.post("/incidents/{incident_id}/code/provision")
+def ops_provision_code(incident_id: int, body: CodeActionBody, conn=Depends(get_db), user=Depends(require_supervisor)):
+    from ..ops_workflows import provision_worktree
+    try:
+        return provision_worktree(conn, incident_id, body.approval_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/code-changes/{change_id}/run-coder")
+def ops_run_coder(change_id: int, conn=Depends(get_db), user=Depends(require_supervisor)):
+    from ..ops_workflows import run_coder
+    try:
+        return run_coder(conn, change_id)
+    except (PermissionError, RuntimeError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/code-changes/{change_id}/checks")
+def ops_run_checks(change_id: int, conn=Depends(get_db), user=Depends(require_supervisor)):
+    from ..ops_workflows import run_checks
+    try:
+        return {"checks": run_checks(conn, change_id)}
+    except (LookupError, PermissionError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/code-changes/{change_id}/pull-request")
+def ops_pull_request(change_id: int, conn=Depends(get_db), user=Depends(require_supervisor)):
+    from ..ops_workflows import create_pull_request
+    try:
+        return create_pull_request(conn, change_id)
+    except (PermissionError, RuntimeError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/incidents/{incident_id}/deploy")
+def ops_deploy(incident_id: int, body: DeployBody, conn=Depends(get_db), user=Depends(require_supervisor)):
+    from ..ops_workflows import deploy
+    try:
+        return deploy(conn, incident_id, body.code_change_id, body.approval_id, body.environment)
+    except (PermissionError, RuntimeError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @internal_router.post("/signals")

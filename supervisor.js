@@ -687,8 +687,78 @@
     [["Investigasi", "INVESTIGATING"], ["Verifikasi", "VERIFYING"], ["Selesaikan", "RESOLVED"]].forEach(function (entry) {
       var b = document.createElement("button"); b.className = "button button--secondary"; b.textContent = entry[0]; b.addEventListener("click", async function () { await BERESIN.api("POST", "/supervisor/ops/incidents/" + id + "/status", {status: entry[1], note: "Diputuskan dari Operations Center"}); await loadOperations(false); }); actions.appendChild(b);
     }); box.appendChild(actions);
+    var dispatch = document.createElement("button");
+    dispatch.className = "button button--secondary";
+    dispatch.textContent = "Jalankan analisis agent";
+    dispatch.addEventListener("click", async function () {
+      try {
+        await BERESIN.api("POST", "/supervisor/ops/incidents/" + id + "/agents/dispatch");
+        BERESIN.showToast("Laporan agent tersimpan.", "success");
+        await loadIncidentDetail(id);
+      } catch (err) { BERESIN.showError(err.message); }
+    });
+    actions.appendChild(dispatch);
+    var hasFixApproval = (item.approvals || []).some(function (approval) { return approval.approval_type === "CODE_FIX"; });
+    if (!hasFixApproval) {
+      var requestFix = document.createElement("button");
+      requestFix.className = "button button--primary";
+      requestFix.textContent = "Minta approval code fix";
+      requestFix.addEventListener("click", async function () {
+        await BERESIN.api("POST", "/supervisor/ops/incidents/" + id + "/proposals", {
+          action_type: "CODE_FIX",
+          title: "Perbaikan terisolasi: " + item.title,
+          description: "Coder menyiapkan patch dan regression test di isolated worktree.",
+          risk: "Perubahan source; deployment memerlukan approval kedua."
+        });
+        await loadOperations(false);
+      });
+      actions.appendChild(requestFix);
+    }
+    var approvedFix = (item.approvals || []).find(function (approval) { return approval.approval_type === "CODE_FIX" && approval.status === "APPROVED"; });
+    if (approvedFix && !(item.code_changes || []).length) {
+      var provision = document.createElement("button");
+      provision.className = "button button--primary";
+      provision.textContent = "Buat isolated worktree";
+      provision.addEventListener("click", async function () {
+        try {
+          await BERESIN.api("POST", "/supervisor/ops/incidents/" + id + "/code/provision", { approval_id: approvedFix.id });
+          BERESIN.showToast("Worktree Coder dibuat.", "success");
+          await loadIncidentDetail(id);
+        } catch (err) { BERESIN.showError(err.message); }
+      });
+      actions.appendChild(provision);
+    }
     var timeline = document.createElement("div"); timeline.className = "ops-timeline";
     (item.events || []).slice().reverse().forEach(function (event) { var el = document.createElement("div"); el.className = "timeline-item"; el.innerHTML = '<time class="timeline-time">' + BERESIN.esc(fmtTime(event.created_at)) + '</time><div class="timeline-copy"><h3>' + BERESIN.esc(event.event_type) + '</h3><p>' + BERESIN.esc(event.actor) + " · " + BERESIN.esc(event.actor_role || "-") + "</p></div>"; timeline.appendChild(el); }); box.appendChild(timeline);
+    (item.agent_messages || []).forEach(function (message) {
+      var report = document.createElement("article"); report.className = "ops-report";
+      var title = document.createElement("strong"); title.textContent = (message.sender_role || "Agent") + " · " + message.message_type;
+      var content = document.createElement("pre"); content.textContent = message.content;
+      report.appendChild(title); report.appendChild(content); box.appendChild(report);
+    });
+    (item.code_changes || []).forEach(function (change) {
+      var report = document.createElement("article"); report.className = "ops-report";
+      report.innerHTML = "<strong>Code change #" + change.id + " · " + BERESIN.esc(change.status) + "</strong><p>" + BERESIN.esc(change.branch_name) + "</p><pre>" + BERESIN.esc(change.diff_summary || "Belum ada diff.") + "</pre>";
+      var changeActions = document.createElement("div"); changeActions.className = "ops-actions";
+      if (change.status === "PROVISIONED" || change.status === "FAILED") {
+        var runCoder = document.createElement("button"); runCoder.className = "button button--primary"; runCoder.textContent = "Jalankan Coder";
+        runCoder.addEventListener("click", async function () { try { await BERESIN.api("POST", "/supervisor/ops/code-changes/" + change.id + "/run-coder"); await loadIncidentDetail(id); } catch (err) { BERESIN.showError(err.message); } });
+        changeActions.appendChild(runCoder);
+      }
+      if (change.status === "READY_FOR_REVIEW") {
+        var runChecks = document.createElement("button"); runChecks.className = "button button--secondary"; runChecks.textContent = "Jalankan checks";
+        runChecks.addEventListener("click", async function () { try { await BERESIN.api("POST", "/supervisor/ops/code-changes/" + change.id + "/checks"); BERESIN.showToast("Checks selesai.", "success"); await loadIncidentDetail(id); } catch (err) { BERESIN.showError(err.message); } });
+        changeActions.appendChild(runChecks);
+        var allPassed = (change.checks || []).length > 0 && change.checks.every(function (check) { return check.status === "PASSED"; });
+        if (allPassed && !change.pull_request_url) {
+          var createPr = document.createElement("button"); createPr.className = "button button--primary"; createPr.textContent = "Buat pull request";
+          createPr.addEventListener("click", async function () { try { await BERESIN.api("POST", "/supervisor/ops/code-changes/" + change.id + "/pull-request"); await loadIncidentDetail(id); } catch (err) { BERESIN.showError(err.message); } });
+          changeActions.appendChild(createPr);
+        }
+      }
+      report.appendChild(changeActions);
+      box.appendChild(report);
+    });
   }
 
   function renderOpsApprovals(items) {

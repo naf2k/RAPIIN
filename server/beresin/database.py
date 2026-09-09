@@ -308,6 +308,9 @@ CREATE TABLE IF NOT EXISTS ops_notifications (
     body TEXT,
     severity TEXT NOT NULL,
     is_read INTEGER NOT NULL DEFAULT 0,
+    delivery_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (delivery_status IN ('PENDING','SENT','FAILED','SKIPPED')),
+    delivered_at TEXT,
+    last_error TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -318,10 +321,74 @@ CREATE TABLE IF NOT EXISTS ops_policies (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS ops_evidence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id INTEGER NOT NULL REFERENCES ops_incidents(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    source TEXT NOT NULL,
+    content_json TEXT NOT NULL DEFAULT '{}',
+    content_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ops_code_changes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id INTEGER NOT NULL REFERENCES ops_incidents(id) ON DELETE CASCADE,
+    approval_id INTEGER NOT NULL REFERENCES ops_approvals(id),
+    branch_name TEXT NOT NULL,
+    worktree_path TEXT NOT NULL,
+    base_commit TEXT NOT NULL,
+    commit_sha TEXT,
+    pull_request_url TEXT,
+    diff_summary TEXT,
+    status TEXT NOT NULL DEFAULT 'PROVISIONED' CHECK (status IN ('PROVISIONED','RUNNING','READY_FOR_REVIEW','FAILED','CANCELLED')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ops_check_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code_change_id INTEGER NOT NULL REFERENCES ops_code_changes(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('PENDING','RUNNING','PASSED','FAILED','SKIPPED')),
+    command TEXT,
+    output_summary TEXT,
+    started_at TEXT,
+    finished_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ops_deployments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id INTEGER NOT NULL REFERENCES ops_incidents(id),
+    code_change_id INTEGER NOT NULL REFERENCES ops_code_changes(id),
+    approval_id INTEGER NOT NULL REFERENCES ops_approvals(id),
+    environment TEXT NOT NULL,
+    artifact_ref TEXT NOT NULL,
+    previous_artifact_ref TEXT,
+    status TEXT NOT NULL CHECK (status IN ('PENDING','DEPLOYING','VERIFYING','SUCCEEDED','FAILED','ROLLED_BACK')),
+    health_result_json TEXT,
+    started_at TEXT,
+    finished_at TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ops_agent_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id INTEGER NOT NULL REFERENCES ops_agents(id),
+    incident_id INTEGER REFERENCES ops_incidents(id),
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    prompt_chars INTEGER NOT NULL DEFAULT 0,
+    output_chars INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_ops_incidents_status_severity ON ops_incidents(status, severity, last_seen_at);
 CREATE INDEX IF NOT EXISTS idx_ops_incidents_fingerprint ON ops_incidents(fingerprint, status);
 CREATE INDEX IF NOT EXISTS idx_ops_events_incident ON ops_incident_events(incident_id, id);
 CREATE INDEX IF NOT EXISTS idx_ops_approvals_status ON ops_approvals(status, requested_at);
+CREATE INDEX IF NOT EXISTS idx_ops_assignments_status ON ops_agent_assignments(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_ops_code_changes_incident ON ops_code_changes(incident_id, id);
 """
 
 
@@ -369,6 +436,9 @@ MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp)",
     "CREATE INDEX IF NOT EXISTS idx_devices_status_heartbeat ON devices(status, last_heartbeat_at)",
     "CREATE INDEX IF NOT EXISTS idx_metric_events_name_time ON metric_events(name, timestamp)",
+    "ALTER TABLE ops_notifications ADD COLUMN delivery_status TEXT NOT NULL DEFAULT 'PENDING'",
+    "ALTER TABLE ops_notifications ADD COLUMN delivered_at TEXT",
+    "ALTER TABLE ops_notifications ADD COLUMN last_error TEXT",
 ]
 
 

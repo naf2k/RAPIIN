@@ -71,3 +71,16 @@ def test_emergency_pause_is_supervisor_only_and_blocks_agent_claims(client):
 def test_invalid_monitor_credential_is_rejected(client):
     response = client.post("/api/internal/ops/signals", headers={"Authorization": "Bearer wrong"}, json={"source": "ci", "title": "Failure", "severity": "HIGH"})
     assert response.status_code == 403
+
+
+def test_recovered_device_signal_is_auto_resolved(client):
+    from beresin.database import connect
+    from beresin.ops_incidents import collect_runtime_signals, ingest_signal
+    conn = connect()
+    incident = ingest_signal(conn, source="device-monitor", title="Desktop agent offline", severity="HIGH", resource="devices")
+    collect_runtime_signals(conn)
+    row = conn.execute("SELECT status,resolved_at FROM ops_incidents WHERE id=?", (incident["id"],)).fetchone()
+    assert row["status"] == "RESOLVED"
+    assert row["resolved_at"]
+    assert conn.execute("SELECT COUNT(*) n FROM ops_incident_events WHERE incident_id=? AND event_type='AUTO_RESOLVED'", (incident["id"],)).fetchone()["n"] == 1
+    conn.close()

@@ -109,8 +109,6 @@ def main() -> int:
     STATE_PATH.write_text(status + "\n", encoding="utf-8")
     if previous and previous != status:
         notify(message)
-        if status == "ready":
-            send_signal("Server recovered after readiness failure", "MEDIUM", "Server kembali siap setelah status sebelumnya tidak ready.", "server-readiness", {"previous_status": previous})
     if status == "ready":
         for title, severity, summary, resource, details in infrastructure_checks():
             send_signal(title, severity, summary, resource, details)

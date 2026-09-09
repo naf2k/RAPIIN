@@ -54,6 +54,37 @@ async def _device_monitor_loop() -> None:
         await asyncio.sleep(30)
 
 
+def _ops_tick() -> None:
+    """One bounded Operations Center cycle outside the event loop."""
+    conn = init_db()
+    try:
+        from .ops_incidents import collect_runtime_signals
+        from .ops_notifications import deliver_pending
+        collect_runtime_signals(conn)
+        deliver_pending(conn)
+        if settings.ops_agents_enabled:
+            from .ops_runtime import dispatch_incident
+            rows = conn.execute(
+                "SELECT i.id FROM ops_incidents i WHERE i.status IN ('OPEN','INVESTIGATING') "
+                "AND NOT EXISTS (SELECT 1 FROM ops_agent_assignments a WHERE a.incident_id=i.id AND a.status IN ('PENDING','ACTIVE','COMPLETED')) "
+                "ORDER BY CASE i.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END, i.id LIMIT 1"
+            ).fetchall()
+            for row in rows:
+                dispatch_incident(conn, row["id"])
+        conn.commit()
+    finally:
+        conn.close()
+
+
+async def _ops_monitor_loop() -> None:
+    while True:
+        try:
+            await asyncio.to_thread(_ops_tick)
+        except Exception:  # noqa: BLE001 - core BERESIN must survive ops failure
+            logger.exception("Operations Center tick failed")
+        await asyncio.sleep(60)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.validate_for_startup()
@@ -68,10 +99,16 @@ async def lifespan(app: FastAPI):
     from .worker import recover_conversation_jobs
     recover_conversation_jobs()
     task = asyncio.create_task(_device_monitor_loop())
+    ops_task = asyncio.create_task(_ops_monitor_loop())
     yield
     task.cancel()
+    ops_task.cancel()
     try:
         await task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await ops_task
     except asyncio.CancelledError:
         pass
 

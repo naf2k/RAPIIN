@@ -77,6 +77,43 @@ Encrypt backups at rest, restrict them to operations staff, retain them accordin
 - Unexpected file result: stop the agent, preserve audit/task/job records, and do not retry a destructive action until its snapshot is reviewed again.
 - Database issue: stop the API, preserve the database plus WAL/SHM files, validate the latest backup, and restore to a new volume.
 
+## AI Operations Center
+
+The local pilot runs the official Hermes CLI through a private profile under
+`server/data/ops-hermes`. The profile stores its provider credential with mode
+`0600` and is ignored by Git. Enable it only after this succeeds:
+
+```bash
+hermes --version
+server/.venv/bin/python ops/incident_drill.py
+```
+
+Set `OPS_AGENTS_ENABLED=true` on the server service to enable automatic
+read-only Lead, Security, and Diagnostic analysis. Coder is never dispatched
+by that loop: it requires a `CODE_FIX` approval and isolated worktree. A
+deployment requires a different `DEPLOYMENT` approval plus green recorded
+checks.
+
+For Telegram, create a bot with BotFather and configure the following as
+protected server secrets. Telegram messages contain only sanitized metadata;
+approval remains available only after authenticated Operations Center login.
+
+```text
+OPS_TELEGRAM_BOT_TOKEN_FILE=/run/secrets/telegram_bot_token
+OPS_TELEGRAM_CHAT_ID=<owner-chat-id>
+OPS_PUBLIC_BASE_URL=https://beresin.example.com
+```
+
+For CI/security ingestion, add GitHub Actions secrets
+`BERESIN_OPS_URL` and `BERESIN_MONITORING_TOKEN`. The Operations Center URL
+must be reachable from GitHub-hosted runners. If it is local-only, use a
+self-hosted runner or leave ingestion disabled; the workflows safely skip an
+unconfigured endpoint.
+
+GitHub branch protection must still be enabled in repository settings when the
+account plan supports it. BERESIN enforces its own approval gates regardless,
+but it does not claim unavailable GitHub protection is active.
+
 ## Rollback
 
 Keep the prior immutable image tag. Stop the new container, back up the current database, and start the prior image only if its schema is backward compatible. Additive migrations in V1 are compatible, but rollback must still be rehearsed against a restored backup.

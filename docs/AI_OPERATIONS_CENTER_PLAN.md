@@ -13,6 +13,14 @@ Implemented in the current local pilot:
 - supervisor incident, proposal, approval, policy, notification, and emergency-pause APIs;
 - responsive Operations Center UI with health summary, incident review, timeline, approvals, agent boundaries, and emergency pause;
 - agent polling and automatic tool execution fail closed while emergency pause is active.
+- official Hermes CLI provenance pinned to v0.21.0 / commit `95d42656021a22f20201c618a67da07a618d16f3` without overwriting the user's modified Hermes checkout;
+- durable Lead, Security, and Diagnostic assignments and reports, with daily run and timeout limits;
+- Telegram delivery adapter with database fallback and authenticated incident deep links;
+- approved Coder worktrees, regression check records, GitHub PR creation, separate deployment approval, health verification, and rollback records;
+- CI and security workflow failure ingestion through protected GitHub secrets;
+- accelerated non-production incident drill in `ops/incident_drill.py`.
+
+External activation still requires owner-controlled values: Telegram bot token/chat ID, a remotely reachable `BERESIN_OPS_URL`, GitHub Actions secrets, and real staging/production deploy and rollback commands. These are intentionally not invented or committed.
 
 ## 1. Objective
 

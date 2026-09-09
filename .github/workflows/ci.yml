@@ -82,3 +82,20 @@ jobs:
           image-ref: beresin:test
           severity: CRITICAL,HIGH
           exit-code: "1"
+
+  notify-operations:
+    if: always()
+    needs: [server, agent, frontend, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report failed CI to BERESIN Operations Center
+        env:
+          OPS_URL: ${{ secrets.BERESIN_OPS_URL }}
+          OPS_TOKEN: ${{ secrets.BERESIN_MONITORING_TOKEN }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          if [ -z "$OPS_URL" ] || [ -z "$OPS_TOKEN" ]; then exit 0; fi
+          if ! echo "$NEEDS_JSON" | grep -q '"result": "failure"'; then exit 0; fi
+          curl --fail --retry 2 -X POST "$OPS_URL/api/internal/ops/signals" \
+            -H "Authorization: Bearer $OPS_TOKEN" -H "Content-Type: application/json" \
+            --data "{\"source\":\"github-ci\",\"title\":\"CI workflow failed\",\"severity\":\"HIGH\",\"summary\":\"One or more required CI jobs failed.\",\"resource\":\"${GITHUB_REPOSITORY}@${GITHUB_SHA}\",\"details\":{\"run_id\":\"${GITHUB_RUN_ID}\"}}"

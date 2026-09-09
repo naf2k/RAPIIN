@@ -22,6 +22,30 @@ class Settings(BaseSettings):
     beresin_monitoring_token: str = ""
     beresin_monitoring_token_file: str = ""
     beresin_allow_public_registration: bool = True
+    ops_agents_enabled: bool = False
+    ops_hermes_command: str = "hermes"
+    ops_hermes_version: str = "v0.21.0@95d42656021a22f20201c618a67da07a618d16f3"
+    ops_agent_timeout_seconds: int = 180
+    ops_agent_daily_run_limit: int = 100
+    ops_worktree_root: str = ""
+    ops_github_repo: str = "naf2k/BERESIN"
+    ops_public_base_url: str = "http://127.0.0.1:8000"
+    ops_telegram_bot_token: str = ""
+    ops_telegram_bot_token_file: str = ""
+    ops_telegram_chat_id: str = ""
+    ops_deploy_command: str = ""
+    ops_rollback_command: str = ""
+    ops_agent_max_concurrency: int = 1
+    ops_agent_daily_run_limit: int = 50
+    ops_telegram_bot_token: str = ""
+    ops_telegram_bot_token_file: str = ""
+    ops_telegram_chat_id: str = ""
+    ops_public_base_url: str = "http://127.0.0.1:8000"
+    ops_github_repo: str = "naf2k/BERESIN"
+    ops_worktree_root: str = "./data/ops-worktrees"
+    ops_deploy_command: str = ""
+    ops_rollback_command: str = ""
+    ops_healthcheck_url: str = "http://127.0.0.1:8000/ready"
 
     # AI router (OpenAI-compatible). 9router is used as the V1 provider.
     ai_base_url: str = "http://localhost:20128/v1"
@@ -31,6 +55,23 @@ class Settings(BaseSettings):
     ai_timeout_seconds: float = 120.0
     ai_max_iterations: int = 12
     ai_max_retries: int = 5
+
+    # Operations Center. External integrations are opt-in and fail closed.
+    ops_agents_enabled: bool = False
+    ops_hermes_command: str = "hermes"
+    ops_hermes_version: str = "v0.21.0"
+    ops_hermes_commit: str = "95d42656021a22f20201c618a67da07a618d16f3"
+    ops_agent_timeout_seconds: int = 180
+    ops_agent_daily_run_limit: int = 100
+    ops_telegram_bot_token: str = ""
+    ops_telegram_bot_token_file: str = ""
+    ops_telegram_chat_id: str = ""
+    ops_public_base_url: str = "http://127.0.0.1:8000"
+    ops_github_repo: str = "naf2k/BERESIN"
+    ops_worktree_root: str = ""
+    ops_deploy_command: str = ""
+    ops_rollback_command: str = ""
+    ops_health_url: str = "http://127.0.0.1:8000/ready"
 
     # Seeded accounts
     beresin_init_supervisor_email: str = "supervisor@beresin.example.com"
@@ -60,6 +101,8 @@ class Settings(BaseSettings):
             ("beresin_init_supervisor_password", "beresin_init_supervisor_password_file"),
             ("beresin_monitoring_token", "beresin_monitoring_token_file"),
             ("ai_api_key", "ai_api_key_file"),
+            ("ops_telegram_bot_token", "ops_telegram_bot_token_file"),
+            ("ops_telegram_bot_token", "ops_telegram_bot_token_file"),
         ):
             secret_path = getattr(self, file_field)
             if secret_path:
