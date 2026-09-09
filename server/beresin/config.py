@@ -11,6 +11,8 @@ class Settings(BaseSettings):
 
     # Server
     beresin_db_path: str = "./data/beresin.db"
+    beresin_database_url: str = ""
+    beresin_redis_url: str = ""
     beresin_data_dir: str = "./data"
     beresin_secret_key: str = "dev-secret-change-me"
     beresin_host: str = "127.0.0.1"
