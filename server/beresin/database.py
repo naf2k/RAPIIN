@@ -387,6 +387,10 @@ CREATE TABLE IF NOT EXISTS ops_agent_usage (
     duration_ms INTEGER NOT NULL DEFAULT 0,
     prompt_chars INTEGER NOT NULL DEFAULT 0,
     output_chars INTEGER NOT NULL DEFAULT 0,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    api_calls INTEGER NOT NULL DEFAULT 0,
+    estimated_cost_usd REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
@@ -453,6 +457,10 @@ MIGRATIONS = [
     "ALTER TABLE ops_approvals ADD COLUMN expires_at TEXT",
     "ALTER TABLE ops_agent_assignments ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE ops_agent_assignments ADD COLUMN lease_expires_at TEXT",
+    "ALTER TABLE ops_agent_usage ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE ops_agent_usage ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE ops_agent_usage ADD COLUMN api_calls INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE ops_agent_usage ADD COLUMN estimated_cost_usd REAL NOT NULL DEFAULT 0",
     "ALTER TABLE audit_log ADD COLUMN previous_hash TEXT",
     "ALTER TABLE audit_log ADD COLUMN event_hash TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_approvals_idempotency ON ops_approvals(idempotency_key) WHERE idempotency_key IS NOT NULL",

@@ -7,6 +7,8 @@ import os
 import shlex
 import shutil
 import subprocess
+import tempfile
+import time
 import urllib.request
 from pathlib import Path
 
@@ -105,6 +107,10 @@ def run_coder(conn, code_change_id: int, runner=None) -> dict:
         f"Insiden #{incident['id']}: {incident['title']}. Ringkasan: {incident.get('summary') or '-'}"
     )
     conn.execute("UPDATE ops_code_changes SET status='RUNNING',updated_at=? WHERE id=?", (utcnow_iso(), code_change_id)); conn.commit()
+    started = time.monotonic()
+    usage = {"input_tokens": 0, "output_tokens": 0, "api_calls": 0, "estimated_cost_usd": 0.0}
+    usage_path = None
+    output = ""
     try:
         if runner:
             output = runner(worktree, prompt)
@@ -119,6 +125,12 @@ def run_coder(conn, code_change_id: int, runner=None) -> dict:
                 "--provider", "custom", "-m", settings.ai_model,
                 "-t", "terminal,file", "--in", str(worktree), "-z", prompt,
             ]
+            usage_dir = settings.data_dir / "ops-hermes" / "coder"
+            usage_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            handle = tempfile.NamedTemporaryFile(prefix="usage-", suffix=".json", dir=usage_dir, delete=False)
+            usage_path = Path(handle.name)
+            handle.close()
+            command[1:1] = ["--usage-file", str(usage_path)]
             if shutil.which("sandbox-exec"):
                 profile = _sandbox_profile(worktree, hermes_command)
                 command = ["sandbox-exec", "-p", profile, *command]
@@ -130,13 +142,38 @@ def run_coder(conn, code_change_id: int, runner=None) -> dict:
             if completed.returncode:
                 raise RuntimeError(f"Coder gagal: {(completed.stderr or completed.stdout)[-1000:]}")
             output = completed.stdout
+            from .ops_runtime import read_usage_report
+            usage = read_usage_report(usage_path)
         diff = _run(["git", "diff", "--stat"], worktree)
         conn.execute("UPDATE ops_code_changes SET status='READY_FOR_REVIEW',diff_summary=?,updated_at=? WHERE id=?", (diff.stdout[:4000], utcnow_iso(), code_change_id))
         _event(conn, change["incident_id"], "CODER_COMPLETED", "Coder", "CODER", {"change_id": code_change_id, "output": output[-2000:], "diff_summary": diff.stdout[:4000]})
-    except Exception:
+    except Exception as exc:
+        output = f"{type(exc).__name__}: {exc}"
+        if usage_path:
+            from .ops_runtime import read_usage_report
+            usage = read_usage_report(usage_path)
         conn.execute("UPDATE ops_code_changes SET status='FAILED',updated_at=? WHERE id=?", (utcnow_iso(), code_change_id))
+        _record_coder_usage(conn, change["incident_id"], int((time.monotonic() - started) * 1000), prompt, output, "FAILED", usage)
         raise
+    finally:
+        if usage_path:
+            usage_path.unlink(missing_ok=True)
+    _record_coder_usage(conn, change["incident_id"], int((time.monotonic() - started) * 1000), prompt, output, "SUCCEEDED", usage)
     return dict(conn.execute("SELECT * FROM ops_code_changes WHERE id=?", (code_change_id,)).fetchone())
+
+
+def _record_coder_usage(conn, incident_id: int, duration: int, prompt: str, output: str, status: str, usage: dict) -> None:
+    agent = conn.execute("SELECT id FROM ops_agents WHERE role='CODER'").fetchone()
+    if not agent:
+        return
+    conn.execute(
+        """INSERT INTO ops_agent_usage(
+               agent_id,incident_id,duration_ms,prompt_chars,output_chars,input_tokens,
+               output_tokens,api_calls,estimated_cost_usd,status,created_at
+           ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+        (agent["id"], incident_id, duration, len(prompt), len(output), usage["input_tokens"],
+         usage["output_tokens"], usage["api_calls"], usage["estimated_cost_usd"], status, utcnow_iso()),
+    )
 
 
 def cancel_code_change(conn, code_change_id: int, actor: dict) -> dict:

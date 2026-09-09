@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     ops_hermes_commit: str = "95d42656021a22f20201c618a67da07a618d16f3"
     ops_agent_timeout_seconds: int = 180
     ops_agent_daily_run_limit: int = 100
+    ops_agent_daily_cost_limit_usd: float = 10.0
     ops_agent_max_concurrency: int = 1
     ops_agent_failure_threshold: int = 3
     ops_agent_circuit_cooldown_seconds: int = 900
@@ -109,6 +110,8 @@ class Settings(BaseSettings):
             errors.append("OPS_AGENT_MAX_CONCURRENCY wajib antara 1 dan 8")
         if self.ops_agent_daily_run_limit < self.ops_agent_max_concurrency:
             errors.append("OPS_AGENT_DAILY_RUN_LIMIT tidak boleh lebih kecil dari concurrency")
+        if self.ops_agent_daily_cost_limit_usd <= 0:
+            errors.append("OPS_AGENT_DAILY_COST_LIMIT_USD wajib lebih besar dari nol")
         if self.ops_agent_timeout_seconds < 30 or self.ops_agent_timeout_seconds > 900:
             errors.append("OPS_AGENT_TIMEOUT_SECONDS wajib antara 30 dan 900 detik")
         if self.ops_agent_failure_threshold < 1 or self.ops_agent_failure_threshold > 20:

@@ -89,12 +89,20 @@ def ops_usage(conn=Depends(get_db), user=Depends(require_supervisor)):
                   SUM(CASE WHEN u.status='FAILED' THEN 1 ELSE 0 END) failed,
                   COALESCE(SUM(u.duration_ms),0) duration_ms,
                   COALESCE(SUM(u.prompt_chars),0) prompt_chars,
-                  COALESCE(SUM(u.output_chars),0) output_chars
+                  COALESCE(SUM(u.output_chars),0) output_chars,
+                  COALESCE(SUM(u.input_tokens),0) input_tokens,
+                  COALESCE(SUM(u.output_tokens),0) output_tokens,
+                  COALESCE(SUM(u.api_calls),0) api_calls,
+                  COALESCE(SUM(u.estimated_cost_usd),0) estimated_cost_usd
            FROM ops_agents g LEFT JOIN ops_agent_usage u ON u.agent_id=g.id
              AND u.created_at >= datetime('now','start of day')
            GROUP BY g.id,g.role ORDER BY g.id"""
     ).fetchall()
-    return {"daily_limit": settings.ops_agent_daily_run_limit, "agents": [dict(row) for row in rows]}
+    return {
+        "daily_limit": settings.ops_agent_daily_run_limit,
+        "daily_cost_limit_usd": settings.ops_agent_daily_cost_limit_usd,
+        "agents": [dict(row) for row in rows],
+    }
 
 
 @router.get("/policies")

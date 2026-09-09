@@ -167,6 +167,8 @@ def test_production_operations_config_requires_bounded_runtime_and_secure_telegr
     )
     with pytest.raises(RuntimeError, match="MAX_CONCURRENCY"):
         Settings(**base, ops_agent_max_concurrency=0).validate_for_startup()
+    with pytest.raises(RuntimeError, match="DAILY_COST_LIMIT"):
+        Settings(**base, ops_agent_daily_cost_limit_usd=0).validate_for_startup()
     with pytest.raises(RuntimeError, match="PUBLIC_BASE_URL"):
         Settings(**base, ops_telegram_bot_token="secret", ops_telegram_chat_id="owner", ops_public_base_url="http://localhost").validate_for_startup()
 

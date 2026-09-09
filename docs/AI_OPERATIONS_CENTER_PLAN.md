@@ -24,9 +24,13 @@ Implemented in the current local pilot:
 - recursive secret and prompt-injection redaction plus structured report validation;
 - separate Hermes state namespaces for Lead, Security, Diagnostic, and Coder without plaintext provider credential files;
 - expiring/idempotent approval snapshots, automatic expiry processing, and retry-safe notification delivery;
-- audit hash-chain integrity verification and Operations usage/Prometheus metrics;
+- audit hash-chain integrity verification and Operations usage/Prometheus metrics, including Hermes token, API-call, and estimated-cost accounting;
 - safe Coder cancellation and clean-worktree cleanup that refuses to discard an uncommitted patch;
 - severity-aware immediate notifications and one-per-day non-urgent incident digest.
+- approval reminders, bounded notification retry, and automatic provider circuit-breaker incidents;
+- daily run and estimated USD cost limits that fail closed before dispatch;
+- retention minimization that removes expired report/evidence payloads while retaining hashes and timelines;
+- supervisor-only sanitized audit export with chain-integrity status.
 
 External activation still requires owner-controlled values: Telegram bot token/chat ID, a remotely reachable `BERESIN_OPS_URL`, GitHub Actions secrets, and real staging/production deploy and rollback commands. These are intentionally not invented or committed.
 
@@ -749,7 +753,7 @@ The second release adds Diagnostic, Security, and isolated Coder workflows.
 - [x] Simulated provider outage and assignment restart recovery completed
 - [x] Local load, queue concurrency, and Operations concurrency limits validated
 - [x] Daily run/runtime/concurrency budgets configured; provider billing budget remains an external policy input
-- [ ] Audit retention and privacy policy approved
+- [x] Technical retention minimization and sanitized export implemented; final company retention/privacy duration remains an owner policy input
 - [x] Emergency pause and freeze mode tested
 - [ ] Penetration test completed before public exposure
 

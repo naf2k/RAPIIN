@@ -6,8 +6,33 @@ from pathlib import Path
 from beresin.database import connect, utcnow_iso
 from beresin.ops_incidents import create_proposal, ingest_signal, respond_approval, seed_ops
 from beresin.ops_notifications import deliver_pending
-from beresin.ops_runtime import dispatch_incident, recover_expired_assignments
+from beresin.ops_runtime import _daily_budget_available, dispatch_incident, read_usage_report, recover_expired_assignments
 from beresin.ops_workflows import REPO_ROOT, _latest_checks_passed, _sandbox_profile, cancel_code_change, cleanup_code_worktree, deploy, provision_worktree, run_checks, run_coder
+
+
+def test_read_usage_report_supports_official_hermes_fields(tmp_path):
+    path = tmp_path / "usage.json"
+    path.write_text('{"input_tokens": 120, "output_tokens": 30, "api_calls": 2, "estimated_cost_usd": 0.0125}')
+    assert read_usage_report(path) == {"input_tokens": 120, "output_tokens": 30, "api_calls": 2, "estimated_cost_usd": 0.0125}
+
+
+def test_read_usage_report_is_safe_for_invalid_file(tmp_path):
+    path = tmp_path / "usage.json"
+    path.write_text("not-json")
+    assert read_usage_report(path) == {"input_tokens": 0, "output_tokens": 0, "api_calls": 0, "estimated_cost_usd": 0.0}
+
+
+def test_daily_budget_fails_closed_at_estimated_cost_limit(monkeypatch):
+    conn = connect(); seed_ops(conn)
+    agent = conn.execute("SELECT id FROM ops_agents LIMIT 1").fetchone()
+    conn.execute(
+        "INSERT INTO ops_agent_usage(agent_id,estimated_cost_usd,status,created_at) VALUES(?,?,'SUCCEEDED',?)",
+        (agent["id"], 2.0, utcnow_iso()),
+    )
+    monkeypatch.setattr("beresin.ops_runtime.settings.ops_agent_daily_run_limit", 100)
+    monkeypatch.setattr("beresin.ops_runtime.settings.ops_agent_daily_cost_limit_usd", 2.0)
+    assert not _daily_budget_available(conn)
+    conn.close()
 
 
 def _actor(conn):

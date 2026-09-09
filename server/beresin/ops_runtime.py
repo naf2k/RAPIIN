@@ -6,6 +6,7 @@ import os
 import subprocess
 import shutil
 import time
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -21,6 +22,42 @@ ROLE_PROMPTS = {
     "SECURITY": "Nilai risiko keamanan, kemungkinan penyalahgunaan, dan containment. Jangan mengubah file atau sistem.",
     "DIAGNOSTIC": "Analisis bukti yang diberikan dan usulkan langkah reproduksi read-only. Jangan mengubah file atau sistem.",
 }
+
+
+def read_usage_report(path: Path) -> dict:
+    """Parse Hermes usage output defensively; malformed reports count as zero."""
+    empty = {"input_tokens": 0, "output_tokens": 0, "api_calls": 0, "estimated_cost_usd": 0.0}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        usage = raw.get("usage", raw) if isinstance(raw, dict) else {}
+
+        def number(*keys, default=0):
+            for key in keys:
+                value = usage.get(key)
+                if isinstance(value, (int, float)) and value >= 0:
+                    return value
+            return default
+
+        return {
+            "input_tokens": int(number("input_tokens", "prompt_tokens")),
+            "output_tokens": int(number("output_tokens", "completion_tokens")),
+            "api_calls": int(number("api_calls", "requests")),
+            "estimated_cost_usd": float(number("estimated_cost_usd", "estimated_cost", "cost_usd", default=0.0)),
+        }
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return empty
+
+
+def _record_usage(conn, row, duration: int, prompt: str, output: str, status: str, usage: dict) -> None:
+    conn.execute(
+        """INSERT INTO ops_agent_usage(
+               agent_id,incident_id,duration_ms,prompt_chars,output_chars,input_tokens,
+               output_tokens,api_calls,estimated_cost_usd,status,created_at
+           ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+        (row["agent_id"], row["incident_id"], duration, len(prompt), len(output),
+         usage["input_tokens"], usage["output_tokens"], usage["api_calls"],
+         usage["estimated_cost_usd"], status, utcnow_iso()),
+    )
 
 
 def hermes_process_environment(profile: str = "shared") -> dict:
@@ -76,7 +113,8 @@ def assign_default_roles(conn, incident_id: int) -> list[int]:
 
 def _daily_budget_available(conn) -> bool:
     count = conn.execute("SELECT COUNT(*) n FROM ops_agent_usage WHERE created_at >= datetime('now','start of day')").fetchone()["n"]
-    return count < settings.ops_agent_daily_run_limit
+    cost = conn.execute("SELECT COALESCE(SUM(estimated_cost_usd),0) n FROM ops_agent_usage WHERE created_at >= datetime('now','start of day')").fetchone()["n"]
+    return count < settings.ops_agent_daily_run_limit and cost < settings.ops_agent_daily_cost_limit_usd
 
 
 def provider_circuit_open(conn) -> bool:
@@ -117,6 +155,8 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
     conn.execute("UPDATE ops_agent_assignments SET status='ACTIVE',attempt_count=attempt_count+1,lease_expires_at=? WHERE id=?", (lease, assignment_id))
     conn.execute("UPDATE ops_agents SET state='RUNNING',updated_at=? WHERE id=?", (utcnow_iso(), row["agent_id"]))
     conn.commit()
+    usage = {"input_tokens": 0, "output_tokens": 0, "api_calls": 0, "estimated_cost_usd": 0.0}
+    usage_path = None
     try:
         if runner:
             output = runner(row["role"], prompt)
@@ -126,8 +166,14 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
             hermes_command = shutil.which(settings.ops_hermes_command) or str(Path.home() / ".local/bin/hermes")
             if not Path(hermes_command).is_file():
                 raise RuntimeError("Hermes CLI tidak ditemukan oleh service account.")
-            command = [hermes_command, "--safe-mode", "--cli", "--provider", "custom", "-m", settings.ai_model, "-z", prompt]
+            usage_dir = settings.data_dir / "ops-hermes" / row["role"].lower()
+            usage_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            handle = tempfile.NamedTemporaryFile(prefix="usage-", suffix=".json", dir=usage_dir, delete=False)
+            usage_path = Path(handle.name)
+            handle.close()
+            command = [hermes_command, "--safe-mode", "--cli", "--usage-file", str(usage_path), "--provider", "custom", "-m", settings.ai_model, "-z", prompt]
             completed = subprocess.run(command, cwd=str(settings.data_dir), capture_output=True, text=True, timeout=settings.ops_agent_timeout_seconds, check=False, env=hermes_process_environment(row["role"]))
+            usage = read_usage_report(usage_path)
             combined = (completed.stdout or "") + "\n" + (completed.stderr or "")
             if completed.returncode or "HTTP 4" in combined or "Error from provider" in combined:
                 raise RuntimeError(f"Hermes exit {completed.returncode}: {(completed.stderr or '')[-500:]}")
@@ -136,16 +182,20 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
         output = json.dumps(report, ensure_ascii=False)
         duration = int((time.monotonic() - started) * 1000)
         conn.execute("UPDATE ops_agent_assignments SET status='COMPLETED',completed_at=?,lease_expires_at=NULL WHERE id=?", (utcnow_iso(), assignment_id))
-        conn.execute("INSERT INTO ops_agent_usage(agent_id,incident_id,duration_ms,prompt_chars,output_chars,status,created_at) VALUES(?,?,?,?,?,'SUCCEEDED',?)", (row["agent_id"], row["incident_id"], duration, len(prompt), len(output), utcnow_iso()))
+        _record_usage(conn, row, duration, prompt, output, "SUCCEEDED", usage)
         status = "COMPLETED"
     except Exception as exc:
         output = sanitize_text(f"{type(exc).__name__}: {exc}", 1000)
         duration = int((time.monotonic() - started) * 1000)
         conn.execute("UPDATE ops_agent_assignments SET status='CANCELLED',completed_at=?,lease_expires_at=NULL WHERE id=?", (utcnow_iso(), assignment_id))
         conn.execute("INSERT INTO ops_agent_messages(incident_id,sender_agent_id,message_type,content,created_at) VALUES(?,?,'ERROR',?,?)", (row["incident_id"], row["agent_id"], output, utcnow_iso()))
-        conn.execute("INSERT INTO ops_agent_usage(agent_id,incident_id,duration_ms,prompt_chars,output_chars,status,created_at) VALUES(?,?,?,?,?,'FAILED',?)", (row["agent_id"], row["incident_id"], duration, len(prompt), len(output), utcnow_iso()))
+        if usage_path:
+            usage = read_usage_report(usage_path)
+        _record_usage(conn, row, duration, prompt, output, "FAILED", usage)
         status = "FAILED"
     finally:
+        if usage_path:
+            usage_path.unlink(missing_ok=True)
         conn.execute("UPDATE ops_agents SET state='IDLE',updated_at=? WHERE id=?", (utcnow_iso(), row["agent_id"]))
     return {"assignment_id": assignment_id, "status": status, "output": output}
 
