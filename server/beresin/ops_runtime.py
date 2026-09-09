@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .config import settings
 from .database import utcnow_iso
-from .ops_incidents import get_incident, seed_ops
+from .ops_incidents import _event, get_incident, seed_ops
 from .ops_safety import parse_agent_report, sanitize, sanitize_text
 
 READ_ONLY_ROLES = {"LEAD", "SECURITY", "DIAGNOSTIC"}
@@ -148,7 +148,30 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
 
 def dispatch_incident(conn, incident_id: int, runner=None) -> list[dict]:
     ids = assign_default_roles(conn, incident_id)
-    return [run_assignment(conn, assignment_id, runner=runner) for assignment_id in ids]
+    results = [run_assignment(conn, assignment_id, runner=runner) for assignment_id in ids]
+    finalize_agent_triage(conn, incident_id)
+    return results
+
+
+def finalize_agent_triage(conn, incident_id: int) -> bool:
+    roles = conn.execute(
+        "SELECT DISTINCT g.role FROM ops_agent_assignments a JOIN ops_agents g ON g.id=a.agent_id "
+        "WHERE a.incident_id=? AND a.status='COMPLETED'",
+        (incident_id,),
+    ).fetchall()
+    if {row["role"] for row in roles} >= READ_ONLY_ROLES:
+        exists = conn.execute("SELECT 1 FROM ops_incident_events WHERE incident_id=? AND event_type='AGENT_TRIAGE_COMPLETED'", (incident_id,)).fetchone()
+        if not exists:
+            now = utcnow_iso()
+            conn.execute("UPDATE ops_incidents SET status='INVESTIGATING',updated_at=? WHERE id=? AND status='OPEN'", (now, incident_id))
+            _event(conn, incident_id, "AGENT_TRIAGE_COMPLETED", "Lead", "LEAD", {"roles": sorted(READ_ONLY_ROLES)})
+            incident = get_incident(conn, incident_id)
+            conn.execute(
+                "INSERT INTO ops_notifications(incident_id,title,body,severity,created_at) VALUES(?,?,?,?,?)",
+                (incident_id, f"Analisis agent selesai: {incident['title']}", "Review laporan Lead, Security, dan Diagnostic di Operations Center.", incident["severity"], now),
+            )
+        return True
+    return False
 
 
 def recover_expired_assignments(conn) -> int:
