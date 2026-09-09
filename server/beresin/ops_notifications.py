@@ -18,7 +18,9 @@ def notify_owner(incident: dict) -> dict:
     """Send sanitized incident metadata; never send evidence or approval links with tokens."""
     if not telegram_configured():
         return {"status": "SKIPPED", "reason": "telegram_not_configured"}
-    incident_url = f"{settings.ops_public_base_url.rstrip('/')}/supervisor/operations.html?incident={incident['id']}"
+    incident_url = f"{settings.ops_public_base_url.rstrip('/')}/supervisor/operations.html"
+    if incident.get("id"):
+        incident_url += f"?incident={incident['id']}"
     text = (
         f"BERESIN {incident['severity']} — {incident['title']}\n"
         f"Status: {incident['status']}\n"

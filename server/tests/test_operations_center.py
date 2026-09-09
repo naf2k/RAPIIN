@@ -105,6 +105,23 @@ def test_pending_ops_approval_expires_automatically(client, monkeypatch):
     conn.close()
 
 
+def test_nonurgent_incidents_are_grouped_into_one_daily_digest(client, monkeypatch):
+    from beresin.database import connect
+    from beresin.ops_incidents import ingest_signal, queue_daily_digest
+    conn = connect()
+    first = ingest_signal(conn, source="digest", title="Low one", severity="LOW")
+    ingest_signal(conn, source="digest", title="Medium two", severity="MEDIUM")
+    original = conn.execute("SELECT channel,delivery_status FROM ops_notifications WHERE incident_id=?", (first["id"],)).fetchone()
+    assert dict(original) == {"channel": "IN_APP", "delivery_status": "SKIPPED"}
+    digest_id = queue_daily_digest(conn)
+    assert digest_id
+    assert queue_daily_digest(conn) is None
+    digest = conn.execute("SELECT channel,delivery_status,body FROM ops_notifications WHERE id=?", (digest_id,)).fetchone()
+    assert digest["channel"] == "TELEGRAM" and digest["delivery_status"] == "PENDING"
+    assert "Low one" in digest["body"] and "Medium two" in digest["body"]
+    conn.close()
+
+
 def test_emergency_pause_is_supervisor_only_and_blocks_agent_claims(client):
     reg = _register_user(client)
     user_token = reg.json()["token"]

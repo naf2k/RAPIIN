@@ -12,7 +12,8 @@ from pathlib import Path
 from .config import settings
 from .database import utcnow_iso
 from .ops_incidents import _event, get_incident, seed_ops
-from .ops_safety import parse_agent_report, sanitize, sanitize_text
+from .ops_adapter import OpsToolGateway
+from .ops_safety import sanitize_text
 
 READ_ONLY_ROLES = {"LEAD", "SECURITY", "DIAGNOSTIC"}
 ROLE_PROMPTS = {
@@ -94,16 +95,9 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
     active = conn.execute("SELECT COUNT(*) n FROM ops_agent_assignments WHERE status='ACTIVE'").fetchone()["n"]
     if active >= settings.ops_agent_max_concurrency:
         raise RuntimeError("Batas concurrency Operations Agent tercapai.")
-    incident = get_incident(conn, row["incident_id"])
-    prior_reports = []
-    for message in conn.execute(
-        "SELECT content FROM ops_agent_messages WHERE incident_id=? AND message_type='REPORT' ORDER BY id",
-        (row["incident_id"],),
-    ).fetchall()[-3:]:
-        try:
-            prior_reports.append(sanitize(json.loads(message["content"])))
-        except (TypeError, json.JSONDecodeError):
-            continue
+    gateway = OpsToolGateway(conn, row["role"], row["incident_id"])
+    incident = gateway.get_incident()
+    prior_reports = gateway.list_reports()
     prompt = (
         "Anda adalah agent Operations Center BERESIN. " + ROLE_PROMPTS[row["role"]] + "\n"
         "Balas Bahasa Indonesia dalam JSON dengan keys summary, findings, recommendation, confidence.\n"
@@ -130,10 +124,9 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
             if completed.returncode or "HTTP 4" in combined or "Error from provider" in combined:
                 raise RuntimeError(f"Hermes exit {completed.returncode}: {(completed.stderr or '')[-500:]}")
             output = completed.stdout.strip()
-        report = parse_agent_report(output)
+        report = gateway.submit_report(output)
         output = json.dumps(report, ensure_ascii=False)
         duration = int((time.monotonic() - started) * 1000)
-        conn.execute("INSERT INTO ops_agent_messages(incident_id,sender_agent_id,message_type,content,created_at) VALUES(?,?,'REPORT',?,?)", (row["incident_id"], row["agent_id"], output[:20000], utcnow_iso()))
         conn.execute("UPDATE ops_agent_assignments SET status='COMPLETED',completed_at=?,lease_expires_at=NULL WHERE id=?", (utcnow_iso(), assignment_id))
         conn.execute("INSERT INTO ops_agent_usage(agent_id,incident_id,duration_ms,prompt_chars,output_chars,status,created_at) VALUES(?,?,?,?,?,'SUCCEEDED',?)", (row["agent_id"], row["incident_id"], duration, len(prompt), len(output), utcnow_iso()))
         status = "COMPLETED"

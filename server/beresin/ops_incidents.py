@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 from .audit import record_audit
 from .database import utcnow_iso
+from .ops_adapter import ROLE_TOOLS
 from .ops_safety import content_hash, sanitize, sanitize_text
 
 ACTIVE_STATUSES = (
@@ -30,7 +31,7 @@ def seed_ops(conn) -> None:
             """INSERT INTO ops_agents(name,role,state,model_policy,tool_policy,environment_scope,created_at,updated_at)
                VALUES(?,?,'IDLE','{}',?, ?,?,?) ON CONFLICT(role) DO UPDATE SET
                tool_policy=excluded.tool_policy, environment_scope=excluded.environment_scope, updated_at=excluded.updated_at""",
-            (role.title(), role, json.dumps(policy), json.dumps({"workspace": "isolated_worktree" if role == "CODER" else "read_only"}), now, now),
+            (role.title(), role, json.dumps({**policy, "allowed_tools": sorted(ROLE_TOOLS[role])}), json.dumps({"workspace": "isolated_worktree" if role == "CODER" else "read_only"}), now, now),
         )
     defaults = {
         "operations.freeze": {"enabled": False, "reason": None},
@@ -94,8 +95,10 @@ def ingest_signal(conn, *, source: str, title: str, severity: str, summary: str 
         )
         _event(conn, incident_id, "INCIDENT_OPENED", "system", "SYSTEM", {"evidence_hash": content_hash(details)})
         conn.execute(
-            "INSERT INTO ops_notifications(incident_id,title,body,severity,created_at) VALUES(?,?,?,?,?)",
-            (incident_id, f"Insiden {severity}: {title.strip()}", summary, severity, now),
+            "INSERT INTO ops_notifications(incident_id,channel,title,body,severity,delivery_status,created_at) VALUES(?,?,?,?,?,?,?)",
+            (incident_id, "TELEGRAM" if severity in {"HIGH", "CRITICAL"} else "IN_APP",
+             f"Insiden {severity}: {title.strip()}", summary, severity,
+             "PENDING" if severity in {"HIGH", "CRITICAL"} else "SKIPPED", now),
         )
         created = True
     record_audit(conn, actor="system", actor_role="SYSTEM", action="ops_signal_ingested", resource=f"ops-incident:{incident_id}")
@@ -215,6 +218,31 @@ def expire_pending_approvals(conn) -> int:
         _event(conn, row["incident_id"], f"{row['approval_type']}_EXPIRED", "system", "SYSTEM", {"approval_id": row["id"]})
         record_audit(conn, actor="system", actor_role="SYSTEM", action="ops_approval_expired", resource=f"ops-approval:{row['id']}", result="EXPIRED")
     return len(rows)
+
+
+def queue_daily_digest(conn) -> int | None:
+    """Queue at most one remote digest per UTC day for non-urgent incidents."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    key = "notifications.last_digest"
+    row = conn.execute("SELECT value_json FROM ops_policies WHERE key=?", (key,)).fetchone()
+    if row and json.loads(row["value_json"]).get("date") == today:
+        return None
+    incidents = conn.execute(
+        "SELECT id,title,severity FROM ops_incidents WHERE severity IN ('LOW','MEDIUM') AND status NOT IN ('RESOLVED','REJECTED') ORDER BY severity,id"
+    ).fetchall()
+    if not incidents:
+        return None
+    now = utcnow_iso()
+    summary = "; ".join(f"#{item['id']} {item['severity']} {item['title']}" for item in incidents[:10])
+    notification_id = conn.execute(
+        "INSERT INTO ops_notifications(channel,title,body,severity,delivery_status,created_at) VALUES('TELEGRAM','BERESIN daily operations digest',?,'MEDIUM','PENDING',?)",
+        (summary[:2000], now),
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO ops_policies(key,value_json,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",
+        (key, json.dumps({"date": today, "notification_id": notification_id}), now),
+    )
+    return notification_id
 
 
 def set_incident_status(conn, incident_id: int, status: str, actor: dict, note: str = "") -> dict:
