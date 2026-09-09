@@ -133,8 +133,8 @@ def cmd_folders(args) -> int:
         if not target.is_dir():
             print(f"[gagal] Folder tidak ditemukan: {target}", file=sys.stderr)
             return 2
-        if target == Path.home().resolve() or target == Path(target.anchor):
-            print("[gagal] Pilih folder kerja tertentu; home/root disk terlalu luas.", file=sys.stderr)
+        if target == Path(target.anchor):
+            print("[gagal] Root disk terlalu luas.", file=sys.stderr)
             return 2
         updated = list(dict.fromkeys([*(str(root) for root in roots), str(target)]))
     else:

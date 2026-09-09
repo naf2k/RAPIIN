@@ -67,12 +67,28 @@ def test_scan_and_duplicates_ignore_hidden_files_and_app_bundles():
         duplicates = local_tools.run_tool("duplicate_detector", {"path": d})
         assert duplicates["duplicate_groups"] == 1
         assert duplicates["duplicate_files"] == 1
-        duplicates = local_tools.run_tool("duplicate_detector", {"path": d})
+        assert all(
+            "photoslibrary" not in path.lower()
+            for group in duplicates["groups"]
+            for path in group["duplicates"]
+        )
 
-        assert scan["file_count"] == 2
-        assert duplicates["duplicate_groups"] == 1
-        assert duplicates["duplicate_files"] == 1
-        assert all("photoslibrary" not in path.lower() for group in duplicates["groups"] for path in group["duplicates"])
+
+def test_home_style_scan_skips_system_directories_and_source_projects():
+    with tempfile.TemporaryDirectory() as d:
+        _set_workspace(d)
+        Path(d, "visible.txt").write_text("visible")
+        library = Path(d, "Library")
+        library.mkdir()
+        Path(library, "database.sqlite").write_text("private")
+        project = Path(d, "project")
+        (project / ".git").mkdir(parents=True)
+        Path(project, "source.py").write_text("private")
+
+        result = local_tools.run_tool("filesystem_scanner", {"path": d})
+
+        assert result["file_count"] == 1
+        assert result["files"][0]["name"] == "visible.txt"
 
 
 def test_local_classifier():

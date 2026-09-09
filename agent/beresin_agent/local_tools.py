@@ -25,6 +25,7 @@ PROTECTED_PACKAGE_SUFFIXES = {
     ".localized",
 }
 PROTECTED_PACKAGE_NAMES = {"photo booth library"}
+PROTECTED_DIRECTORY_NAMES = {"library", "applications"}
 
 try:
     from pypdf import PdfReader  # type: ignore
@@ -61,12 +62,15 @@ def _files_under(root: Path) -> list[Path]:
     """Return user-visible files without descending into app-managed bundles."""
     out: list[Path] = []
     for current, directory_names, file_names in os.walk(root, followlinks=False):
+        current_path = Path(current)
         directory_names[:] = [
             name
             for name in directory_names
             if not name.startswith(".")
             and name.lower() not in PROTECTED_PACKAGE_NAMES
+            and name.casefold() not in PROTECTED_DIRECTORY_NAMES
             and Path(name).suffix.lower() not in PROTECTED_PACKAGE_SUFFIXES
+            and not (current_path / name / ".git").exists()
         ]
         for name in file_names:
             if name.startswith("."):
@@ -247,6 +251,15 @@ def _guard_mutation(path: Path, destination: bool = False) -> None:
         }
         if any(part in protected for part in relative_parts):
             raise PermissionError(f"Path sensitif tidak dapat diakses BERESIN: {path}")
+        if relative_parts and relative_parts[0] in PROTECTED_DIRECTORY_NAMES:
+            raise PermissionError(f"Folder sistem tidak dapat diakses BERESIN: {path}")
+        cursor = candidate if candidate.is_dir() else candidate.parent
+        while _is_relative_to(cursor, home):
+            if (cursor / ".git").exists():
+                raise PermissionError(f"Source project tidak dapat diakses BERESIN: {path}")
+            if cursor == home:
+                break
+            cursor = cursor.parent
     if candidate.name.casefold() in {".env", ".env.local", ".env.production"}:
         raise PermissionError(f"File kredensial tidak dapat diakses BERESIN: {path}")
 
