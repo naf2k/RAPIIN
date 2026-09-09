@@ -90,6 +90,21 @@ def test_ops_approval_is_idempotent_expires_and_rejects_tampering(client, monkey
     assert "berubah" in rejected.json()["detail"]
 
 
+def test_pending_ops_approval_expires_automatically(client, monkeypatch):
+    from beresin.config import settings
+    from beresin.database import connect
+    from beresin.ops_incidents import expire_pending_approvals
+    monkeypatch.setattr(settings, "beresin_monitoring_token", "e" * 32)
+    incident = client.post("/api/internal/ops/signals", headers={"Authorization": "Bearer " + "e" * 32}, json={"source": "ops", "title": "Expiry", "severity": "LOW"}).json()
+    created = client.post(f"/api/supervisor/ops/incidents/{incident['id']}/proposals", headers=_supervisor_headers(client), json={"action_type": "CODE_FIX", "title": "Expiring", "description": "No action", "risk": "Low"}).json()
+    conn = connect()
+    conn.execute("UPDATE ops_approvals SET expires_at='2000-01-01T00:00:00+00:00' WHERE id=?", (created["approval_id"],))
+    assert expire_pending_approvals(conn) == 1
+    assert conn.execute("SELECT status FROM ops_approvals WHERE id=?", (created["approval_id"],)).fetchone()["status"] == "EXPIRED"
+    assert conn.execute("SELECT status FROM ops_incidents WHERE id=?", (incident["id"],)).fetchone()["status"] == "INVESTIGATING"
+    conn.close()
+
+
 def test_emergency_pause_is_supervisor_only_and_blocks_agent_claims(client):
     reg = _register_user(client)
     user_token = reg.json()["token"]

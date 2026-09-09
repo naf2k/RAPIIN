@@ -202,6 +202,21 @@ def respond_approval(conn, approval_id: int, *, decision: str, note: str, actor:
     return dict(conn.execute("SELECT * FROM ops_approvals WHERE id=?", (approval_id,)).fetchone())
 
 
+def expire_pending_approvals(conn) -> int:
+    now = utcnow_iso()
+    rows = conn.execute(
+        "SELECT id,incident_id,proposal_id,approval_type FROM ops_approvals WHERE status='PENDING' AND expires_at IS NOT NULL AND expires_at <= ?",
+        (now,),
+    ).fetchall()
+    for row in rows:
+        conn.execute("UPDATE ops_approvals SET status='EXPIRED',decided_at=? WHERE id=?", (now, row["id"]))
+        conn.execute("UPDATE ops_action_proposals SET status='CANCELLED',updated_at=? WHERE id=? AND status='PENDING'", (now, row["proposal_id"]))
+        conn.execute("UPDATE ops_incidents SET status='INVESTIGATING',updated_at=? WHERE id=? AND status IN ('AWAITING_APPROVAL','AWAITING_DEPLOY_APPROVAL')", (now, row["incident_id"]))
+        _event(conn, row["incident_id"], f"{row['approval_type']}_EXPIRED", "system", "SYSTEM", {"approval_id": row["id"]})
+        record_audit(conn, actor="system", actor_role="SYSTEM", action="ops_approval_expired", resource=f"ops-approval:{row['id']}", result="EXPIRED")
+    return len(rows)
+
+
 def set_incident_status(conn, incident_id: int, status: str, actor: dict, note: str = "") -> dict:
     allowed = {"INVESTIGATING", "VERIFYING", "RESOLVED", "OPEN"}
     status = status.upper()

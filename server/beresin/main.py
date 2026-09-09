@@ -58,9 +58,10 @@ def _ops_tick() -> None:
     """One bounded Operations Center cycle outside the event loop."""
     conn = init_db()
     try:
-        from .ops_incidents import collect_runtime_signals
+        from .ops_incidents import collect_runtime_signals, expire_pending_approvals
         from .ops_notifications import deliver_pending
         collect_runtime_signals(conn)
+        expire_pending_approvals(conn)
         deliver_pending(conn)
         if settings.ops_agents_enabled:
             from .ops_runtime import dispatch_incident, finalize_agent_triage, recover_expired_assignments
