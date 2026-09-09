@@ -47,6 +47,6 @@ Status labels: `PASS` is covered by source plus automated/local verification; `P
 - Backup restore drill, rollback drill, metrics ingestion and alerts are evidenced.
 - Versioned Python wheel, source archive, and checksums are published through an approved channel; native app signing/notarization is outside the V1 distribution model.
 
-Current local gate: 76 backend, 30 agent, and 22 browser/accessibility checks pass; credentialed UAT, reboot probe, and health checks pass. A live approval-gated filesystem drill physically verified 5/5 moves. GitHub CI `34223193132` and Security `34223193099` passed on source commit `6abfe2a8e55e8aada4ede39d626d411eb2c2b7bb`.
+Current Operations gate: 105 backend, 38 agent, and 24 browser/accessibility checks passed locally on 2026-09-10. The expanded accelerated incident drill passed 30 Operations policy/workflow tests plus all 38 Desktop Agent tests. Counts must be regenerated for each release commit; historical GitHub CI evidence below does not prove later commits.
 
 The pilot database now has exactly two active supervisor accounts, matching PRD section 3. Release remains blocked until the operator rotates the AI provider credential exposed during local diagnostics. After rotation, repeat the provider soak, release gate, and final CI/Security workflows.

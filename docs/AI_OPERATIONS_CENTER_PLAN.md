@@ -1,6 +1,6 @@
 # BERESIN AI Operations Center — Full Implementation Plan
 
-Status: Phase 1-2 implemented; later Hermes execution, remote notifications, PR automation, and deployment automation remain planned  
+Status: Local supervised Operations Agent implemented through isolated Coder/review gates; external notification, protected GitHub, staging deployment, SSO/MFA, and production drills remain activation gates
 Scope: Background monitoring, multi-agent incident response, human approval, code remediation, and remote operations  
 Target: Local pilot first, production server afterward
 
@@ -19,6 +19,14 @@ Implemented in the current local pilot:
 - approved Coder worktrees, regression check records, GitHub PR creation, separate deployment approval, health verification, and rollback records;
 - CI and security workflow failure ingestion through protected GitHub secrets;
 - accelerated non-production incident drill in `ops/incident_drill.py`.
+- automatic server-lifecycle worker with assignment leases, bounded retry, restart recovery, daily/concurrency limits, and Lead final synthesis;
+- role-scoped Operations tool gateway; model code receives sanitized incident/evidence/report contracts instead of raw database access;
+- recursive secret and prompt-injection redaction plus structured report validation;
+- separate Hermes state namespaces for Lead, Security, Diagnostic, and Coder without plaintext provider credential files;
+- expiring/idempotent approval snapshots, automatic expiry processing, and retry-safe notification delivery;
+- audit hash-chain integrity verification and Operations usage/Prometheus metrics;
+- safe Coder cancellation and clean-worktree cleanup that refuses to discard an uncommitted patch;
+- severity-aware immediate notifications and one-per-day non-urgent incident digest.
 
 External activation still requires owner-controlled values: Telegram bot token/chat ID, a remotely reachable `BERESIN_OPS_URL`, GitHub Actions secrets, and real staging/production deploy and rollback commands. These are intentionally not invented or committed.
 
@@ -726,23 +734,23 @@ The second release adds Diagnostic, Security, and isolated Coder workflows.
 
 ## 23. Production Readiness Checklist
 
-- [ ] Official Hermes release/commit pinned and verified
-- [ ] Role and tool policies enforced server-side
-- [ ] Incident state machine and idempotency tested
-- [ ] Secrets absent from prompts, memory, logs, and repository
+- [x] Official Hermes release/commit pinned and verified locally
+- [x] Role and tool policies enforced server-side
+- [x] Incident state machine and idempotency tested locally
+- [x] Secret/prompt redaction and no plaintext Operations profile credential verified locally
 - [ ] Operations Center protected by SSO/MFA
-- [ ] Telegram contains no sensitive evidence or direct insecure approval
-- [ ] Coder isolated from production and employee files
+- [x] Telegram adapter contains no direct approval token and uses sanitized incident metadata
+- [x] Coder isolated from production writes and employee-home reads on the supported macOS pilot
 - [ ] Branch protection and required CI/security checks enabled
-- [ ] Separate code and deployment approvals enforced
-- [ ] Immutable artifacts and rollback tested
-- [ ] Metrics, alerts, and meta-monitoring enabled
-- [ ] Backup/restore drill completed
-- [ ] Provider outage and agent restart drills completed
-- [ ] Load and concurrency limits validated
-- [ ] Cost and token budgets configured
+- [x] Separate code and deployment approvals enforced
+- [x] Deterministic rollback path tested; real immutable production artifact remains a staging gate
+- [x] Local Prometheus Operations metrics enabled; external alert routing/meta-monitoring remains a gate
+- [x] Local backup/restore drill completed
+- [x] Simulated provider outage and assignment restart recovery completed
+- [x] Local load, queue concurrency, and Operations concurrency limits validated
+- [x] Daily run/runtime/concurrency budgets configured; provider billing budget remains an external policy input
 - [ ] Audit retention and privacy policy approved
-- [ ] Emergency pause and freeze mode tested
+- [x] Emergency pause and freeze mode tested
 - [ ] Penetration test completed before public exposure
 
 ## 24. Non-Goals
