@@ -182,6 +182,27 @@ def finalize_agent_triage(conn, incident_id: int) -> bool:
         if not exists:
             now = utcnow_iso()
             conn.execute("UPDATE ops_incidents SET status='INVESTIGATING',updated_at=? WHERE id=? AND status='OPEN'", (now, incident_id))
+            synthesis_report = conn.execute(
+                """SELECT m.content,g.id agent_id FROM ops_agent_messages m
+                   JOIN ops_agents g ON g.id=m.sender_agent_id
+                   JOIN ops_agent_assignments a ON a.incident_id=m.incident_id AND a.agent_id=g.id
+                   WHERE m.incident_id=? AND g.role='LEAD' AND a.assignment='LEAD synthesis'
+                     AND m.message_type='REPORT' ORDER BY m.id DESC LIMIT 1""",
+                (incident_id,),
+            ).fetchone()
+            if synthesis_report:
+                try:
+                    report = json.loads(synthesis_report["content"])
+                except json.JSONDecodeError:
+                    report = {}
+                conn.execute(
+                    """INSERT INTO ops_action_proposals
+                       (incident_id,proposed_by_agent_id,action_type,title,description,risk,status,created_at,updated_at)
+                       VALUES(?,?,'INVESTIGATION',?,?,?,'PENDING',?,?)""",
+                    (incident_id, synthesis_report["agent_id"], "Tinjau rekomendasi Lead",
+                     sanitize_text(str(report.get("recommendation") or report.get("summary") or "Review manual diperlukan."), 8000),
+                     sanitize_text("Read-only review; code change dan deployment tetap membutuhkan approval terpisah.", 2000), now, now),
+                )
             _event(conn, incident_id, "AGENT_TRIAGE_COMPLETED", "Lead", "LEAD", {"roles": sorted(READ_ONLY_ROLES)})
             incident = get_incident(conn, incident_id)
             conn.execute(

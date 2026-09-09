@@ -7,7 +7,7 @@ from beresin.database import connect, utcnow_iso
 from beresin.ops_incidents import create_proposal, ingest_signal, respond_approval, seed_ops
 from beresin.ops_notifications import deliver_pending
 from beresin.ops_runtime import dispatch_incident, recover_expired_assignments
-from beresin.ops_workflows import REPO_ROOT, _latest_checks_passed, _sandbox_profile, deploy, provision_worktree, run_checks, run_coder
+from beresin.ops_workflows import REPO_ROOT, _latest_checks_passed, _sandbox_profile, cancel_code_change, cleanup_code_worktree, deploy, provision_worktree, run_checks, run_coder
 
 
 def _actor(conn):
@@ -75,6 +75,8 @@ def test_default_agents_exchange_durable_reports():
     assert conn.execute("SELECT COUNT(*) n FROM ops_agent_assignments WHERE incident_id=?", (incident["id"],)).fetchone()["n"] == 4
     assert conn.execute("SELECT COUNT(*) n FROM ops_agent_messages WHERE incident_id=?", (incident["id"],)).fetchone()["n"] == 4
     assert conn.execute("SELECT status FROM ops_incidents WHERE id=?", (incident["id"],)).fetchone()["status"] == "INVESTIGATING"
+    proposal = conn.execute("SELECT action_type,proposed_by_agent_id FROM ops_action_proposals WHERE incident_id=?", (incident["id"],)).fetchone()
+    assert proposal["action_type"] == "INVESTIGATION" and proposal["proposed_by_agent_id"]
     conn.close()
 
 
@@ -165,6 +167,27 @@ def test_coder_requires_approval_and_stays_in_worktree(tmp_path, monkeypatch):
     assert updated["status"] == "READY_FOR_REVIEW"
     assert (repo / "app.txt").read_text() == "before\n"
     assert (worktree / "app.txt").read_text() == "after\n"
+    conn.close()
+
+
+def test_cancelled_clean_worktree_can_be_removed_without_deleting_branch(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"; repo.mkdir()
+    subprocess.run(["git", "init", "-b", "main"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "ops@example.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Ops Test"], cwd=repo, check=True)
+    (repo / "app.txt").write_text("before\n")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=repo, check=True, capture_output=True)
+    from beresin.config import settings
+    monkeypatch.setattr(settings, "ops_worktree_root", str(tmp_path / "worktrees"))
+    conn = connect(); incident, approval = _incident_and_approval(conn)
+    change = provision_worktree(conn, incident["id"], approval["approval_id"], repo_root=repo)
+    worktree = Path(change["worktree_path"])
+    cancelled = cancel_code_change(conn, change["id"], _actor(conn))
+    assert cancelled["status"] == "CANCELLED"
+    cleaned = cleanup_code_worktree(conn, change["id"], repo_root=repo)
+    assert cleaned["removed"] is True and not worktree.exists()
+    assert subprocess.run(["git", "show-ref", "--verify", f"refs/heads/{change['branch_name']}"], cwd=repo, capture_output=True).returncode == 0
     conn.close()
 
 

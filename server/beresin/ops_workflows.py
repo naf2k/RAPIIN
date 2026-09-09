@@ -139,6 +139,42 @@ def run_coder(conn, code_change_id: int, runner=None) -> dict:
     return dict(conn.execute("SELECT * FROM ops_code_changes WHERE id=?", (code_change_id,)).fetchone())
 
 
+def cancel_code_change(conn, code_change_id: int, actor: dict) -> dict:
+    change = conn.execute("SELECT * FROM ops_code_changes WHERE id=?", (code_change_id,)).fetchone()
+    if not change:
+        raise LookupError("Code change tidak ditemukan.")
+    if change["status"] == "RUNNING":
+        raise PermissionError("Coder masih berjalan; hentikan proses secara terkontrol sebelum membatalkan.")
+    if change["pull_request_url"] or change["commit_sha"]:
+        raise PermissionError("Perubahan yang sudah dipublikasikan tidak dapat dibatalkan lewat cleanup lokal.")
+    if change["status"] != "CANCELLED":
+        conn.execute("UPDATE ops_code_changes SET status='CANCELLED',updated_at=? WHERE id=?", (utcnow_iso(), code_change_id))
+        _event(conn, change["incident_id"], "CODE_CHANGE_CANCELLED", actor["name"], actor["role"], {"change_id": code_change_id})
+    return dict(conn.execute("SELECT * FROM ops_code_changes WHERE id=?", (code_change_id,)).fetchone())
+
+
+def cleanup_code_worktree(conn, code_change_id: int, repo_root: Path = REPO_ROOT) -> dict:
+    change = conn.execute("SELECT * FROM ops_code_changes WHERE id=?", (code_change_id,)).fetchone()
+    if not change:
+        raise LookupError("Code change tidak ditemukan.")
+    if change["status"] != "CANCELLED":
+        raise PermissionError("Worktree hanya dapat dibersihkan setelah code change dibatalkan.")
+    worktree = Path(change["worktree_path"]).resolve()
+    expected_root = (Path(settings.ops_worktree_root) if settings.ops_worktree_root else settings.data_dir / "ops-worktrees").resolve()
+    if expected_root not in worktree.parents:
+        raise PermissionError("Path worktree tidak aman.")
+    if not worktree.exists():
+        return {"code_change_id": code_change_id, "removed": True, "already_absent": True}
+    dirty = _run(["git", "status", "--porcelain"], worktree)
+    if dirty.returncode or dirty.stdout.strip():
+        raise PermissionError("Worktree masih memiliki perubahan; cleanup ditolak agar patch tidak hilang.")
+    removed = _run(["git", "worktree", "remove", str(worktree)], repo_root)
+    if removed.returncode:
+        raise RuntimeError((removed.stderr or removed.stdout)[-1000:])
+    _event(conn, change["incident_id"], "CODE_WORKTREE_REMOVED", "system", "SYSTEM", {"change_id": code_change_id})
+    return {"code_change_id": code_change_id, "removed": True, "already_absent": False}
+
+
 def run_checks(conn, code_change_id: int) -> list[dict]:
     change = conn.execute("SELECT * FROM ops_code_changes WHERE id=?", (code_change_id,)).fetchone()
     if not change:

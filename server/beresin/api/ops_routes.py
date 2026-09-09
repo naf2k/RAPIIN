@@ -195,6 +195,28 @@ def ops_run_coder(change_id: int, conn=Depends(get_db), user=Depends(require_sup
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@router.post("/code-changes/{change_id}/cancel")
+def ops_cancel_code(change_id: int, conn=Depends(get_db), user=Depends(require_supervisor)):
+    from ..ops_workflows import cancel_code_change
+    try:
+        return cancel_code_change(conn, change_id, user)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/code-changes/{change_id}/cleanup")
+def ops_cleanup_code(change_id: int, conn=Depends(get_db), user=Depends(require_supervisor)):
+    from ..ops_workflows import cleanup_code_worktree
+    try:
+        return cleanup_code_worktree(conn, change_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (PermissionError, RuntimeError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @router.post("/code-changes/{change_id}/checks")
 def ops_run_checks(change_id: int, conn=Depends(get_db), user=Depends(require_supervisor)):
     from ..ops_workflows import run_checks

@@ -729,6 +729,11 @@
       });
       actions.appendChild(provision);
     }
+    (item.proposals || []).forEach(function (proposal) {
+      var proposalCard = document.createElement("article"); proposalCard.className = "ops-report";
+      proposalCard.innerHTML = "<strong>Rekomendasi · " + BERESIN.esc(proposal.action_type) + "</strong><h3>" + BERESIN.esc(proposal.title) + "</h3><p>" + BERESIN.esc(proposal.description) + "</p><small>Risiko/batasan: " + BERESIN.esc(proposal.risk || "Belum dicatat") + " · " + BERESIN.esc(proposal.status) + "</small>";
+      box.appendChild(proposalCard);
+    });
     var timeline = document.createElement("div"); timeline.className = "ops-timeline";
     (item.events || []).slice().reverse().forEach(function (event) { var el = document.createElement("div"); el.className = "timeline-item"; el.innerHTML = '<time class="timeline-time">' + BERESIN.esc(fmtTime(event.created_at)) + '</time><div class="timeline-copy"><h3>' + BERESIN.esc(event.event_type) + '</h3><p>' + BERESIN.esc(event.actor) + " · " + BERESIN.esc(event.actor_role || "-") + "</p></div>"; timeline.appendChild(el); }); box.appendChild(timeline);
     (item.agent_messages || []).forEach(function (message) {
@@ -754,6 +759,16 @@
         var runCoder = document.createElement("button"); runCoder.className = "button button--primary"; runCoder.textContent = "Jalankan Coder";
         runCoder.addEventListener("click", async function () { try { await BERESIN.api("POST", "/supervisor/ops/code-changes/" + change.id + "/run-coder"); await loadIncidentDetail(id); } catch (err) { BERESIN.showError(err.message); } });
         changeActions.appendChild(runCoder);
+      }
+      if (["PROVISIONED", "FAILED", "READY_FOR_REVIEW"].indexOf(change.status) >= 0 && !change.pull_request_url) {
+        var cancelChange = document.createElement("button"); cancelChange.className = "button button--secondary"; cancelChange.textContent = "Batalkan change";
+        cancelChange.addEventListener("click", async function () { try { await BERESIN.api("POST", "/supervisor/ops/code-changes/" + change.id + "/cancel"); BERESIN.showToast("Code change dibatalkan; patch tetap dipertahankan.", "success"); await loadIncidentDetail(id); } catch (err) { BERESIN.showError(err.message); } });
+        changeActions.appendChild(cancelChange);
+      }
+      if (change.status === "CANCELLED") {
+        var cleanupChange = document.createElement("button"); cleanupChange.className = "button button--secondary"; cleanupChange.textContent = "Bersihkan worktree kosong";
+        cleanupChange.addEventListener("click", async function () { try { await BERESIN.api("POST", "/supervisor/ops/code-changes/" + change.id + "/cleanup"); BERESIN.showToast("Worktree kosong sudah dibersihkan.", "success"); await loadIncidentDetail(id); } catch (err) { BERESIN.showError(err.message); } });
+        changeActions.appendChild(cleanupChange);
       }
       if (change.status === "READY_FOR_REVIEW") {
         var runChecks = document.createElement("button"); runChecks.className = "button button--secondary"; runChecks.textContent = "Jalankan checks";
