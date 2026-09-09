@@ -106,6 +106,22 @@ def test_expired_assignment_is_recovered_once_then_cancelled():
     conn.close()
 
 
+def test_ops_tick_retries_only_incident_missing_a_completed_role(monkeypatch):
+    from beresin.config import settings
+    from beresin.main import _ops_tick
+    conn = connect(); seed_ops(conn)
+    incident = ingest_signal(conn, source="runtime", title="Partial role failure", severity="LOW")
+    for role, status in (("LEAD", "CANCELLED"), ("SECURITY", "COMPLETED"), ("DIAGNOSTIC", "COMPLETED")):
+        agent = conn.execute("SELECT id FROM ops_agents WHERE role=?", (role,)).fetchone()
+        conn.execute("INSERT INTO ops_agent_assignments(incident_id,agent_id,assignment,status,created_at) VALUES(?,?,?,?,?)", (incident["id"], agent["id"], role, status, utcnow_iso()))
+    conn.commit(); conn.close()
+    dispatched = []
+    monkeypatch.setattr(settings, "ops_agents_enabled", True)
+    monkeypatch.setattr("beresin.ops_runtime.dispatch_incident", lambda conn, incident_id: dispatched.append(incident_id) or [])
+    _ops_tick()
+    assert dispatched == [incident["id"]]
+
+
 def test_telegram_failure_falls_back_to_database(monkeypatch):
     from beresin.config import settings
     monkeypatch.setattr(settings, "ops_telegram_bot_token", "fake")

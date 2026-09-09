@@ -25,3 +25,4 @@ def test_agent_report_is_schema_validated_and_sanitized():
     assert "very-secret-value" not in report["summary"]
     with pytest.raises(ValueError):
         parse_agent_report('{"summary":"missing confidence"}')
+    assert parse_agent_report('{"summary":"compatible", "confidence":"high"}')["confidence"] == 0.85

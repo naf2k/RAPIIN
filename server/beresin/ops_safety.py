@@ -42,11 +42,14 @@ def parse_agent_report(output: str) -> dict:
     parsed = json.loads(text[start:end + 1])
     if not isinstance(parsed, dict) or not str(parsed.get("summary", "")).strip():
         raise ValueError("Laporan agent tidak memiliki summary.")
+    confidence = parsed.get("confidence")
+    if isinstance(confidence, str):
+        confidence = {"high": 0.85, "medium": 0.6, "low": 0.35}.get(confidence.strip().lower())
     report = {
         "summary": sanitize_text(parsed["summary"], 4000),
         "findings": sanitize(parsed.get("findings", [])),
         "recommendation": sanitize(parsed.get("recommendation", "")),
-        "confidence": parsed.get("confidence"),
+        "confidence": confidence,
         "evidence_refs": sanitize(parsed.get("evidence_refs", [])),
         "residual_risks": sanitize(parsed.get("residual_risks", [])),
     }
