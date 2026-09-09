@@ -83,6 +83,8 @@ def ops_agents(conn=Depends(get_db), user=Depends(require_supervisor)):
 
 @router.get("/usage")
 def ops_usage(conn=Depends(get_db), user=Depends(require_supervisor)):
+    from datetime import datetime, timezone
+    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     rows = conn.execute(
         """SELECT g.role, COUNT(u.id) runs,
                   SUM(CASE WHEN u.status='SUCCEEDED' THEN 1 ELSE 0 END) succeeded,
@@ -95,8 +97,9 @@ def ops_usage(conn=Depends(get_db), user=Depends(require_supervisor)):
                   COALESCE(SUM(u.api_calls),0) api_calls,
                   COALESCE(SUM(u.estimated_cost_usd),0) estimated_cost_usd
            FROM ops_agents g LEFT JOIN ops_agent_usage u ON u.agent_id=g.id
-             AND u.created_at >= datetime('now','start of day')
-           GROUP BY g.id,g.role ORDER BY g.id"""
+             AND u.created_at >= ?
+           GROUP BY g.id,g.role ORDER BY g.id""",
+        (day_start,),
     ).fetchall()
     return {
         "daily_limit": settings.ops_agent_daily_run_limit,

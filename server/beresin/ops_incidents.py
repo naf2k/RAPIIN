@@ -299,12 +299,14 @@ def collect_runtime_signals(conn) -> list[dict]:
         created.append(ingest_signal(conn, source="device-monitor", title="Desktop agent offline", severity="HIGH", summary=f"{stale} perangkat offline.", resource="devices"))
     else:
         auto_resolve(conn, source="device-monitor", resource="devices", note="Semua desktop agent kembali online.")
-    failed = conn.execute("SELECT COUNT(*) n FROM tasks WHERE status='FAILED' AND created_at >= datetime('now','-24 hours')").fetchone()["n"]
+    day_ago = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    fifteen_minutes_ago = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
+    failed = conn.execute("SELECT COUNT(*) n FROM tasks WHERE status='FAILED' AND created_at >= ?", (day_ago,)).fetchone()["n"]
     if failed:
         created.append(ingest_signal(conn, source="task-monitor", title="Task execution failed", severity="HIGH", summary=f"{failed} task gagal dalam 24 jam.", resource="tasks"))
     else:
         auto_resolve(conn, source="task-monitor", resource="tasks", note="Tidak ada task gagal dalam jendela 24 jam.")
-    stuck = conn.execute("SELECT COUNT(*) n FROM agent_jobs WHERE status IN ('PENDING','CLAIMED') AND created_at < datetime('now','-15 minutes')").fetchone()["n"]
+    stuck = conn.execute("SELECT COUNT(*) n FROM agent_jobs WHERE status IN ('PENDING','CLAIMED') AND created_at < ?", (fifteen_minutes_ago,)).fetchone()["n"]
     if stuck:
         created.append(ingest_signal(conn, source="queue-monitor", title="Agent queue stuck", severity="CRITICAL", summary=f"{stuck} job melewati 15 menit.", resource="agent_jobs"))
     else:

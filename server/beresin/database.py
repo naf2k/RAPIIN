@@ -408,7 +408,13 @@ def utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def connect(db_path: Path | None = None) -> sqlite3.Connection:
+def connect(db_path: Path | None = None):
+    if settings.beresin_database_url and db_path is None:
+        import psycopg
+        from psycopg.rows import dict_row
+        from .postgres_support import PostgresConnection
+
+        return PostgresConnection(psycopg.connect(settings.beresin_database_url, row_factory=dict_row))
     path = db_path or settings.db_path
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -467,7 +473,7 @@ MIGRATIONS = [
 ]
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
+def _migrate(conn) -> None:
     """Apply additive migrations idempotently (existing DBs only)."""
     for statement in MIGRATIONS:
         try:
@@ -478,8 +484,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 def init_db() -> sqlite3.Connection:
     conn = connect()
-    conn.executescript(SCHEMA)
-    _migrate(conn)
+    if settings.beresin_database_url:
+        from .postgres_support import postgres_schema
+        conn.executescript(postgres_schema(SCHEMA))
+    else:
+        conn.executescript(SCHEMA)
+        _migrate(conn)
     from .audit import backfill_audit_chain
     backfill_audit_chain(conn)
     conn.commit()

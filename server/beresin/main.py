@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 
 from .api import agent_routes, auth_routes, ops_routes, supervisor_routes, user_routes
 from .config import settings
-from .database import connect, init_db
+from .database import connect, init_db, utcnow_iso
 from .devices import mark_stale_devices_offline
 from .security import hash_password
 
@@ -31,9 +31,9 @@ def seed_supervisor(conn) -> None:
     conn.execute(
         """
         INSERT INTO users (email, password_hash, name, role, is_active, created_at)
-        VALUES (?, ?, 'Supervisor BERESIN', 'SUPERVISOR', 1, datetime('now'))
+        VALUES (?, ?, 'Supervisor BERESIN', 'SUPERVISOR', 1, ?)
         """,
-        (email, hash_password(settings.beresin_init_supervisor_password)),
+        (email, hash_password(settings.beresin_init_supervisor_password), utcnow_iso()),
     )
 
 

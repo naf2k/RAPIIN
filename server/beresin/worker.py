@@ -8,7 +8,6 @@ connection. The frontend polls the task status.
 from __future__ import annotations
 
 import threading
-import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from .database import connect
@@ -20,9 +19,9 @@ def spawn_conversation_task(*, user_id: int, conversation_id: int, task_id: int,
     try:
         from .database import utcnow_iso
         conn.execute(
-            """INSERT OR IGNORE INTO conversation_jobs
+            """INSERT INTO conversation_jobs
                (task_id, user_id, conversation_id, device_id, status, created_at)
-               VALUES (?, ?, ?, ?, 'PENDING', ?)""",
+               VALUES (?, ?, ?, ?, 'PENDING', ?) ON CONFLICT(task_id) DO NOTHING""",
             (task_id, user_id, conversation_id, device_id, utcnow_iso()),
         )
         conn.commit()
@@ -73,7 +72,7 @@ def _claim_and_run(*, task_id: int) -> None:
             (status, error, utcnow_iso(), task_id),
         )
         conn.commit()
-    except sqlite3.Error:
+    except Exception:
         # The application schema is always present in production. This guard
         # prevents a daemon thread from leaking during isolated test teardown.
         conn.rollback()

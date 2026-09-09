@@ -26,6 +26,18 @@ and confirm all four LaunchAgents are present.
 
 V1 supports one API instance with its SQLite database on a local persistent volume. Do not mount SQLite on NFS and do not run multiple API replicas against one database. Horizontal API scaling requires a PostgreSQL adapter and external durable queue; that is a post-V1 architecture gate, not a safe configuration switch.
 
+## PostgreSQL migration path
+
+The server can select PostgreSQL with `BERESIN_DATABASE_URL`; leaving it empty preserves the verified SQLite local mode. Start disposable local infrastructure with `docker-compose.local-infra.yml`, migrate only into a confirmed empty target, and keep the source SQLite database read-only during the copy:
+
+```bash
+docker compose -f docker-compose.local-infra.yml up -d
+server/.venv/bin/python ops/migrate_sqlite_to_postgres.py server/data/beresin.db \
+  --database-url "$BERESIN_DATABASE_URL" --confirm-empty-target
+```
+
+The migration copies explicit IDs and advances every PostgreSQL identity sequence. Verify row counts, login, device polling, approval, AI Operations dispatch, and audit integrity before changing the live server connection. Keep the SQLite source and a transactionally consistent backup until the PostgreSQL cutover is signed off.
+
 ## Deploy
 
 1. Create production secrets outside Git and set every required variable in `docker-compose.yml`.

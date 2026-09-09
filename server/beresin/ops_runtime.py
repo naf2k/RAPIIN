@@ -112,8 +112,9 @@ def assign_default_roles(conn, incident_id: int) -> list[int]:
 
 
 def _daily_budget_available(conn) -> bool:
-    count = conn.execute("SELECT COUNT(*) n FROM ops_agent_usage WHERE created_at >= datetime('now','start of day')").fetchone()["n"]
-    cost = conn.execute("SELECT COALESCE(SUM(estimated_cost_usd),0) n FROM ops_agent_usage WHERE created_at >= datetime('now','start of day')").fetchone()["n"]
+    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    count = conn.execute("SELECT COUNT(*) n FROM ops_agent_usage WHERE created_at >= ?", (day_start,)).fetchone()["n"]
+    cost = conn.execute("SELECT COALESCE(SUM(estimated_cost_usd),0) n FROM ops_agent_usage WHERE created_at >= ?", (day_start,)).fetchone()["n"]
     return count < settings.ops_agent_daily_run_limit and cost < settings.ops_agent_daily_cost_limit_usd
 
 
