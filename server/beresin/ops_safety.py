@@ -44,7 +44,19 @@ def parse_agent_report(output: str) -> dict:
         raise ValueError("Laporan agent tidak memiliki summary.")
     confidence = parsed.get("confidence")
     if isinstance(confidence, str):
-        confidence = {"high": 0.85, "medium": 0.6, "low": 0.35}.get(confidence.strip().lower())
+        normalized = confidence.strip().lower()
+        confidence = {
+            "high": 0.85, "tinggi": 0.85,
+            "medium": 0.6, "sedang": 0.6,
+            "low": 0.35, "rendah": 0.35,
+        }.get(normalized)
+        if confidence is None:
+            try:
+                confidence = float(normalized.rstrip("%"))
+                if normalized.endswith("%"):
+                    confidence /= 100
+            except ValueError:
+                confidence = None
     report = {
         "summary": sanitize_text(parsed["summary"], 4000),
         "findings": sanitize(parsed.get("findings", [])),

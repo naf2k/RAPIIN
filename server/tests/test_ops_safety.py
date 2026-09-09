@@ -26,6 +26,9 @@ def test_agent_report_is_schema_validated_and_sanitized():
     with pytest.raises(ValueError):
         parse_agent_report('{"summary":"missing confidence"}')
     assert parse_agent_report('{"summary":"compatible", "confidence":"high"}')["confidence"] == 0.85
+    assert parse_agent_report('{"summary":"numeric", "confidence":"0.82"}')["confidence"] == 0.82
+    assert parse_agent_report('{"summary":"percent", "confidence":"82%"}')["confidence"] == 0.82
+    assert parse_agent_report('{"summary":"localized", "confidence":"tinggi"}')["confidence"] == 0.85
 
 
 def test_hermes_profiles_are_isolated_and_do_not_write_credentials(tmp_path, monkeypatch):
