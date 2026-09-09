@@ -6,11 +6,13 @@ import os
 import subprocess
 import shutil
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .config import settings
 from .database import utcnow_iso
 from .ops_incidents import get_incident, seed_ops
+from .ops_safety import parse_agent_report, sanitize, sanitize_text
 
 READ_ONLY_ROLES = {"LEAD", "SECURITY", "DIAGNOSTIC"}
 ROLE_PROMPTS = {
@@ -21,11 +23,10 @@ ROLE_PROMPTS = {
 
 
 def hermes_process_environment() -> dict:
-    """Create a private, BERESIN-only Hermes profile for its working provider."""
+    """Create a private profile without persisting the provider credential."""
     home = settings.data_dir / "ops-hermes"
     home.mkdir(parents=True, exist_ok=True, mode=0o700)
     config = home / "config.yaml"
-    env_file = home / ".env"
     config.write_text(
         "model:\n"
         f"  default: {settings.ai_model}\n"
@@ -34,13 +35,18 @@ def hermes_process_environment() -> dict:
         "terminal:\n  backend: local\n",
         encoding="utf-8",
     )
-    env_file.write_text(
-        f"OPENAI_BASE_URL={settings.ai_base_url}\nOPENAI_API_KEY={settings.ai_api_key}\n",
-        encoding="utf-8",
-    )
-    config.chmod(0o600); env_file.chmod(0o600)
+    # Older pilot builds wrote a plaintext provider key here. Remove that
+    # compatibility artifact and inject the credential into this process only.
+    env_file = home / ".env"
+    env_file.unlink(missing_ok=True)
+    config.chmod(0o600)
     env = os.environ.copy()
-    env.update({"HERMES_HOME": str(home), "HERMES_CONFIG": str(config), "HERMES_ENV": str(env_file)})
+    env.update({
+        "HERMES_HOME": str(home), "HERMES_CONFIG": str(config),
+        "OPENAI_BASE_URL": settings.ai_base_url,
+        "OPENAI_API_KEY": settings.ai_api_key,
+    })
+    env.pop("HERMES_ENV", None)
     return env
 
 
@@ -82,14 +88,28 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
         raise PermissionError("Hanya assignment read-only yang dapat dijalankan tanpa approval code fix.")
     if not _daily_budget_available(conn):
         raise RuntimeError("Batas agent harian tercapai.")
+    active = conn.execute("SELECT COUNT(*) n FROM ops_agent_assignments WHERE status='ACTIVE'").fetchone()["n"]
+    if active >= settings.ops_agent_max_concurrency:
+        raise RuntimeError("Batas concurrency Operations Agent tercapai.")
     incident = get_incident(conn, row["incident_id"])
+    prior_reports = []
+    for message in conn.execute(
+        "SELECT content FROM ops_agent_messages WHERE incident_id=? AND message_type='REPORT' ORDER BY id",
+        (row["incident_id"],),
+    ).fetchall()[-3:]:
+        try:
+            prior_reports.append(sanitize(json.loads(message["content"])))
+        except (TypeError, json.JSONDecodeError):
+            continue
     prompt = (
         "Anda adalah agent Operations Center BERESIN. " + ROLE_PROMPTS[row["role"]] + "\n"
         "Balas Bahasa Indonesia dalam JSON dengan keys summary, findings, recommendation, confidence.\n"
-        "Data insiden tersanitasi:\n" + json.dumps({k: incident.get(k) for k in ("id", "title", "severity", "status", "summary", "source", "affected_resource", "occurrence_count")}, ensure_ascii=False)
+        "Data insiden tersanitasi:\n" + json.dumps({k: incident.get(k) for k in ("id", "title", "severity", "status", "summary", "source", "affected_resource", "occurrence_count")}, ensure_ascii=False) +
+        "\nLaporan agent sebelumnya:\n" + json.dumps(prior_reports, ensure_ascii=False)
     )
     started = time.monotonic()
-    conn.execute("UPDATE ops_agent_assignments SET status='ACTIVE' WHERE id=?", (assignment_id,))
+    lease = (datetime.now(timezone.utc) + timedelta(seconds=settings.ops_agent_timeout_seconds + 30)).isoformat()
+    conn.execute("UPDATE ops_agent_assignments SET status='ACTIVE',attempt_count=attempt_count+1,lease_expires_at=? WHERE id=?", (lease, assignment_id))
     conn.execute("UPDATE ops_agents SET state='RUNNING',updated_at=? WHERE id=?", (utcnow_iso(), row["agent_id"]))
     conn.commit()
     try:
@@ -107,15 +127,17 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
             if completed.returncode or "HTTP 4" in combined or "Error from provider" in combined:
                 raise RuntimeError(f"Hermes exit {completed.returncode}: {(completed.stderr or '')[-500:]}")
             output = completed.stdout.strip()
+        report = parse_agent_report(output)
+        output = json.dumps(report, ensure_ascii=False)
         duration = int((time.monotonic() - started) * 1000)
         conn.execute("INSERT INTO ops_agent_messages(incident_id,sender_agent_id,message_type,content,created_at) VALUES(?,?,'REPORT',?,?)", (row["incident_id"], row["agent_id"], output[:20000], utcnow_iso()))
-        conn.execute("UPDATE ops_agent_assignments SET status='COMPLETED',completed_at=? WHERE id=?", (utcnow_iso(), assignment_id))
+        conn.execute("UPDATE ops_agent_assignments SET status='COMPLETED',completed_at=?,lease_expires_at=NULL WHERE id=?", (utcnow_iso(), assignment_id))
         conn.execute("INSERT INTO ops_agent_usage(agent_id,incident_id,duration_ms,prompt_chars,output_chars,status,created_at) VALUES(?,?,?,?,?,'SUCCEEDED',?)", (row["agent_id"], row["incident_id"], duration, len(prompt), len(output), utcnow_iso()))
         status = "COMPLETED"
     except Exception as exc:
-        output = f"{type(exc).__name__}: {str(exc)[:1000]}"
+        output = sanitize_text(f"{type(exc).__name__}: {exc}", 1000)
         duration = int((time.monotonic() - started) * 1000)
-        conn.execute("UPDATE ops_agent_assignments SET status='CANCELLED',completed_at=? WHERE id=?", (utcnow_iso(), assignment_id))
+        conn.execute("UPDATE ops_agent_assignments SET status='CANCELLED',completed_at=?,lease_expires_at=NULL WHERE id=?", (utcnow_iso(), assignment_id))
         conn.execute("INSERT INTO ops_agent_messages(incident_id,sender_agent_id,message_type,content,created_at) VALUES(?,?,'ERROR',?,?)", (row["incident_id"], row["agent_id"], output, utcnow_iso()))
         conn.execute("INSERT INTO ops_agent_usage(agent_id,incident_id,duration_ms,prompt_chars,output_chars,status,created_at) VALUES(?,?,?,?,?,'FAILED',?)", (row["agent_id"], row["incident_id"], duration, len(prompt), len(output), utcnow_iso()))
         status = "FAILED"
@@ -127,3 +149,18 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
 def dispatch_incident(conn, incident_id: int, runner=None) -> list[dict]:
     ids = assign_default_roles(conn, incident_id)
     return [run_assignment(conn, assignment_id, runner=runner) for assignment_id in ids]
+
+
+def recover_expired_assignments(conn) -> int:
+    """Requeue one interrupted attempt; cancel assignments interrupted twice."""
+    now = utcnow_iso()
+    rows = conn.execute(
+        "SELECT id,attempt_count FROM ops_agent_assignments WHERE status='ACTIVE' AND lease_expires_at < ?",
+        (now,),
+    ).fetchall()
+    for row in rows:
+        if row["attempt_count"] >= 2:
+            conn.execute("UPDATE ops_agent_assignments SET status='CANCELLED',completed_at=?,lease_expires_at=NULL WHERE id=?", (now, row["id"]))
+        else:
+            conn.execute("UPDATE ops_agent_assignments SET status='PENDING',lease_expires_at=NULL WHERE id=?", (row["id"],))
+    return len(rows)

@@ -258,6 +258,8 @@ CREATE TABLE IF NOT EXISTS ops_agent_assignments (
     agent_id INTEGER NOT NULL REFERENCES ops_agents(id),
     assignment TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','ACTIVE','COMPLETED','CANCELLED')),
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    lease_expires_at TEXT,
     created_at TEXT NOT NULL,
     completed_at TEXT
 );
@@ -293,6 +295,8 @@ CREATE TABLE IF NOT EXISTS ops_approvals (
     approval_type TEXT NOT NULL CHECK (approval_type IN ('CODE_FIX','DEPLOYMENT')),
     status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED','EXPIRED')),
     snapshot_hash TEXT,
+    idempotency_key TEXT,
+    expires_at TEXT,
     requested_at TEXT NOT NULL,
     decided_at TEXT,
     decided_by INTEGER REFERENCES users(id),
@@ -439,6 +443,11 @@ MIGRATIONS = [
     "ALTER TABLE ops_notifications ADD COLUMN delivery_status TEXT NOT NULL DEFAULT 'PENDING'",
     "ALTER TABLE ops_notifications ADD COLUMN delivered_at TEXT",
     "ALTER TABLE ops_notifications ADD COLUMN last_error TEXT",
+    "ALTER TABLE ops_approvals ADD COLUMN idempotency_key TEXT",
+    "ALTER TABLE ops_approvals ADD COLUMN expires_at TEXT",
+    "ALTER TABLE ops_agent_assignments ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE ops_agent_assignments ADD COLUMN lease_expires_at TEXT",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_approvals_idempotency ON ops_approvals(idempotency_key) WHERE idempotency_key IS NOT NULL",
 ]
 
 

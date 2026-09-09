@@ -1,7 +1,7 @@
 """Approved code, CI, deployment and rollback workflows."""
 from __future__ import annotations
 
-import hashlib
+import hmac
 import json
 import os
 import shlex
@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .config import settings
 from .database import utcnow_iso
-from .ops_incidents import _event, get_incident, operations_frozen
+from .ops_incidents import _approval_snapshot, _event, get_incident, operations_frozen
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -21,10 +21,40 @@ def _run(command: list[str], cwd: Path, timeout: int = 300, env: dict | None = N
     return subprocess.run(command, cwd=str(cwd), capture_output=True, text=True, timeout=timeout, check=False, env=env)
 
 
+def _sandbox_profile(worktree: Path, hermes_command: str) -> str:
+    """Permit code reads in the worktree while denying the rest of the user's home."""
+    home = Path.home().resolve()
+    hermes_binary = Path(hermes_command).resolve()
+    hermes_runtime = next((p for p in hermes_binary.parents if p.name == "hermes-agent"), hermes_binary.parent)
+    hermes_state = (settings.data_dir / "ops-hermes").resolve()
+    git_metadata = (REPO_ROOT / ".git").resolve()
+    return (
+        '(version 1) (allow default) '
+        f'(deny file-read* (subpath "{home}")) '
+        f'(allow file-read* (subpath "{worktree}")) '
+        f'(allow file-read* (subpath "{git_metadata}")) '
+        f'(allow file-read* (subpath "{hermes_runtime}")) '
+        f'(allow file-read* (subpath "{hermes_state}")) '
+        '(deny file-write*) (allow file-write* (literal "/dev/null")) '
+        f'(allow file-write* (subpath "{worktree}")) '
+        f'(allow file-write* (subpath "{hermes_state}")) '
+        '(allow file-write* (subpath "/tmp")) '
+        '(allow file-write* (subpath "/private/tmp"))'
+    )
+
+
 def _approved(conn, approval_id: int, incident_id: int, approval_type: str):
     row = conn.execute("SELECT * FROM ops_approvals WHERE id=? AND incident_id=? AND approval_type=?", (approval_id, incident_id, approval_type)).fetchone()
     if not row or row["status"] != "APPROVED":
         raise PermissionError(f"Approval {approval_type} yang valid diperlukan.")
+    now = utcnow_iso()
+    if row["expires_at"] and row["expires_at"] <= now:
+        conn.execute("UPDATE ops_approvals SET status='EXPIRED' WHERE id=?", (approval_id,))
+        raise PermissionError(f"Approval {approval_type} sudah kedaluwarsa.")
+    proposal = conn.execute("SELECT * FROM ops_action_proposals WHERE id=?", (row["proposal_id"],)).fetchone()
+    expected = _approval_snapshot(incident_id, proposal["id"], proposal["action_type"], proposal["title"], proposal["description"], proposal["risk"] or "")
+    if not hmac.compare_digest(row["snapshot_hash"] or "", expected):
+        raise PermissionError("Snapshot approval tidak lagi cocok dengan proposal.")
     return row
 
 
@@ -84,17 +114,13 @@ def run_coder(conn, code_change_id: int, runner=None) -> dict:
             hermes_command = shutil.which(settings.ops_hermes_command) or str(Path.home() / ".local/bin/hermes")
             if not Path(hermes_command).is_file():
                 raise RuntimeError("Hermes CLI tidak ditemukan oleh service account.")
-            command = [hermes_command, "--cli", "--in", str(worktree), "--yolo", "-z", prompt]
+            command = [
+                hermes_command, "--cli", "--ignore-user-config", "--ignore-rules",
+                "--provider", "custom", "-m", settings.ai_model,
+                "-t", "terminal,file", "--in", str(worktree), "-z", prompt,
+            ]
             if shutil.which("sandbox-exec"):
-                hermes_state = (settings.data_dir / "ops-hermes").resolve()
-                profile = (
-                    '(version 1) (allow default) (deny file-write*) '
-                    '(allow file-write* (literal "/dev/null")) '
-                    f'(allow file-write* (subpath "{worktree}")) '
-                    f'(allow file-write* (subpath "{hermes_state}")) '
-                    '(allow file-write* (subpath "/tmp")) '
-                    '(allow file-write* (subpath "/private/tmp"))'
-                )
+                profile = _sandbox_profile(worktree, hermes_command)
                 command = ["sandbox-exec", "-p", profile, *command]
             from .ops_runtime import hermes_process_environment
             try:
@@ -122,8 +148,14 @@ def run_checks(conn, code_change_id: int) -> list[dict]:
     commands = [
         ("backend", [str(REPO_ROOT / "server/.venv/bin/python"), "-m", "pytest", "-q", "server/tests"]),
         ("agent", [str(REPO_ROOT / "agent/.venv/bin/python"), "-m", "pytest", "-q", "agent/tests"]),
-        ("javascript", [node_command, "--check", "supervisor.js"]),
+        ("javascript-app", [node_command, "--check", "app.js"]),
+        ("javascript-chat", [node_command, "--check", "chat.js"]),
+        ("javascript-supervisor", [node_command, "--check", "supervisor.js"]),
+        ("diff-integrity", ["git", "diff", "--check"]),
     ]
+    bandit = REPO_ROOT / "server/.venv/bin/bandit"
+    if bandit.is_file():
+        commands.append(("security-bandit", [str(bandit), "-q", "-r", "server/beresin", "-lll", "-ii"]))
     conn.execute(
         "UPDATE ops_check_runs SET status='FAILED',output_summary=?,finished_at=? "
         "WHERE code_change_id=? AND status='RUNNING'",
@@ -155,7 +187,10 @@ def _latest_checks_passed(conn, code_change_id: int) -> bool:
         (code_change_id,),
     ).fetchall()
     latest = {row["name"]: row["status"] for row in rows}
-    return all(latest.get(name) == "PASSED" for name in ("backend", "agent", "javascript"))
+    required = {"backend", "agent", "javascript-app", "javascript-chat", "javascript-supervisor", "diff-integrity"}
+    if (REPO_ROOT / "server/.venv/bin/bandit").is_file():
+        required.add("security-bandit")
+    return all(latest.get(name) == "PASSED" for name in required)
 
 
 def create_pull_request(conn, code_change_id: int) -> dict:

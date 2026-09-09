@@ -54,6 +54,24 @@ def test_code_and_deployment_use_separate_owner_approvals(client, monkeypatch):
     assert {a["approval_type"] for a in approvals} == {"CODE_FIX", "DEPLOYMENT"}
 
 
+def test_ops_approval_is_idempotent_expires_and_rejects_tampering(client, monkeypatch):
+    from beresin.config import settings
+    from beresin.database import connect
+    monkeypatch.setattr(settings, "beresin_monitoring_token", "z" * 32)
+    incident = client.post("/api/internal/ops/signals", headers={"Authorization": "Bearer " + "z" * 32}, json={"source": "ops", "title": "Guard approval", "severity": "HIGH"}).json()
+    sup = _supervisor_headers(client)
+    body = {"action_type": "CODE_FIX", "title": "Safe patch", "description": "Bounded", "risk": "Low", "idempotency_key": "incident-guard-001"}
+    first = client.post(f"/api/supervisor/ops/incidents/{incident['id']}/proposals", headers=sup, json=body).json()
+    second = client.post(f"/api/supervisor/ops/incidents/{incident['id']}/proposals", headers=sup, json=body).json()
+    assert second == first
+    conn = connect()
+    conn.execute("UPDATE ops_action_proposals SET description='tampered' WHERE id=?", (first["proposal_id"],))
+    conn.commit(); conn.close()
+    rejected = client.post(f"/api/supervisor/ops/approvals/{first['approval_id']}/respond", headers=sup, json={"decision": "APPROVED", "note": "reviewed"})
+    assert rejected.status_code == 409
+    assert "berubah" in rejected.json()["detail"]
+
+
 def test_emergency_pause_is_supervisor_only_and_blocks_agent_claims(client):
     reg = _register_user(client)
     user_token = reg.json()["token"]

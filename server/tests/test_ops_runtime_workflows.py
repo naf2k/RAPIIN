@@ -6,8 +6,8 @@ from pathlib import Path
 from beresin.database import connect, utcnow_iso
 from beresin.ops_incidents import create_proposal, ingest_signal, respond_approval, seed_ops
 from beresin.ops_notifications import deliver_pending
-from beresin.ops_runtime import dispatch_incident
-from beresin.ops_workflows import REPO_ROOT, _latest_checks_passed, deploy, provision_worktree, run_checks, run_coder
+from beresin.ops_runtime import dispatch_incident, recover_expired_assignments
+from beresin.ops_workflows import REPO_ROOT, _latest_checks_passed, _sandbox_profile, deploy, provision_worktree, run_checks, run_coder
 
 
 def _actor(conn):
@@ -17,6 +17,14 @@ def _actor(conn):
 def test_operations_repo_root_points_to_checkout():
     assert (REPO_ROOT / ".git").exists()
     assert (REPO_ROOT / "server" / "beresin").is_dir()
+
+
+def test_coder_sandbox_denies_home_reads_except_assigned_scopes(tmp_path):
+    worktree = tmp_path / "worktree"
+    profile = _sandbox_profile(worktree, "/usr/bin/true")
+    assert f'(deny file-read* (subpath "{Path.home().resolve()}"))' in profile
+    assert f'(allow file-read* (subpath "{worktree}"))' in profile
+    assert f'(allow file-write* (subpath "{worktree}"))' in profile
 
 
 def test_check_runner_records_launch_failure_instead_of_leaving_running(tmp_path, monkeypatch):
@@ -45,7 +53,7 @@ def test_latest_successful_rerun_supersedes_old_failure():
         (incident["id"], approval["approval_id"], "ops/test-rerun", "/tmp/test-rerun", "base", now, now),
     ).lastrowid
     conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'FAILED')", (change_id, "javascript"))
-    for name in ("backend", "agent", "javascript"):
+    for name in ("backend", "agent", "javascript-app", "javascript-chat", "javascript-supervisor", "diff-integrity", "security-bandit"):
         conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'PASSED')", (change_id, name))
     assert _latest_checks_passed(conn, change_id)
     conn.close()
@@ -66,6 +74,35 @@ def test_default_agents_exchange_durable_reports():
     assert [r["status"] for r in results] == ["COMPLETED"] * 3
     assert conn.execute("SELECT COUNT(*) n FROM ops_agent_assignments WHERE incident_id=?", (incident["id"],)).fetchone()["n"] == 3
     assert conn.execute("SELECT COUNT(*) n FROM ops_agent_messages WHERE incident_id=?", (incident["id"],)).fetchone()["n"] == 3
+    conn.close()
+
+
+def test_later_agents_receive_prior_structured_reports():
+    conn = connect(); seed_ops(conn)
+    incident = ingest_signal(conn, source="runtime", title="Coordinated incident", severity="HIGH")
+    prompts = []
+    def runner(role, prompt):
+        prompts.append((role, prompt))
+        return json.dumps({"summary": f"{role} report", "confidence": 0.9})
+    dispatch_incident(conn, incident["id"], runner=runner)
+    assert "LEAD report" in prompts[1][1]
+    assert "SECURITY report" in prompts[2][1]
+    conn.close()
+
+
+def test_expired_assignment_is_recovered_once_then_cancelled():
+    conn = connect(); seed_ops(conn)
+    incident = ingest_signal(conn, source="runtime", title="Interrupted agent", severity="HIGH")
+    agent = conn.execute("SELECT id FROM ops_agents WHERE role='LEAD'").fetchone()
+    assignment_id = conn.execute(
+        "INSERT INTO ops_agent_assignments(incident_id,agent_id,assignment,status,attempt_count,lease_expires_at,created_at) VALUES(?,?,?,'ACTIVE',1,?,?)",
+        (incident["id"], agent["id"], "triage", "2000-01-01T00:00:00+00:00", utcnow_iso()),
+    ).lastrowid
+    assert recover_expired_assignments(conn) == 1
+    assert conn.execute("SELECT status FROM ops_agent_assignments WHERE id=?", (assignment_id,)).fetchone()["status"] == "PENDING"
+    conn.execute("UPDATE ops_agent_assignments SET status='ACTIVE',attempt_count=2,lease_expires_at='2000-01-01T00:00:00+00:00' WHERE id=?", (assignment_id,))
+    recover_expired_assignments(conn)
+    assert conn.execute("SELECT status FROM ops_agent_assignments WHERE id=?", (assignment_id,)).fetchone()["status"] == "CANCELLED"
     conn.close()
 
 
@@ -115,7 +152,7 @@ def test_deployment_uses_second_approval_and_rolls_back(monkeypatch):
     conn = connect(); incident, fix = _incident_and_approval(conn)
     now = utcnow_iso()
     change_id = conn.execute("INSERT INTO ops_code_changes(incident_id,approval_id,branch_name,worktree_path,base_commit,commit_sha,status,created_at,updated_at) VALUES(?,?,?,?,?,?,'READY_FOR_REVIEW',?,?)", (incident["id"], fix["approval_id"], "ops/test", "/tmp/test", "base", "artifact123", now, now)).lastrowid
-    for name in ("backend", "agent", "javascript"):
+    for name in ("backend", "agent", "javascript-app", "javascript-chat", "javascript-supervisor", "diff-integrity", "security-bandit"):
         conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'PASSED')", (change_id, name))
     try:
         deploy(conn, incident["id"], change_id, fix["approval_id"], command_runner=lambda action, artifact: True)

@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from datetime import datetime, timedelta, timezone
 
 from .audit import record_audit
 from .database import utcnow_iso
+from .ops_safety import content_hash, sanitize, sanitize_text
 
 ACTIVE_STATUSES = (
     "OPEN", "INVESTIGATING", "AWAITING_APPROVAL", "APPROVED_FOR_FIX", "FIXING",
@@ -60,6 +62,10 @@ def ingest_signal(conn, *, source: str, title: str, severity: str, summary: str 
     severity = severity.upper()
     if severity not in SEVERITIES:
         raise ValueError("Severity tidak valid.")
+    title = sanitize_text(title, 200)
+    summary = sanitize_text(summary, 4000)
+    resource = sanitize_text(resource, 500) if resource else None
+    details = sanitize(details or {})
     fp = fingerprint(source, title, resource)
     placeholders = ",".join("?" for _ in ACTIVE_STATUSES)
     row = conn.execute(
@@ -73,7 +79,7 @@ def ingest_signal(conn, *, source: str, title: str, severity: str, summary: str 
             "UPDATE ops_incidents SET occurrence_count=occurrence_count+1,last_seen_at=?,updated_at=?,severity=? WHERE id=?",
             (now, now, severity, incident_id),
         )
-        _event(conn, incident_id, "SIGNAL_REPEATED", "system", "SYSTEM", {"details": details or {}})
+        _event(conn, incident_id, "SIGNAL_REPEATED", "system", "SYSTEM", {"evidence_hash": content_hash(details)})
         created = False
     else:
         cur = conn.execute(
@@ -82,7 +88,11 @@ def ingest_signal(conn, *, source: str, title: str, severity: str, summary: str 
             (fp, title.strip(), severity, summary, source.strip(), resource, now, now, now, now),
         )
         incident_id = cur.lastrowid
-        _event(conn, incident_id, "INCIDENT_OPENED", "system", "SYSTEM", {"details": details or {}})
+        conn.execute(
+            "INSERT INTO ops_evidence(incident_id,kind,source,content_json,content_hash,created_at) VALUES(?,?,?,?,?,?)",
+            (incident_id, "SIGNAL", source.strip(), json.dumps(details, ensure_ascii=False), content_hash(details), now),
+        )
+        _event(conn, incident_id, "INCIDENT_OPENED", "system", "SYSTEM", {"evidence_hash": content_hash(details)})
         conn.execute(
             "INSERT INTO ops_notifications(incident_id,title,body,severity,created_at) VALUES(?,?,?,?,?)",
             (incident_id, f"Insiden {severity}: {title.strip()}", summary, severity, now),
@@ -120,13 +130,28 @@ def get_incident(conn, incident_id: int) -> dict | None:
     return result
 
 
-def create_proposal(conn, incident_id: int, *, action_type: str, title: str, description: str, risk: str, actor: dict) -> dict:
+def _approval_snapshot(incident_id: int, proposal_id: int, action_type: str, title: str, description: str, risk: str) -> str:
+    return hashlib.sha256(json.dumps({
+        "incident_id": incident_id, "proposal_id": proposal_id,
+        "action_type": action_type, "title": title, "description": description,
+        "risk": risk,
+    }, sort_keys=True).encode()).hexdigest()
+
+
+def create_proposal(conn, incident_id: int, *, action_type: str, title: str, description: str, risk: str, actor: dict, idempotency_key: str | None = None) -> dict:
     if not get_incident(conn, incident_id):
         raise LookupError("Insiden tidak ditemukan.")
     action_type = action_type.upper()
     if action_type not in {"INVESTIGATION", "CODE_FIX", "DEPLOYMENT"}:
         raise ValueError("Jenis proposal tidak valid.")
     now = utcnow_iso()
+    if idempotency_key:
+        existing = conn.execute(
+            "SELECT proposal_id,id FROM ops_approvals WHERE idempotency_key=?",
+            (idempotency_key,),
+        ).fetchone()
+        if existing:
+            return {"proposal_id": existing["proposal_id"], "approval_id": existing["id"]}
     cur = conn.execute(
         "INSERT INTO ops_action_proposals(incident_id,action_type,title,description,risk,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
         (incident_id, action_type, title, description, risk, now, now),
@@ -134,14 +159,11 @@ def create_proposal(conn, incident_id: int, *, action_type: str, title: str, des
     approval_id = None
     if action_type in {"CODE_FIX", "DEPLOYMENT"}:
         approval_type = action_type
-        snapshot_hash = hashlib.sha256(json.dumps({
-            "incident_id": incident_id, "proposal_id": cur.lastrowid,
-            "action_type": action_type, "title": title, "description": description,
-            "risk": risk,
-        }, sort_keys=True).encode()).hexdigest()
+        snapshot_hash = _approval_snapshot(incident_id, cur.lastrowid, action_type, title, description, risk)
+        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=15 if action_type == "DEPLOYMENT" else 30)).isoformat()
         approval_id = conn.execute(
-            "INSERT INTO ops_approvals(incident_id,proposal_id,approval_type,snapshot_hash,requested_at) VALUES(?,?,?,?,?)",
-            (incident_id, cur.lastrowid, approval_type, snapshot_hash, now),
+            "INSERT INTO ops_approvals(incident_id,proposal_id,approval_type,snapshot_hash,idempotency_key,requested_at,expires_at) VALUES(?,?,?,?,?,?,?)",
+            (incident_id, cur.lastrowid, approval_type, snapshot_hash, idempotency_key, now, expires_at),
         ).lastrowid
         conn.execute("UPDATE ops_incidents SET status=?,updated_at=? WHERE id=?", ("AWAITING_APPROVAL" if action_type == "CODE_FIX" else "AWAITING_DEPLOY_APPROVAL", now, incident_id))
     _event(conn, incident_id, "PROPOSAL_CREATED", actor["name"], actor["role"], {"proposal_id": cur.lastrowid, "approval_id": approval_id, "action_type": action_type})
@@ -159,6 +181,13 @@ def respond_approval(conn, approval_id: int, *, decision: str, note: str, actor:
     if row["status"] != "PENDING":
         raise ValueError("Approval sudah diputuskan.")
     now = utcnow_iso()
+    if row["expires_at"] and row["expires_at"] <= now:
+        conn.execute("UPDATE ops_approvals SET status='EXPIRED',decided_at=? WHERE id=?", (now, approval_id))
+        raise ValueError("Approval sudah kedaluwarsa.")
+    proposal = conn.execute("SELECT * FROM ops_action_proposals WHERE id=?", (row["proposal_id"],)).fetchone()
+    expected_hash = _approval_snapshot(row["incident_id"], proposal["id"], proposal["action_type"], proposal["title"], proposal["description"], proposal["risk"] or "")
+    if not hmac.compare_digest(row["snapshot_hash"] or "", expected_hash):
+        raise ValueError("Isi proposal berubah setelah approval dibuat.")
     conn.execute("UPDATE ops_approvals SET status=?,decided_at=?,decided_by=?,decision_note=? WHERE id=?", (decision, now, actor["id"], note, approval_id))
     conn.execute("UPDATE ops_action_proposals SET status=?,updated_at=? WHERE id=?", (decision, now, row["proposal_id"]))
     if decision == "REJECTED":

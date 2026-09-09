@@ -63,7 +63,8 @@ def _ops_tick() -> None:
         collect_runtime_signals(conn)
         deliver_pending(conn)
         if settings.ops_agents_enabled:
-            from .ops_runtime import dispatch_incident
+            from .ops_runtime import dispatch_incident, recover_expired_assignments
+            recover_expired_assignments(conn)
             rows = conn.execute(
                 "SELECT i.id FROM ops_incidents i WHERE i.status IN ('OPEN','INVESTIGATING') "
                 "AND NOT EXISTS (SELECT 1 FROM ops_agent_assignments a WHERE a.incident_id=i.id AND a.status IN ('PENDING','ACTIVE','COMPLETED')) "

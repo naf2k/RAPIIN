@@ -39,6 +39,7 @@ class ProposalBody(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1, max_length=8000)
     risk: str = Field(default="", max_length=2000)
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=100)
 
 
 class ApprovalBody(BaseModel):
@@ -102,7 +103,7 @@ def ops_incident_detail(incident_id: int, conn=Depends(get_db), user=Depends(req
 @router.post("/incidents/{incident_id}/proposals")
 def ops_create_proposal(incident_id: int, body: ProposalBody, conn=Depends(get_db), user=Depends(require_supervisor)):
     try:
-        return create_proposal(conn, incident_id, action_type=body.action_type, title=body.title, description=body.description, risk=body.risk, actor=user)
+        return create_proposal(conn, incident_id, action_type=body.action_type, title=body.title, description=body.description, risk=body.risk, actor=user, idempotency_key=body.idempotency_key)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
