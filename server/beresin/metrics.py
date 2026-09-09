@@ -57,6 +57,15 @@ def compute_metrics(conn) -> dict:
         "SELECT AVG(value) AS average, COUNT(*) AS samples FROM metric_events WHERE name='ai_response_latency_ms' AND timestamp >= ?",
         (day_ago,),
     ).fetchone()
+    ops = conn.execute(
+        """SELECT
+             SUM(CASE WHEN status NOT IN ('RESOLVED','REJECTED') THEN 1 ELSE 0 END) active,
+             SUM(CASE WHEN severity='CRITICAL' AND status NOT IN ('RESOLVED','REJECTED') THEN 1 ELSE 0 END) critical
+           FROM ops_incidents"""
+    ).fetchone()
+    ops_agents = conn.execute("SELECT SUM(CASE WHEN state='RUNNING' THEN 1 ELSE 0 END) running FROM ops_agents").fetchone()
+    ops_failed_runs = conn.execute("SELECT COUNT(*) n FROM ops_agent_usage WHERE status='FAILED' AND created_at >= ?", (day_ago,)).fetchone()["n"]
+    ops_failed_notifications = conn.execute("SELECT COUNT(*) n FROM ops_notifications WHERE delivery_status='FAILED'").fetchone()["n"]
 
     return {
         "period": "24h",
@@ -73,6 +82,12 @@ def compute_metrics(conn) -> dict:
         "error_frequency_24h": error_frequency_24h,
         "avg_ai_response_latency_ms": round(ai_row["average"]) if ai_row["average"] is not None else None,
         "ai_response_samples_24h": ai_row["samples"],
+        "ops_active_incidents": ops["active"] or 0,
+        "ops_critical_incidents": ops["critical"] or 0,
+        "ops_running_agents": ops_agents["running"] or 0,
+        "ops_failed_agent_runs_24h": ops_failed_runs,
+        "ops_failed_notifications": ops_failed_notifications,
+        "ops_pending_approvals": conn.execute("SELECT COUNT(*) n FROM ops_approvals WHERE status='PENDING'").fetchone()["n"],
     }
 
 

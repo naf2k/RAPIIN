@@ -150,3 +150,12 @@ def test_recovered_device_signal_is_auto_resolved(client):
     assert row["resolved_at"]
     assert conn.execute("SELECT COUNT(*) n FROM ops_incident_events WHERE incident_id=? AND event_type='AUTO_RESOLVED'", (incident["id"],)).fetchone()["n"] == 1
     conn.close()
+
+
+def test_prometheus_contains_operations_metrics(client, monkeypatch):
+    from beresin.config import settings
+    monkeypatch.setattr(settings, "beresin_monitoring_token", "m" * 32)
+    response = client.get("/internal/metrics", headers={"Authorization": "Bearer " + "m" * 32})
+    assert response.status_code == 200
+    assert "beresin_ops_active_incidents" in response.text
+    assert "beresin_ops_pending_approvals" in response.text
