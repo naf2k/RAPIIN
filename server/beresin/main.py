@@ -58,18 +58,26 @@ def _ops_tick() -> None:
     """One bounded Operations Center cycle outside the event loop."""
     conn = init_db()
     try:
-        from .ops_incidents import collect_runtime_signals, expire_pending_approvals, queue_daily_digest
+        from .ops_incidents import auto_resolve, collect_runtime_signals, expire_pending_approvals, ingest_signal, queue_daily_digest
         from .ops_notifications import deliver_pending
         collect_runtime_signals(conn)
         expire_pending_approvals(conn)
         queue_daily_digest(conn)
+        from .ops_maintenance import apply_ops_retention, queue_approval_reminders
+        queue_approval_reminders(conn)
+        apply_ops_retention(conn)
         deliver_pending(conn)
         if settings.ops_agents_enabled:
-            from .ops_runtime import dispatch_incident, finalize_agent_triage, recover_expired_assignments
+            from .ops_runtime import dispatch_incident, finalize_agent_triage, provider_circuit_open, recover_expired_assignments
             recover_expired_assignments(conn)
+            circuit_open = provider_circuit_open(conn)
+            if circuit_open:
+                ingest_signal(conn, source="ops-provider-circuit", title="Operations AI provider circuit open", severity="HIGH", summary="Kegagalan agent beruntun mencapai batas; dispatch AI dijeda otomatis.", resource="operations-provider")
+            else:
+                auto_resolve(conn, source="ops-provider-circuit", resource="operations-provider", note="Provider Operations Agent kembali melewati cooldown tanpa kegagalan baru.")
             for completed in conn.execute("SELECT id FROM ops_incidents WHERE status='OPEN'").fetchall():
                 finalize_agent_triage(conn, completed["id"])
-            rows = conn.execute(
+            rows = [] if circuit_open else conn.execute(
                 "SELECT i.id FROM ops_incidents i WHERE i.status IN ('OPEN','INVESTIGATING') "
                 "AND NOT EXISTS (SELECT 1 FROM ops_agent_assignments a WHERE a.incident_id=i.id AND a.status IN ('PENDING','ACTIVE')) "
                 "AND NOT EXISTS (SELECT 1 FROM ops_incident_events e WHERE e.incident_id=i.id AND e.event_type='AGENT_TRIAGE_COMPLETED') "

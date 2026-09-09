@@ -167,6 +167,17 @@ def ops_audit_integrity(conn=Depends(get_db), user=Depends(require_supervisor)):
     return verify_audit_chain(conn)
 
 
+@router.get("/audit/export")
+def ops_audit_export(limit: int = 1000, conn=Depends(get_db), user=Depends(require_supervisor)):
+    from ..audit import verify_audit_chain
+    from ..ops_safety import sanitize
+    rows = conn.execute(
+        "SELECT id,actor,actor_role,action,resource,timestamp,result,approval_id,task_id,previous_hash,event_hash FROM audit_log ORDER BY id DESC LIMIT ?",
+        (min(max(limit, 1), 5000),),
+    ).fetchall()
+    return {"integrity": verify_audit_chain(conn), "events": [sanitize(dict(row)) for row in rows]}
+
+
 @router.post("/incidents/{incident_id}/agents/dispatch")
 def ops_dispatch_agents(incident_id: int, conn=Depends(get_db), user=Depends(require_supervisor)):
     from ..ops_runtime import dispatch_incident

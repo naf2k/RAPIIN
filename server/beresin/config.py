@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     ops_agent_timeout_seconds: int = 180
     ops_agent_daily_run_limit: int = 100
     ops_agent_max_concurrency: int = 1
+    ops_agent_failure_threshold: int = 3
+    ops_agent_circuit_cooldown_seconds: int = 900
+    ops_retention_days: int = 90
     ops_telegram_bot_token: str = ""
     ops_telegram_bot_token_file: str = ""
     ops_telegram_chat_id: str = ""
@@ -108,6 +111,10 @@ class Settings(BaseSettings):
             errors.append("OPS_AGENT_DAILY_RUN_LIMIT tidak boleh lebih kecil dari concurrency")
         if self.ops_agent_timeout_seconds < 30 or self.ops_agent_timeout_seconds > 900:
             errors.append("OPS_AGENT_TIMEOUT_SECONDS wajib antara 30 dan 900 detik")
+        if self.ops_agent_failure_threshold < 1 or self.ops_agent_failure_threshold > 20:
+            errors.append("OPS_AGENT_FAILURE_THRESHOLD wajib antara 1 dan 20")
+        if self.ops_retention_days < 30:
+            errors.append("OPS_RETENTION_DAYS minimal 30 hari")
         if self.ops_agents_enabled and not self.ops_hermes_commit:
             errors.append("OPS_HERMES_COMMIT wajib dipin saat Operations Agent aktif")
         if self.ops_telegram_bot_token and not self.ops_telegram_chat_id:

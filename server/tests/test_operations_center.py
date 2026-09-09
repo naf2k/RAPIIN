@@ -42,6 +42,14 @@ def test_audit_hash_chain_detects_tampering(client):
     assert broken["broken_at"] == row["id"]
 
 
+def test_sanitized_audit_export_is_supervisor_only(client):
+    assert client.get("/api/supervisor/ops/audit/export").status_code == 401
+    exported = client.get("/api/supervisor/ops/audit/export?limit=10", headers=_supervisor_headers(client))
+    assert exported.status_code == 200
+    assert exported.json()["integrity"]["valid"] is True
+    assert len(exported.json()["events"]) <= 10
+
+
 def test_signal_deduplicates_and_timeline_is_auditable(client, monkeypatch):
     from beresin.config import settings
     monkeypatch.setattr(settings, "beresin_monitoring_token", "x" * 32)

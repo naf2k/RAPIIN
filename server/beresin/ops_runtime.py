@@ -79,6 +79,12 @@ def _daily_budget_available(conn) -> bool:
     return count < settings.ops_agent_daily_run_limit
 
 
+def provider_circuit_open(conn) -> bool:
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=settings.ops_agent_circuit_cooldown_seconds)).isoformat()
+    failures = conn.execute("SELECT COUNT(*) n FROM ops_agent_usage WHERE status='FAILED' AND created_at >= ?", (cutoff,)).fetchone()["n"]
+    return failures >= settings.ops_agent_failure_threshold
+
+
 def run_assignment(conn, assignment_id: int, runner=None) -> dict:
     row = conn.execute(
         """SELECT a.*, g.role, g.name agent_name FROM ops_agent_assignments a
@@ -92,6 +98,8 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
         raise PermissionError("Hanya assignment read-only yang dapat dijalankan tanpa approval code fix.")
     if not _daily_budget_available(conn):
         raise RuntimeError("Batas agent harian tercapai.")
+    if provider_circuit_open(conn):
+        raise RuntimeError("Circuit breaker provider Operations Agent sedang terbuka.")
     active = conn.execute("SELECT COUNT(*) n FROM ops_agent_assignments WHERE status='ACTIVE'").fetchone()["n"]
     if active >= settings.ops_agent_max_concurrency:
         raise RuntimeError("Batas concurrency Operations Agent tercapai.")
