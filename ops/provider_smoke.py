@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -14,11 +13,14 @@ sys.path.insert(0, str(ROOT / "server"))
 
 
 def main() -> int:
+    from beresin.config import settings
+
+    settings.validate_for_startup()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default=os.getenv("AI_BASE_URL"))
-    parser.add_argument("--model", default=os.getenv("AI_MODEL", "ai-rapiin"))
+    parser.add_argument("--base-url", default=settings.ai_base_url)
+    parser.add_argument("--model", default=settings.ai_model)
     args = parser.parse_args()
-    api_key = os.getenv("AI_API_KEY", "")
+    api_key = settings.ai_api_key
     if not args.base_url or not api_key:
         raise SystemExit("AI_BASE_URL and AI_API_KEY are required")
     from beresin.ai.provider import OpenAICompatibleProvider
