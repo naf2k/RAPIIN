@@ -644,8 +644,9 @@
       BERESIN.api("GET", "/supervisor/ops/overview" + suffix),
       BERESIN.api("GET", "/supervisor/ops/incidents"),
       BERESIN.api("GET", "/supervisor/ops/approvals"),
+      BERESIN.api("GET", "/supervisor/ops/usage"),
     ]);
-    var summary = results[0], incidents = results[1], approvals = results[2];
+    var summary = results[0], incidents = results[1], approvals = results[2], usage = results[3];
     opsFreezeEnabled = !!(summary.freeze && summary.freeze.enabled);
     setText("ops-status", summary.status);
     setText("ops-system-label", summary.status === "HEALTHY" ? "Sistem sehat" : summary.status === "PAUSED" ? "Automation dijeda" : "Perlu perhatian");
@@ -658,7 +659,7 @@
     if (freezeButton) freezeButton.textContent = opsFreezeEnabled ? "Lanjutkan automation" : "Aktifkan pause";
     renderOpsIncidents(incidents);
     renderOpsApprovals(approvals);
-    renderOpsAgents(summary.agents || []);
+    renderOpsAgents(summary.agents || [], usage);
     if (selectedIncidentId) await loadIncidentDetail(selectedIncidentId);
   }
 
@@ -739,6 +740,15 @@
     (item.code_changes || []).forEach(function (change) {
       var report = document.createElement("article"); report.className = "ops-report";
       report.innerHTML = "<strong>Code change #" + change.id + " · " + BERESIN.esc(change.status) + "</strong><p>" + BERESIN.esc(change.branch_name) + "</p><pre>" + BERESIN.esc(change.diff_summary || "Belum ada diff.") + "</pre>";
+      var latestChecks = {};
+      (change.checks || []).forEach(function (check) { latestChecks[check.name] = check; });
+      var checkList = document.createElement("div"); checkList.className = "ops-check-list";
+      Object.keys(latestChecks).sort().forEach(function (name) {
+        var check = latestChecks[name]; var line = document.createElement("p");
+        line.textContent = (check.status === "PASSED" ? "✓ " : check.status === "FAILED" ? "✕ " : "… ") + name + " — " + check.status;
+        checkList.appendChild(line);
+      });
+      if (Object.keys(latestChecks).length) report.appendChild(checkList);
       var changeActions = document.createElement("div"); changeActions.className = "ops-actions";
       if (change.status === "PROVISIONED" || change.status === "FAILED") {
         var runCoder = document.createElement("button"); runCoder.className = "button button--primary"; runCoder.textContent = "Jalankan Coder";
@@ -749,7 +759,9 @@
         var runChecks = document.createElement("button"); runChecks.className = "button button--secondary"; runChecks.textContent = "Jalankan checks";
         runChecks.addEventListener("click", async function () { try { await BERESIN.api("POST", "/supervisor/ops/code-changes/" + change.id + "/checks"); BERESIN.showToast("Checks selesai.", "success"); await loadIncidentDetail(id); } catch (err) { BERESIN.showError(err.message); } });
         changeActions.appendChild(runChecks);
-        var allPassed = (change.checks || []).length > 0 && change.checks.every(function (check) { return check.status === "PASSED"; });
+        var requiredChecks = ["backend", "agent", "javascript-app", "javascript-chat", "javascript-supervisor", "diff-integrity"];
+        var allPassed = requiredChecks.every(function (name) { return latestChecks[name] && latestChecks[name].status === "PASSED"; }) &&
+          (!latestChecks["security-bandit"] || latestChecks["security-bandit"].status === "PASSED");
         if (allPassed && !change.pull_request_url) {
           var createPr = document.createElement("button"); createPr.className = "button button--primary"; createPr.textContent = "Buat pull request";
           createPr.addEventListener("click", async function () { try { await BERESIN.api("POST", "/supervisor/ops/code-changes/" + change.id + "/pull-request"); await loadIncidentDetail(id); } catch (err) { BERESIN.showError(err.message); } });
@@ -768,9 +780,10 @@
     pending.forEach(function (item) { var card = document.createElement("article"); card.className = "approval-item"; var copy = document.createElement("span"); copy.className = "item-copy"; copy.innerHTML = "<strong>" + BERESIN.esc(item.approval_type) + "</strong><span>Incident #" + item.incident_id + "</span><small>Approval #" + item.id + "</small>"; var actions = document.createElement("span"); actions.className = "ops-actions"; ["APPROVED", "REJECTED"].forEach(function (decision) { var b = document.createElement("button"); b.className = decision === "APPROVED" ? "button button--primary" : "button button--secondary"; b.textContent = decision === "APPROVED" ? "Approve" : "Reject"; b.addEventListener("click", async function () { await BERESIN.api("POST", "/supervisor/ops/approvals/" + item.id + "/respond", {decision: decision, note: "Diputuskan oleh owner"}); BERESIN.showToast("Keputusan disimpan.", "success"); await loadOperations(false); }); actions.appendChild(b); }); card.appendChild(copy); card.appendChild(actions); box.appendChild(card); });
   }
 
-  function renderOpsAgents(items) {
+  function renderOpsAgents(items, usage) {
     var box = BERESIN.el("ops-agents"); if (!box) return; box.innerHTML = "";
-    items.forEach(function (item) { var policy = {}; try { policy = JSON.parse(item.tool_policy || "{}"); } catch (_) {} var card = document.createElement("article"); card.className = "ops-agent-card"; card.innerHTML = "<span>" + BERESIN.esc(item.state) + "</span><h3>" + BERESIN.esc(item.role) + "</h3><p>" + (policy.read_only ? "Read-only" : "Perubahan hanya setelah approval") + (policy.isolated_worktree ? " · isolated worktree" : "") + "</p>"; box.appendChild(card); });
+    var stats = {}; (usage && usage.agents || []).forEach(function (entry) { stats[entry.role] = entry; });
+    items.forEach(function (item) { var policy = {}; try { policy = JSON.parse(item.tool_policy || "{}"); } catch (_) {} var stat = stats[item.role] || {runs:0,succeeded:0,failed:0,duration_ms:0}; var card = document.createElement("article"); card.className = "ops-agent-card"; card.innerHTML = "<span>" + BERESIN.esc(item.state) + "</span><h3>" + BERESIN.esc(item.role) + "</h3><p>" + (policy.read_only ? "Read-only" : "Perubahan hanya setelah approval") + (policy.isolated_worktree ? " · isolated worktree" : "") + "</p><small>Hari ini: " + Number(stat.runs) + " run · " + Number(stat.succeeded) + " berhasil · " + Number(stat.failed) + " gagal · " + Math.round(Number(stat.duration_ms) / 1000) + " dtk</small>"; box.appendChild(card); });
   }
 
   function wireOperations() {

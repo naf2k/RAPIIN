@@ -22,6 +22,24 @@ def test_ops_seeded_role_boundaries(client):
     policies = client.get("/api/supervisor/ops/policies", headers=_supervisor_headers(client)).json()
     deploy = next(p for p in policies if p["key"] == "approvals.deployment")
     assert json.loads(deploy["value_json"])["separate_from_code_fix"] is True
+    usage = client.get("/api/supervisor/ops/usage", headers=_supervisor_headers(client))
+    assert usage.status_code == 200
+    assert {row["role"] for row in usage.json()["agents"]} == {"LEAD", "SECURITY", "DIAGNOSTIC", "CODER"}
+    assert usage.json()["daily_limit"] > 0
+
+
+def test_audit_hash_chain_detects_tampering(client):
+    from beresin.database import connect
+    headers = _supervisor_headers(client)
+    integrity = client.get("/api/supervisor/ops/audit/integrity", headers=headers)
+    assert integrity.status_code == 200 and integrity.json()["valid"] is True
+    conn = connect()
+    row = conn.execute("SELECT id FROM audit_log ORDER BY id LIMIT 1").fetchone()
+    conn.execute("UPDATE audit_log SET action='tampered' WHERE id=?", (row["id"],))
+    conn.commit(); conn.close()
+    broken = client.get("/api/supervisor/ops/audit/integrity", headers=headers).json()
+    assert broken["valid"] is False
+    assert broken["broken_at"] == row["id"]
 
 
 def test_signal_deduplicates_and_timeline_is_auditable(client, monkeypatch):
@@ -89,6 +107,21 @@ def test_emergency_pause_is_supervisor_only_and_blocks_agent_claims(client):
 def test_invalid_monitor_credential_is_rejected(client):
     response = client.post("/api/internal/ops/signals", headers={"Authorization": "Bearer wrong"}, json={"source": "ci", "title": "Failure", "severity": "HIGH"})
     assert response.status_code == 403
+
+
+def test_audit_chain_detects_tampering_and_integrity_endpoint_is_supervisor_only(client):
+    from beresin.audit import record_audit, verify_audit_chain
+    from beresin.database import connect
+    conn = connect()
+    record_audit(conn, actor="system", actor_role="SYSTEM", action="first")
+    second = record_audit(conn, actor="system", actor_role="SYSTEM", action="second")
+    conn.commit()
+    assert verify_audit_chain(conn)["valid"] is True
+    conn.execute("UPDATE audit_log SET action='tampered' WHERE id=?", (second,))
+    conn.commit()
+    assert verify_audit_chain(conn) == {"valid": False, "count": 1, "broken_at": second}
+    conn.close()
+    assert client.get("/api/supervisor/ops/audit/integrity").status_code == 401
 
 
 def test_recovered_device_signal_is_auto_resolved(client):

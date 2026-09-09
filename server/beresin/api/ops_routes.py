@@ -81,6 +81,22 @@ def ops_agents(conn=Depends(get_db), user=Depends(require_supervisor)):
     return [dict(r) for r in conn.execute("SELECT * FROM ops_agents ORDER BY id").fetchall()]
 
 
+@router.get("/usage")
+def ops_usage(conn=Depends(get_db), user=Depends(require_supervisor)):
+    rows = conn.execute(
+        """SELECT g.role, COUNT(u.id) runs,
+                  SUM(CASE WHEN u.status='SUCCEEDED' THEN 1 ELSE 0 END) succeeded,
+                  SUM(CASE WHEN u.status='FAILED' THEN 1 ELSE 0 END) failed,
+                  COALESCE(SUM(u.duration_ms),0) duration_ms,
+                  COALESCE(SUM(u.prompt_chars),0) prompt_chars,
+                  COALESCE(SUM(u.output_chars),0) output_chars
+           FROM ops_agents g LEFT JOIN ops_agent_usage u ON u.agent_id=g.id
+             AND u.created_at >= datetime('now','start of day')
+           GROUP BY g.id,g.role ORDER BY g.id"""
+    ).fetchall()
+    return {"daily_limit": settings.ops_agent_daily_run_limit, "agents": [dict(row) for row in rows]}
+
+
 @router.get("/policies")
 def ops_policies(conn=Depends(get_db), user=Depends(require_supervisor)):
     seed_ops(conn)
@@ -143,6 +159,12 @@ def ops_emergency_pause(body: FreezeBody, conn=Depends(get_db), user=Depends(req
 @router.get("/notifications")
 def ops_notifications(conn=Depends(get_db), user=Depends(require_supervisor)):
     return [dict(r) for r in conn.execute("SELECT * FROM ops_notifications ORDER BY id DESC LIMIT 100").fetchall()]
+
+
+@router.get("/audit/integrity")
+def ops_audit_integrity(conn=Depends(get_db), user=Depends(require_supervisor)):
+    from ..audit import verify_audit_chain
+    return verify_audit_chain(conn)
 
 
 @router.post("/incidents/{incident_id}/agents/dispatch")

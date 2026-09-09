@@ -125,7 +125,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
     result TEXT NOT NULL,
     error TEXT,
     approval_id INTEGER,
-    task_id INTEGER
+    task_id INTEGER,
+    previous_hash TEXT,
+    event_hash TEXT
 );
 
 CREATE TABLE IF NOT EXISTS memory (
@@ -447,6 +449,8 @@ MIGRATIONS = [
     "ALTER TABLE ops_approvals ADD COLUMN expires_at TEXT",
     "ALTER TABLE ops_agent_assignments ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE ops_agent_assignments ADD COLUMN lease_expires_at TEXT",
+    "ALTER TABLE audit_log ADD COLUMN previous_hash TEXT",
+    "ALTER TABLE audit_log ADD COLUMN event_hash TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_approvals_idempotency ON ops_approvals(idempotency_key) WHERE idempotency_key IS NOT NULL",
 ]
 
@@ -464,6 +468,8 @@ def init_db() -> sqlite3.Connection:
     conn = connect()
     conn.executescript(SCHEMA)
     _migrate(conn)
+    from .audit import backfill_audit_chain
+    backfill_audit_chain(conn)
     conn.commit()
     return conn
 
