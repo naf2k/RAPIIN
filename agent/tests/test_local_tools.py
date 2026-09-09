@@ -47,6 +47,20 @@ def test_local_duplicates():
         assert result["duplicate_files"] == 1
 
 
+def test_duplicate_detector_ignores_empty_files_and_database_sidecars():
+    with tempfile.TemporaryDirectory() as d:
+        _set_workspace(d)
+        Path(d, "empty-a.txt").touch()
+        Path(d, "empty-b.zip").touch()
+        Path(d, "database-a.db-wal").write_text("managed")
+        Path(d, "database-b.db-wal").write_text("managed")
+
+        result = local_tools.run_tool("duplicate_detector", {"path": d})
+
+        assert result["duplicate_groups"] == 0
+        assert result["duplicate_files"] == 0
+
+
 def test_scan_and_duplicates_ignore_hidden_files_and_app_bundles():
     with tempfile.TemporaryDirectory() as d:
         _set_workspace(d)

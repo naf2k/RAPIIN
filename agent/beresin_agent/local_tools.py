@@ -26,6 +26,13 @@ PROTECTED_PACKAGE_SUFFIXES = {
 }
 PROTECTED_PACKAGE_NAMES = {"photo booth library"}
 PROTECTED_DIRECTORY_NAMES = {"library", "applications"}
+NON_USER_DUPLICATE_SUFFIXES = {
+    ".db-shm",
+    ".db-wal",
+    ".sqlite-shm",
+    ".sqlite-wal",
+    ".lock",
+}
 
 try:
     from pypdf import PdfReader  # type: ignore
@@ -504,6 +511,8 @@ def _duplicates(arguments: dict) -> dict:
     by_hash: dict[str, list[Path]] = {}
     for f in _files_under(root):
         try:
+            if f.stat().st_size == 0 or f.suffix.casefold() in NON_USER_DUPLICATE_SUFFIXES:
+                continue
             by_hash.setdefault(_hash(f), []).append(f)
         except OSError:
             continue
