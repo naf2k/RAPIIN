@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 
-from .api import agent_routes, auth_routes, supervisor_routes, user_routes
+from .api import agent_routes, auth_routes, ops_routes, supervisor_routes, user_routes
 from .config import settings
 from .database import connect, init_db
 from .devices import mark_stale_devices_offline
@@ -60,6 +60,8 @@ async def lifespan(app: FastAPI):
     conn = init_db()
     try:
         seed_supervisor(conn)
+        from .ops_incidents import seed_ops
+        seed_ops(conn)
         conn.commit()
     finally:
         conn.close()
@@ -156,6 +158,8 @@ def internal_metrics(request: Request):
 app.include_router(auth_routes.router)
 app.include_router(user_routes.router)
 app.include_router(supervisor_routes.router)
+app.include_router(ops_routes.router)
+app.include_router(ops_routes.internal_router)
 app.include_router(agent_routes.router)
 
 # Serve the static frontend (HTML/CSS/JS). API routes are registered first,

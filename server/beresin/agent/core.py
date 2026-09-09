@@ -141,6 +141,9 @@ class HermesCore:
 
                 # Automatic / safe path
                 try:
+                    from ..ops_incidents import operations_frozen
+                    if operations_frozen(conn):
+                        raise ToolExecutionBlocked("Operations Center sedang dalam emergency pause. Tidak ada tool yang dijalankan.")
                     output = self._execute_tool(conn, user_id, task_id, device_id, name, arguments, permissions)
                     tool_events.append({"tool": name, "status": "OK", "result": output})
                     from ..redaction import redact_value

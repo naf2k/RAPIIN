@@ -624,6 +624,90 @@
     if (el && user) el.textContent = user.name || "Supervisor";
   }
 
+  function ensureOperationsNav() {
+    var nav = document.querySelector(".supervisor-nav");
+    if (!nav || nav.querySelector('a[href="operations.html"]')) return;
+    var link = document.createElement("a");
+    link.className = "sidebar-link";
+    link.href = "operations.html";
+    if (document.body.getAttribute("data-page") === "operations") link.setAttribute("aria-current", "page");
+    link.innerHTML = '<span class="nav-symbol" aria-hidden="true">◇</span><span>Operations</span>';
+    nav.appendChild(link);
+  }
+
+  var selectedIncidentId = null;
+  var opsFreezeEnabled = false;
+
+  async function loadOperations(refresh) {
+    var suffix = refresh ? "?refresh=true" : "";
+    var results = await Promise.all([
+      BERESIN.api("GET", "/supervisor/ops/overview" + suffix),
+      BERESIN.api("GET", "/supervisor/ops/incidents"),
+      BERESIN.api("GET", "/supervisor/ops/approvals"),
+    ]);
+    var summary = results[0], incidents = results[1], approvals = results[2];
+    opsFreezeEnabled = !!(summary.freeze && summary.freeze.enabled);
+    setText("ops-status", summary.status);
+    setText("ops-system-label", summary.status === "HEALTHY" ? "Sistem sehat" : summary.status === "PAUSED" ? "Automation dijeda" : "Perlu perhatian");
+    setText("ops-active", summary.active_incidents);
+    setText("ops-pending", summary.pending_approvals);
+    setText("ops-freeze-state", opsFreezeEnabled ? "Paused" : "Aktif");
+    setText("ops-severity", summary.severity_counts.CRITICAL + " critical · " + summary.severity_counts.HIGH + " high");
+    setText("ops-freeze-reason", opsFreezeEnabled ? (summary.freeze.reason || "Dijeda oleh supervisor.") : "Hentikan seluruh aksi otomatis bila ada risiko.");
+    var freezeButton = BERESIN.el("ops-freeze");
+    if (freezeButton) freezeButton.textContent = opsFreezeEnabled ? "Lanjutkan automation" : "Aktifkan pause";
+    renderOpsIncidents(incidents);
+    renderOpsApprovals(approvals);
+    renderOpsAgents(summary.agents || []);
+    if (selectedIncidentId) await loadIncidentDetail(selectedIncidentId);
+  }
+
+  function renderOpsIncidents(items) {
+    var tbody = BERESIN.el("ops-incidents"); if (!tbody) return;
+    tbody.innerHTML = "";
+    if (!items.length) { tbody.innerHTML = '<tr><td colspan="6">Tidak ada insiden. Sistem bersih.</td></tr>'; return; }
+    items.forEach(function (item) {
+      var row = document.createElement("tr");
+      [item.severity, item.title + (item.occurrence_count > 1 ? " ×" + item.occurrence_count : ""), item.status, item.source, fmtTime(item.last_seen_at)].forEach(function (value, index) {
+        var td = document.createElement("td"); td.textContent = value; td.setAttribute("data-label", ["Severity","Insiden","Status","Source","Terakhir"][index]); row.appendChild(td);
+      });
+      row.firstChild.innerHTML = '<span class="ops-severity ops-severity--' + item.severity.toLowerCase() + '">' + BERESIN.esc(item.severity) + "</span>";
+      var action = document.createElement("td"); var button = document.createElement("button"); button.type = "button"; button.className = "button button--text"; button.textContent = "Review";
+      button.addEventListener("click", function () { selectedIncidentId = item.id; loadIncidentDetail(item.id).catch(function (e) { BERESIN.showError(e.message); }); });
+      action.appendChild(button); row.appendChild(action); tbody.appendChild(row);
+    });
+  }
+
+  async function loadIncidentDetail(id) {
+    var item = await BERESIN.api("GET", "/supervisor/ops/incidents/" + id);
+    setText("ops-detail-title", "#" + item.id + " · " + item.title);
+    var box = BERESIN.el("ops-detail"); box.innerHTML = "";
+    var summary = document.createElement("p"); summary.textContent = item.summary || "Tidak ada ringkasan tambahan."; box.appendChild(summary);
+    var actions = document.createElement("div"); actions.className = "ops-actions";
+    [["Investigasi", "INVESTIGATING"], ["Verifikasi", "VERIFYING"], ["Selesaikan", "RESOLVED"]].forEach(function (entry) {
+      var b = document.createElement("button"); b.className = "button button--secondary"; b.textContent = entry[0]; b.addEventListener("click", async function () { await BERESIN.api("POST", "/supervisor/ops/incidents/" + id + "/status", {status: entry[1], note: "Diputuskan dari Operations Center"}); await loadOperations(false); }); actions.appendChild(b);
+    }); box.appendChild(actions);
+    var timeline = document.createElement("div"); timeline.className = "ops-timeline";
+    (item.events || []).slice().reverse().forEach(function (event) { var el = document.createElement("div"); el.className = "timeline-item"; el.innerHTML = '<time class="timeline-time">' + BERESIN.esc(fmtTime(event.created_at)) + '</time><div class="timeline-copy"><h3>' + BERESIN.esc(event.event_type) + '</h3><p>' + BERESIN.esc(event.actor) + " · " + BERESIN.esc(event.actor_role || "-") + "</p></div>"; timeline.appendChild(el); }); box.appendChild(timeline);
+  }
+
+  function renderOpsApprovals(items) {
+    var box = BERESIN.el("ops-approvals"); if (!box) return; box.innerHTML = "";
+    var pending = items.filter(function (item) { return item.status === "PENDING"; });
+    if (!pending.length) { box.innerHTML = '<p class="history-empty">Tidak ada approval tertunda.</p>'; return; }
+    pending.forEach(function (item) { var card = document.createElement("article"); card.className = "approval-item"; var copy = document.createElement("span"); copy.className = "item-copy"; copy.innerHTML = "<strong>" + BERESIN.esc(item.approval_type) + "</strong><span>Incident #" + item.incident_id + "</span><small>Approval #" + item.id + "</small>"; var actions = document.createElement("span"); actions.className = "ops-actions"; ["APPROVED", "REJECTED"].forEach(function (decision) { var b = document.createElement("button"); b.className = decision === "APPROVED" ? "button button--primary" : "button button--secondary"; b.textContent = decision === "APPROVED" ? "Approve" : "Reject"; b.addEventListener("click", async function () { await BERESIN.api("POST", "/supervisor/ops/approvals/" + item.id + "/respond", {decision: decision, note: "Diputuskan oleh owner"}); BERESIN.showToast("Keputusan disimpan.", "success"); await loadOperations(false); }); actions.appendChild(b); }); card.appendChild(copy); card.appendChild(actions); box.appendChild(card); });
+  }
+
+  function renderOpsAgents(items) {
+    var box = BERESIN.el("ops-agents"); if (!box) return; box.innerHTML = "";
+    items.forEach(function (item) { var policy = {}; try { policy = JSON.parse(item.tool_policy || "{}"); } catch (_) {} var card = document.createElement("article"); card.className = "ops-agent-card"; card.innerHTML = "<span>" + BERESIN.esc(item.state) + "</span><h3>" + BERESIN.esc(item.role) + "</h3><p>" + (policy.read_only ? "Read-only" : "Perubahan hanya setelah approval") + (policy.isolated_worktree ? " · isolated worktree" : "") + "</p>"; box.appendChild(card); });
+  }
+
+  function wireOperations() {
+    var refresh = BERESIN.el("ops-refresh"); if (refresh) refresh.addEventListener("click", function () { loadOperations(true).then(function () { BERESIN.showToast("Pemeriksaan selesai.", "success"); }).catch(function (e) { BERESIN.showError(e.message); }); });
+    var freeze = BERESIN.el("ops-freeze"); if (freeze) freeze.addEventListener("click", async function () { var next = !opsFreezeEnabled; var reason = next ? "Emergency pause dari Operations Center" : "Kondisi telah ditinjau supervisor"; await BERESIN.api("POST", "/supervisor/ops/emergency-pause", {enabled: next, reason: reason}); BERESIN.showToast(next ? "Automation dijeda." : "Automation dilanjutkan.", "success"); await loadOperations(false); });
+  }
+
   function wirePageControls() {
     wireEmployeePanel();
     // Task search box (debounced)
@@ -664,8 +748,10 @@
   }
 
   function boot() {
+    ensureOperationsNav();
     setAccountName();
     wirePageControls();
+    wireOperations();
     var page = document.body.getAttribute("data-page");
     var runners = {
       overview: loadOverview,
@@ -678,6 +764,7 @@
       activity: loadActivity,
       chat: loadSupervisorChat,
       settings: loadSupervisorSettings,
+      operations: loadOperations,
     };
     var fn = runners[page];
     if (fn) {

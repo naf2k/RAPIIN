@@ -114,4 +114,11 @@ test("authenticated user and supervisor pages render live API data accessibly", 
   await expect(page.locator("#metric-users")).not.toHaveText("-");
   result = await new AxeBuilder({ page }).analyze();
   expect(result.violations.filter((item) => ["serious", "critical"].includes(item.impact))).toEqual([]);
+
+  await page.goto("/supervisor/operations.html");
+  await expect(page.getByRole("heading", { name: "Operations Center" })).toBeVisible();
+  await expect(page.locator("#ops-status")).not.toHaveText("-");
+  await expect(page.locator("#ops-agents .ops-agent-card")).toHaveCount(4);
+  result = await new AxeBuilder({ page }).analyze();
+  expect(result.violations.filter((item) => ["serious", "critical"].includes(item.impact))).toEqual([]);
 });

@@ -65,6 +65,9 @@ def poll(body: PollRequest, conn=Depends(get_db)):
     if encoded_roots and encoded_roots != device.get("allowed_roots"):
         conn.execute("UPDATE devices SET allowed_roots = ? WHERE id = ?", (encoded_roots, device["id"]))
     do_heartbeat(conn, body.device_key)
+    from ..ops_incidents import operations_frozen
+    if operations_frozen(conn):
+        return {"job": None, "settings": {"startup_mode": None}, "operations_paused": True}
     job = claim_next_job(conn, device_id=device["id"], claimed_by_key_hash=device["device_key_hash"])
     setting = conn.execute(
         "SELECT value FROM user_settings WHERE user_id = ? AND key = 'startup_mode'", (device["user_id"],)

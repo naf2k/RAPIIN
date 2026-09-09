@@ -211,6 +211,117 @@ CREATE TABLE IF NOT EXISTS conversation_jobs (
     created_at TEXT NOT NULL,
     finished_at TEXT
 );
+
+-- Operations Center: incident response remains separate from user file approvals.
+CREATE TABLE IF NOT EXISTS ops_agents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    role TEXT NOT NULL UNIQUE CHECK (role IN ('LEAD','SECURITY','DIAGNOSTIC','CODER')),
+    state TEXT NOT NULL DEFAULT 'IDLE' CHECK (state IN ('IDLE','RUNNING','PAUSED','OFFLINE')),
+    model_policy TEXT NOT NULL DEFAULT '{}',
+    tool_policy TEXT NOT NULL DEFAULT '{}',
+    environment_scope TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ops_incidents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fingerprint TEXT NOT NULL,
+    title TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('LOW','MEDIUM','HIGH','CRITICAL')),
+    status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','INVESTIGATING','AWAITING_APPROVAL','APPROVED_FOR_FIX','FIXING','VERIFYING','AWAITING_DEPLOY_APPROVAL','DEPLOYING','RESOLVED','REJECTED')),
+    summary TEXT,
+    source TEXT NOT NULL,
+    affected_resource TEXT,
+    occurrence_count INTEGER NOT NULL DEFAULT 1,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    resolved_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ops_incident_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id INTEGER NOT NULL REFERENCES ops_incidents(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    actor_role TEXT,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ops_agent_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id INTEGER NOT NULL REFERENCES ops_incidents(id) ON DELETE CASCADE,
+    agent_id INTEGER NOT NULL REFERENCES ops_agents(id),
+    assignment TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','ACTIVE','COMPLETED','CANCELLED')),
+    created_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ops_agent_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id INTEGER NOT NULL REFERENCES ops_incidents(id) ON DELETE CASCADE,
+    sender_agent_id INTEGER REFERENCES ops_agents(id),
+    recipient_agent_id INTEGER REFERENCES ops_agents(id),
+    message_type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ops_action_proposals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id INTEGER NOT NULL REFERENCES ops_incidents(id) ON DELETE CASCADE,
+    proposed_by_agent_id INTEGER REFERENCES ops_agents(id),
+    action_type TEXT NOT NULL CHECK (action_type IN ('INVESTIGATION','CODE_FIX','DEPLOYMENT')),
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    risk TEXT,
+    scope_json TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED','EXECUTED','CANCELLED')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ops_approvals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id INTEGER NOT NULL REFERENCES ops_incidents(id) ON DELETE CASCADE,
+    proposal_id INTEGER REFERENCES ops_action_proposals(id),
+    approval_type TEXT NOT NULL CHECK (approval_type IN ('CODE_FIX','DEPLOYMENT')),
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED','EXPIRED')),
+    snapshot_hash TEXT,
+    requested_at TEXT NOT NULL,
+    decided_at TEXT,
+    decided_by INTEGER REFERENCES users(id),
+    decision_note TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ops_notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id INTEGER REFERENCES ops_incidents(id) ON DELETE CASCADE,
+    audience TEXT NOT NULL DEFAULT 'OWNER',
+    channel TEXT NOT NULL DEFAULT 'IN_APP',
+    title TEXT NOT NULL,
+    body TEXT,
+    severity TEXT NOT NULL,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ops_policies (
+    key TEXT PRIMARY KEY,
+    value_json TEXT NOT NULL,
+    updated_by INTEGER REFERENCES users(id),
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ops_incidents_status_severity ON ops_incidents(status, severity, last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_ops_incidents_fingerprint ON ops_incidents(fingerprint, status);
+CREATE INDEX IF NOT EXISTS idx_ops_events_incident ON ops_incident_events(incident_id, id);
+CREATE INDEX IF NOT EXISTS idx_ops_approvals_status ON ops_approvals(status, requested_at);
 """
 
 
