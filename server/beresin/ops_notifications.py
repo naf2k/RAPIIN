@@ -8,6 +8,53 @@ from datetime import datetime, timedelta, timezone
 
 from .config import settings
 from .database import utcnow_iso
+from .ops_safety import sanitize_text
+
+
+SEVERITY_COPY = {
+    "CRITICAL": ("🔴", "Sangat penting", "Layanan dapat berhenti, data berisiko, atau keamanan dapat terdampak."),
+    "HIGH": ("🟠", "Penting", "Sebagian fungsi BERESIN mungkin terganggu dan perlu segera diperiksa."),
+    "MEDIUM": ("🟡", "Perlu diperhatikan", "Gangguan masih terbatas, tetapi perlu dipantau agar tidak membesar."),
+    "LOW": ("🔵", "Informasi", "Belum ada gangguan besar. Informasi ini dicatat untuk pemantauan."),
+}
+
+STATUS_COPY = {
+    "OPEN": "Masalah baru terdeteksi dan sudah dicatat.",
+    "INVESTIGATING": "AI Operations sedang memeriksa penyebab dan dampaknya.",
+    "AWAITING_APPROVAL": "Pemeriksaan selesai dan keputusan Anda dibutuhkan sebelum tindakan dijalankan.",
+    "APPROVED_FOR_FIX": "Perbaikan kode sudah disetujui dan akan dikerjakan di ruang terisolasi.",
+    "FIX_IN_PROGRESS": "Coder sedang menyiapkan perbaikan di ruang terisolasi.",
+    "AWAITING_DEPLOY_APPROVAL": "Perbaikan sudah diperiksa dan menunggu izin terpisah untuk diterapkan.",
+    "RESOLVED": "Masalah sudah selesai dan kondisi telah diverifikasi kembali.",
+    "ROLLED_BACK": "Perubahan dibatalkan dan sistem dikembalikan ke versi sebelumnya.",
+    "FAILED": "Penanganan belum berhasil dan perlu diperiksa oleh operator.",
+}
+
+
+def telegram_message(incident: dict, incident_url: str) -> str:
+    """Build beginner-friendly, sanitized owner copy without approval tokens."""
+    severity = str(incident.get("severity") or "MEDIUM").upper()
+    icon, severity_label, impact = SEVERITY_COPY.get(severity, SEVERITY_COPY["MEDIUM"])
+    status = str(incident.get("status") or "OPEN").upper()
+    status_text = STATUS_COPY.get(status, "AI Operations sudah mencatat perkembangan terbaru.")
+    title = sanitize_text(str(incident.get("title") or "Masalah pada BERESIN"), 200)
+    summary = sanitize_text(str(incident.get("summary") or "Belum ada penjelasan tambahan."), 800)
+    action = (
+        "Buka halaman pemeriksaan, baca rekomendasi, lalu pilih Setujui atau Tolak. "
+        "BERESIN tidak akan menjalankan tindakan berisiko tanpa persetujuan Anda."
+        if status in {"AWAITING_APPROVAL", "AWAITING_DEPLOY_APPROVAL"}
+        else "Buka halaman pemeriksaan untuk melihat perkembangan. Untuk saat ini tidak ada tindakan otomatis berisiko."
+    )
+    return (
+        f"{icon} Pemberitahuan BERESIN — {severity_label}\n\n"
+        f"Apa yang terjadi?\n{title}\n\n"
+        f"Penjelasan singkat\n{summary}\n\n"
+        f"Kemungkinan dampak\n{impact}\n\n"
+        f"Apa yang sudah dilakukan?\n{status_text}\n\n"
+        f"Apa yang perlu Anda lakukan?\n{action}\n\n"
+        f"Lihat pemeriksaan lengkap:\n{incident_url}\n\n"
+        "Catatan keamanan: keputusan hanya dapat diberikan setelah login ke Operations Center."
+    )
 
 
 def telegram_configured() -> bool:
@@ -21,13 +68,7 @@ def notify_owner(incident: dict) -> dict:
     incident_url = f"{settings.ops_public_base_url.rstrip('/')}/supervisor/operations.html"
     if incident.get("id"):
         incident_url += f"?incident={incident['id']}"
-    text = (
-        f"BERESIN {incident['severity']} — {incident['title']}\n"
-        f"Status: {incident['status']}\n"
-        f"Ringkasan: {(incident.get('summary') or 'Tidak ada ringkasan')[:800]}\n"
-        f"Review: {incident_url}\n"
-        "Keputusan hanya dapat dilakukan setelah login di Operations Center."
-    )
+    text = telegram_message(incident, incident_url)
     payload = urllib.parse.urlencode({"chat_id": settings.ops_telegram_chat_id, "text": text, "disable_web_page_preview": "true"}).encode()
     request = urllib.request.Request(
         f"https://api.telegram.org/bot{settings.ops_telegram_bot_token}/sendMessage",
