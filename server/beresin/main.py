@@ -122,7 +122,7 @@ async def _ops_monitor_loop() -> None:
     # Give PostgreSQL, Redis, and the desktop agent time to restore their
     # heartbeats after login/reboot. Without this grace period every normal
     # boot can create a false "Desktop agent offline" incident.
-    await asyncio.sleep(30)
+    await asyncio.sleep(120)
     while True:
         try:
             await asyncio.to_thread(_ops_tick)

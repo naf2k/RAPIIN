@@ -58,7 +58,7 @@ Current local evidence:
 - Fault drills: worker termination raised a critical meta incident and restart auto-resolved it; Telegram failed delivery was retried and sent; three synthetic provider failures opened the circuit and cooldown recovery closed it.
 - Coder drill: official pinned Hermes operated only in an isolated worktree, fixed a synthetic negative-delay regression, produced four passing fixture tests plus green backend/agent/JS/diff checks, and the rejected synthetic change was safely cleaned without merge or deployment.
 - PostgreSQL lock regression: SSE reads now end their transaction before streaming, periodic monitors no longer run DDL, lock/idle-transaction timeouts are bounded, and an accelerated 36-second soak passed 17/17 samples.
-- Final macOS reboot drill: boot identifier changed and server, PostgreSQL, Redis, queue worker, desktop agent, monitor, and backup services all auto-started. The drill exposed and then removed a transient startup false-positive by adding an Operations heartbeat grace period.
+- Final macOS reboot drill: boot identifier changed and server, PostgreSQL, Redis, queue worker, desktop agent, monitor, and backup services all auto-started. The drill exposed and then removed a transient startup false-positive by adding a two-minute Operations heartbeat grace period (two monitor intervals).
 
 Remaining external/final observation gates:
 
