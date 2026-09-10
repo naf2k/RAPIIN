@@ -139,6 +139,11 @@ async def lifespan(app: FastAPI):
         seed_supervisor(conn)
         from .ops_incidents import seed_ops
         seed_ops(conn)
+        conn.execute(
+            "INSERT INTO ops_policies(key,value_json,updated_at) VALUES(?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",
+            ("monitor.operations.heartbeat", '{"status":"starting"}', utcnow_iso()),
+        )
         conn.commit()
     finally:
         conn.close()
