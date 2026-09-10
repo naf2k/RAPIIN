@@ -85,7 +85,14 @@ def _ops_tick() -> None:
         apply_ops_retention(conn)
         deliver_pending(conn)
         if settings.ops_agents_enabled:
-            from .ops_runtime import dispatch_incident, finalize_agent_triage, provider_circuit_open, recover_expired_assignments
+            from .ops_runtime import (
+                capacity_available,
+                dispatch_incident,
+                finalize_agent_triage,
+                provider_circuit_open,
+                recover_expired_assignments,
+                resume_pending_assignments,
+            )
             recover_expired_assignments(conn)
             circuit_open = provider_circuit_open(conn)
             if circuit_open:
@@ -94,19 +101,20 @@ def _ops_tick() -> None:
                 auto_resolve(conn, source="ops-provider-circuit", resource="operations-provider", note="Provider Operations Agent kembali melewati cooldown tanpa kegagalan baru.")
             for completed in conn.execute("SELECT id FROM ops_incidents WHERE status='OPEN'").fetchall():
                 finalize_agent_triage(conn, completed["id"])
-            rows = [] if circuit_open else conn.execute(
-                "SELECT i.id FROM ops_incidents i WHERE i.status IN ('OPEN','INVESTIGATING') "
-                "AND NOT EXISTS (SELECT 1 FROM ops_agent_assignments a WHERE a.incident_id=i.id AND a.status IN ('PENDING','ACTIVE')) "
-                "AND NOT EXISTS (SELECT 1 FROM ops_incident_events e WHERE e.incident_id=i.id AND e.event_type='AGENT_TRIAGE_COMPLETED') "
-                "ORDER BY CASE i.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END, i.id LIMIT 5"
-            ).fetchall()
-            for row in rows:
-                in_flight = conn.execute(
-                    "SELECT COUNT(*) n FROM ops_agent_assignments WHERE status IN ('PENDING','ACTIVE')"
-                ).fetchone()["n"]
-                if in_flight >= settings.ops_agent_max_concurrency:
-                    break
-                dispatch_incident(conn, row["id"])
+            if not circuit_open:
+                # Resume work that was queued behind the concurrency limit.
+                resume_pending_assignments(conn)
+                if capacity_available(conn):
+                    rows = conn.execute(
+                        "SELECT i.id FROM ops_incidents i WHERE i.status IN ('OPEN','INVESTIGATING') "
+                        "AND NOT EXISTS (SELECT 1 FROM ops_agent_assignments a WHERE a.incident_id=i.id AND a.status IN ('PENDING','ACTIVE')) "
+                        "AND NOT EXISTS (SELECT 1 FROM ops_incident_events e WHERE e.incident_id=i.id AND e.event_type='AGENT_TRIAGE_COMPLETED') "
+                        "ORDER BY CASE i.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END, i.id LIMIT 5"
+                    ).fetchall()
+                    for row in rows:
+                        if not capacity_available(conn):
+                            break
+                        dispatch_incident(conn, row["id"])
         now = utcnow_iso()
         conn.execute(
             "INSERT INTO ops_policies(key,value_json,updated_at) VALUES(?,?,?) "

@@ -267,3 +267,52 @@ def test_deployment_uses_second_approval_and_rolls_back(monkeypatch):
     assert result["status"] == "ROLLED_BACK"
     assert actions == ["deploy", "rollback"]
     conn.close()
+
+
+def test_dispatch_defers_assignments_when_capacity_is_full():
+    """A stuck ACTIVE assignment must not abort dispatch or lose work.
+
+    Regression: an interrupted run (for example the host sleeping mid-run)
+    leaves an ACTIVE lease behind. The next monitor tick previously raised
+    "Batas concurrency" and aborted the whole tick; now it must leave the
+    incident's assignments PENDING so a later tick can resume them.
+    """
+    from beresin.ops_runtime import resume_pending_assignments
+    conn = connect(); seed_ops(conn)
+    blocker = ingest_signal(conn, source="runtime", title="Blocker", severity="LOW")
+    agent = conn.execute("SELECT id FROM ops_agents WHERE role='LEAD'").fetchone()
+    conn.execute(
+        "INSERT INTO ops_agent_assignments(incident_id,agent_id,assignment,status,attempt_count,lease_expires_at,created_at) "
+        "VALUES(?,?,?,'ACTIVE',1,?,?)",
+        (blocker["id"], agent["id"], "held", "2099-01-01T00:00:00+00:00", utcnow_iso()),
+    )
+    incident = ingest_signal(conn, source="runtime", title="Deferred", severity="LOW")
+    results = dispatch_incident(conn, incident["id"], runner=lambda role, prompt: json.dumps({"summary": role, "confidence": 0.9}))
+    assert results == [], "dispatch must defer while capacity is held"
+    pending = conn.execute(
+        "SELECT COUNT(*) n FROM ops_agent_assignments WHERE incident_id=? AND status='PENDING'", (incident["id"],)
+    ).fetchone()["n"]
+    assert pending == 3, "roles must stay queued as PENDING"
+    # Once the blocker is gone, the next tick resumes the queued work.
+    conn.execute("UPDATE ops_agent_assignments SET status='CANCELLED' WHERE incident_id=?", (blocker["id"],))
+    resumed = resume_pending_assignments(conn, runner=lambda role, prompt: json.dumps({"summary": role, "confidence": 0.9}))
+    assert resumed, "queued assignments must resume once capacity frees"
+    remaining = conn.execute(
+        "SELECT COUNT(*) n FROM ops_agent_assignments WHERE incident_id=? AND status IN ('PENDING','ACTIVE')", (incident["id"],)
+    ).fetchone()["n"]
+    assert remaining == 0, "no assignment may be left queued behind a stale lease"
+    conn.close()
+
+
+def test_ops_cli_module_entrypoint_emits_report(monkeypatch, capsys):
+    """`python -m beresin.ops_cli verify` must run, not silently no-op."""
+    import inspect
+    from beresin import ops_cli
+    monkeypatch.setattr(ops_cli, "readiness", lambda: {"ready": True, "checks": {}})
+    monkeypatch.setattr("sys.argv", ["beresin-ops", "verify"])
+    assert ops_cli.main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["ready"] is True
+    # Regression guard: without this block `python -m beresin.ops_cli` exits
+    # silently with code 0 and no report.
+    assert 'if __name__ == "__main__":' in inspect.getsource(ops_cli)

@@ -3,8 +3,37 @@ cached Settings object points at a fresh database for the whole session."""
 import os
 import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import pytest
+
+
+def _pilot_redis_url() -> str:
+    """Read the pilot Redis URL from the environment or server/.env."""
+    url = os.environ.get("BERESIN_REDIS_URL", "")
+    if url:
+        return url
+    env_file = Path(__file__).resolve().parents[1] / ".env"
+    if env_file.is_file():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            if line.startswith("BERESIN_REDIS_URL="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return ""
+
+
+def _dedicated_test_redis_url() -> str:
+    """Move tests onto a private Redis logical database.
+
+    The conversation queue uses one global key, so sharing the pilot Redis
+    would let the live worker consume test jobs — and run test task ids
+    against the pilot database.
+    """
+    url = _pilot_redis_url()
+    if not url:
+        return ""
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, "/15", parts.query, ""))
+
 
 # Set env before any beresin import happens.
 TEST_DIR = Path(tempfile.mkdtemp(prefix="beresin-test-"))
@@ -15,6 +44,7 @@ TEST_DATABASE_URL = os.environ.get("BERESIN_TEST_DATABASE_URL", "")
 if TEST_DATABASE_URL:
     os.environ["BERESIN_DATABASE_URL"] = TEST_DATABASE_URL
     os.environ["BERESIN_EMBEDDED_QUEUE_WORKER"] = "true"
+    os.environ["BERESIN_REDIS_URL"] = _dedicated_test_redis_url()
 else:
     # The application loads server/.env by absolute path. Explicitly override
     # production backends so a local pytest run can never mutate the live DB.

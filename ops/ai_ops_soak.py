@@ -45,9 +45,23 @@ def main() -> int:
     args = parser.parse_args()
     settings.validate_for_startup()
     started = datetime.now(timezone.utc)
-    deadline = time.monotonic() + args.duration_hours * 3600
-    failures, samples = [], 0
-    while time.monotonic() < deadline:
+    # Wall-clock deadline: host sleep must consume the budget, not pause it,
+    # otherwise a suspended laptop silently stretches the soak.
+    deadline = time.time() + args.duration_hours * 3600
+    failures, samples, gaps = [], 0, 0
+    previous_wall: datetime | None = None
+    while time.time() < deadline:
+        now_wall = datetime.now(timezone.utc)
+        if previous_wall is not None:
+            elapsed = (now_wall - previous_wall).total_seconds()
+            if elapsed > args.interval_seconds * 3 + 5:
+                # A suspended host cannot observe readiness; record the blind
+                # spot instead of reporting a green 24h run.
+                gaps += 1
+                failures.append({
+                    "at": now_wall.isoformat(), "error": "SamplingGap", "gap_seconds": round(elapsed, 1),
+                })
+        previous_wall = now_wall
         samples += 1
         try:
             item = sample()
@@ -55,10 +69,13 @@ def main() -> int:
                 failures.append({"at": datetime.now(timezone.utc).isoformat(), "sample": item})
         except Exception as exc:
             failures.append({"at": datetime.now(timezone.utc).isoformat(), "error": type(exc).__name__})
-        time.sleep(min(args.interval_seconds, max(0, deadline - time.monotonic())))
+        time.sleep(min(args.interval_seconds, max(0, deadline - time.time())))
+    finished = datetime.now(timezone.utc)
     report = {
-        "started_at": started.isoformat(), "finished_at": datetime.now(timezone.utc).isoformat(),
-        "duration_hours": args.duration_hours, "samples": samples, "failures": failures,
+        "started_at": started.isoformat(), "finished_at": finished.isoformat(),
+        "duration_hours": args.duration_hours,
+        "wall_clock_hours": round((finished - started).total_seconds() / 3600, 2),
+        "samples": samples, "gaps": gaps, "failures": failures,
         "passed": not failures,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

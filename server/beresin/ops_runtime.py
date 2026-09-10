@@ -130,6 +130,12 @@ def provider_circuit_open(conn) -> bool:
     return failures >= settings.ops_agent_failure_threshold
 
 
+def capacity_available(conn) -> bool:
+    """True when another agent assignment may start right now."""
+    active = conn.execute("SELECT COUNT(*) n FROM ops_agent_assignments WHERE status='ACTIVE'").fetchone()["n"]
+    return active < settings.ops_agent_max_concurrency
+
+
 def run_assignment(conn, assignment_id: int, runner=None) -> dict:
     row = conn.execute(
         """SELECT a.*, g.role, g.name agent_name FROM ops_agent_assignments a
@@ -145,8 +151,7 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
         raise RuntimeError("Batas agent harian tercapai.")
     if provider_circuit_open(conn):
         raise RuntimeError("Circuit breaker provider Operations Agent sedang terbuka.")
-    active = conn.execute("SELECT COUNT(*) n FROM ops_agent_assignments WHERE status='ACTIVE'").fetchone()["n"]
-    if active >= settings.ops_agent_max_concurrency:
+    if not capacity_available(conn):
         raise RuntimeError("Batas concurrency Operations Agent tercapai.")
     gateway = OpsToolGateway(conn, row["role"], row["incident_id"])
     incident = gateway.get_incident()
@@ -208,23 +213,56 @@ def run_assignment(conn, assignment_id: int, runner=None) -> dict:
 
 
 def dispatch_incident(conn, incident_id: int, runner=None) -> list[dict]:
+    """Start read-only role assignments while capacity allows.
+
+    Assignments that exceed the concurrency limit stay PENDING so the next
+    monitor tick can resume them instead of failing the whole dispatch.
+    """
     ids = assign_default_roles(conn, incident_id)
-    results = [run_assignment(conn, assignment_id, runner=runner) for assignment_id in ids]
-    completed_roles = {
-        row["role"] for row in conn.execute(
-            "SELECT DISTINCT g.role FROM ops_agent_assignments a JOIN ops_agents g ON g.id=a.agent_id WHERE a.incident_id=? AND a.status='COMPLETED'",
-            (incident_id,),
-        ).fetchall()
-    }
-    synthesis = conn.execute("SELECT id,status FROM ops_agent_assignments WHERE incident_id=? AND assignment='LEAD synthesis' ORDER BY id DESC LIMIT 1", (incident_id,)).fetchone()
-    if completed_roles >= READ_ONLY_ROLES and not synthesis:
-        lead = _agent(conn, "LEAD")
-        synthesis_id = conn.execute(
-            "INSERT INTO ops_agent_assignments(incident_id,agent_id,assignment,status,created_at) VALUES(?,?,?,'PENDING',?)",
-            (incident_id, lead["id"], "LEAD synthesis", utcnow_iso()),
-        ).lastrowid
-        results.append(run_assignment(conn, synthesis_id, runner=runner))
-    finalize_agent_triage(conn, incident_id)
+    results = []
+    for assignment_id in ids:
+        if not capacity_available(conn):
+            break
+        try:
+            results.append(run_assignment(conn, assignment_id, runner=runner))
+        except (RuntimeError, PermissionError, LookupError):
+            break
+    try:
+        completed_roles = {
+            row["role"] for row in conn.execute(
+                "SELECT DISTINCT g.role FROM ops_agent_assignments a JOIN ops_agents g ON g.id=a.agent_id WHERE a.incident_id=? AND a.status='COMPLETED'",
+                (incident_id,),
+            ).fetchall()
+        }
+        synthesis = conn.execute("SELECT id,status FROM ops_agent_assignments WHERE incident_id=? AND assignment='LEAD synthesis' ORDER BY id DESC LIMIT 1", (incident_id,)).fetchone()
+        if completed_roles >= READ_ONLY_ROLES and not synthesis and capacity_available(conn):
+            lead = _agent(conn, "LEAD")
+            synthesis_id = conn.execute(
+                "INSERT INTO ops_agent_assignments(incident_id,agent_id,assignment,status,created_at) VALUES(?,?,?,'PENDING',?)",
+                (incident_id, lead["id"], "LEAD synthesis", utcnow_iso()),
+            ).lastrowid
+            results.append(run_assignment(conn, synthesis_id, runner=runner))
+        finalize_agent_triage(conn, incident_id)
+    except (RuntimeError, PermissionError, LookupError):
+        pass
+    conn.commit()
+    return results
+
+
+def resume_pending_assignments(conn, runner=None, limit: int = 5) -> list[dict]:
+    """Run queued assignments once capacity frees up (bounded per tick)."""
+    rows = conn.execute(
+        "SELECT id FROM ops_agent_assignments WHERE status='PENDING' ORDER BY id LIMIT ?",
+        (max(1, limit),),
+    ).fetchall()
+    results = []
+    for row in rows:
+        if not capacity_available(conn):
+            break
+        try:
+            results.append(run_assignment(conn, row["id"], runner=runner))
+        except (RuntimeError, PermissionError, LookupError):
+            break
     return results
 
 

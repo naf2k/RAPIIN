@@ -66,6 +66,39 @@ Remaining external/final observation gates:
 - Preserve the verified macOS LaunchAgent definitions when packaging the production host.
 - Production deployment still needs its real server/domain, protected GitHub environment, deploy/rollback commands, and organization identity controls.
 
+## Final local verification — 2026-09-10 (post-fix)
+
+Verified directly from source and runtime after the fixes below; supersedes earlier counts where they differ.
+
+- Backend suite: 127 passing tests on SQLite and 127 passing tests on real PostgreSQL/Redis (the 4 earlier PG failures were caused by the test run sharing the pilot Redis queue and are fixed).
+- Desktop Agent suite: 38 passing.
+- Browser/accessibility suite: 26 passing across desktop and mobile Chromium, including owner approval re-authentication.
+- Release gate (`ops/release_gate.py --topology local-macos`): backend, agent, frontend syntax, UI/accessibility, macOS reboot probe, credentialed UAT, and local health checks all pass.
+- Operations incident drill (`ops/incident_drill.py`): pass (41 Operations tests, 38 agent tests, JS syntax).
+- Provider contract smoke: streaming and tool-calling contracts pass against the configured provider.
+- Bounded HTTP load probe: 1,000 requests, concurrency 20, zero failures, p50 556.6 ms, p95 807.5 ms, 34.3 req/s while the Operations AI monitor was active.
+- Bandit medium/high scan: pass. npm audit, pip-audit (server and agent): zero known vulnerabilities.
+- Readiness CLI (`beresin-ops verify`): all checks green — server, PostgreSQL, roles, audit hash chain, provider circuit closed, assignment queue empty, Redis, pinned Hermes version, Operations enabled, Telegram configured, LaunchAgents loaded, fresh backups.
+- Audit hash chain verified valid after every step of this session's cleanup work.
+
+### Fixes applied in this pass
+
+- **Assignment concurrency:** `dispatch_incident` now defers roles when the concurrency limit is held by a stale lease instead of raising `RuntimeError` and aborting the whole monitor tick; queued roles stay `PENDING` and `resume_pending_assignments` continues them on later ticks. Regression test added.
+- **Ops CLI entry point:** `python -m beresin.ops_cli verify` no longer exits silently without a report. Regression test added.
+- **Redis test isolation:** with `BERESIN_TEST_DATABASE_URL` set, tests now use a dedicated Redis logical database (15). Previously the shared queue key let the live conversation worker consume test jobs and could apply test task ids against the pilot database.
+- **Soak integrity:** the soak script now uses a wall-clock deadline and records a `SamplingGap` failure whenever the host suspends sampling, so a sleeping laptop can no longer produce a green 24-hour report.
+
+### Drill artifact cleanup
+
+- The third supervisor account left over from the synthetic Coder drill was removed; the pilot has exactly two active supervisor accounts again as required by PRD section 3.
+- Drill incidents #5, #6, and #9 were closed, and their drill-only code changes, code approvals, and check runs were removed after the uncommitted drill patch was archived outside the repository (`~/BeresinBackups/drill-artifacts/`). The audit log chain remains valid and intact.
+- Drill git worktree `incident-5` and local branches `ops/incident-5` and `ops/incident-9` (which contained no unique commits) were removed.
+
+### Open items
+
+- The 24-hour soak was restarted on this revision; results will be recorded in `server/data/ai-ops-soak-final.json` and this document when it completes.
+- Incident #2 (`Disk space critically low`) remains correctly OPEN: the host volume is genuinely below the 10% free threshold used by `ops/local_health_monitor.py`. Resolving it requires the owner to free space on the Mac; BERESIN's own footprint is about 15 MB of data plus backups.
+
 The pilot database now contains exactly two active supervisor accounts as required by PRD section 3. Two obsolete local/test identities were removed after creating the recoverable SQLite backup `server/data/backups/beresin-20260908T115222Z.db`.
 
 These counts must be regenerated on the release commit; they are not a substitute for CI results or the external gates.
