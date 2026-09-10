@@ -79,6 +79,7 @@ Verified directly from source and runtime after the fixes below; supersedes earl
 - Bounded HTTP load probe: 1,000 requests, concurrency 20, zero failures, p50 556.6 ms, p95 807.5 ms, 34.3 req/s while the Operations AI monitor was active.
 - Bandit medium/high scan: pass. npm audit, pip-audit (server and agent): zero known vulnerabilities.
 - Readiness CLI (`beresin-ops verify`): all checks green — server, PostgreSQL, roles, audit hash chain, provider circuit closed, assignment queue empty, Redis, pinned Hermes version, Operations enabled, Telegram configured, LaunchAgents loaded, fresh backups.
+- Final PostgreSQL backup/restore drill: a checksum-protected dump was created, verified, and restored into an empty throwaway database; user, supervisor, incident, and audit-event counts matched exactly (3 / 2 / 20 / 2826), and the temporary database was dropped afterward.
 - Audit hash chain verified valid after every step of this session's cleanup work.
 
 ### Fixes applied in this pass
@@ -96,7 +97,7 @@ Verified directly from source and runtime after the fixes below; supersedes earl
 
 ### Open items
 
-- The 24-hour soak was restarted on this revision; results will be recorded in `server/data/ai-ops-soak-final.json` and this document when it completes.
+- The 24-hour soak was restarted on this revision at 2026-09-10 14:52:25 UTC (21:52 WIB) and is expected to finish at 2026-09-11 14:52 UTC (21:52 WIB). Results will be recorded in `server/data/ai-ops-soak-final.json` and in this document when it completes. The LaunchAgent now wraps the soak in `caffeinate` so the host will not idle-sleep mid-run, and the script records a `SamplingGap` failure if sampling is ever suspended.
 - Incident #2 (`Disk space critically low`) remains correctly OPEN: the host volume is genuinely below the 10% free threshold used by `ops/local_health_monitor.py`. Resolving it requires the owner to free space on the Mac; BERESIN's own footprint is about 15 MB of data plus backups.
 
 The pilot database now contains exactly two active supervisor accounts as required by PRD section 3. Two obsolete local/test identities were removed after creating the recoverable SQLite backup `server/data/backups/beresin-20260908T115222Z.db`.
