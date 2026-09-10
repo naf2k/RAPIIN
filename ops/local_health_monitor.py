@@ -82,6 +82,18 @@ def infrastructure_checks() -> list[tuple[str, str, str, str, dict]]:
         age_hours = (datetime.now(timezone.utc).timestamp() - newest.stat().st_mtime) / 3600
         if age_hours > 48:
             findings.append(("Backup is stale", "HIGH", f"Backup terbaru berusia {age_hours:.1f} jam.", str(newest), {"age_hours": round(age_hours, 1)}))
+    token = monitoring_token()
+    if token:
+        try:
+            connection = http.client.HTTPConnection("127.0.0.1", 8000, timeout=5)
+            connection.request("GET", "/api/internal/ops/health", headers={"Authorization": f"Bearer {token}"})
+            response = connection.getresponse()
+            payload = json.loads(response.read())
+            connection.close()
+            if response.status != 200 or payload.get("status") != "healthy":
+                findings.append(("Operations monitor heartbeat stale", "CRITICAL", "Operations loop atau queue worker tidak mengirim heartbeat tepat waktu.", "operations-runtime", payload))
+        except Exception as exc:
+            findings.append(("Operations meta-monitor unavailable", "CRITICAL", f"Health Operations tidak dapat dibaca: {type(exc).__name__}.", "operations-runtime", {}))
     return findings
 def current_status() -> tuple[str, str]:
     try:

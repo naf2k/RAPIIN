@@ -71,7 +71,9 @@ def test_code_and_deployment_use_separate_owner_approvals(client, monkeypatch):
     sup = _supervisor_headers(client)
     fix = client.post(f"/api/supervisor/ops/incidents/{incident['id']}/proposals", headers=sup, json={"action_type": "CODE_FIX", "title": "Patch dependency", "description": "Update affected package", "risk": "Regression"}).json()
     assert fix["approval_id"]
-    approved = client.post(f"/api/supervisor/ops/approvals/{fix['approval_id']}/respond", headers=sup, json={"decision": "APPROVED", "note": "Proceed in worktree"})
+    denied = client.post(f"/api/supervisor/ops/approvals/{fix['approval_id']}/respond", headers=sup, json={"decision": "APPROVED", "note": "Wrong re-auth", "password": "wrong-password"})
+    assert denied.status_code == 403
+    approved = client.post(f"/api/supervisor/ops/approvals/{fix['approval_id']}/respond", headers=sup, json={"decision": "APPROVED", "note": "Proceed in worktree", "password": "Supervisor123!"})
     assert approved.status_code == 200
     assert client.get(f"/api/supervisor/ops/incidents/{incident['id']}", headers=sup).json()["status"] == "APPROVED_FOR_FIX"
     deploy = client.post(f"/api/supervisor/ops/incidents/{incident['id']}/proposals", headers=sup, json={"action_type": "DEPLOYMENT", "title": "Deploy verified patch", "description": "Roll out after checks", "risk": "Service restart"}).json()
@@ -93,7 +95,7 @@ def test_ops_approval_is_idempotent_expires_and_rejects_tampering(client, monkey
     conn = connect()
     conn.execute("UPDATE ops_action_proposals SET description='tampered' WHERE id=?", (first["proposal_id"],))
     conn.commit(); conn.close()
-    rejected = client.post(f"/api/supervisor/ops/approvals/{first['approval_id']}/respond", headers=sup, json={"decision": "APPROVED", "note": "reviewed"})
+    rejected = client.post(f"/api/supervisor/ops/approvals/{first['approval_id']}/respond", headers=sup, json={"decision": "APPROVED", "note": "reviewed", "password": "Supervisor123!"})
     assert rejected.status_code == 409
     assert "berubah" in rejected.json()["detail"]
 

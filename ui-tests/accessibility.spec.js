@@ -122,3 +122,40 @@ test("authenticated user and supervisor pages render live API data accessibly", 
   result = await new AxeBuilder({ page }).analyze();
   expect(result.violations.filter((item) => ["serious", "critical"].includes(item.impact))).toEqual([]);
 });
+
+test("operations owner reviews and re-authenticates an approval", async ({ page, request }) => {
+  const supervisorLogin = await request.post("/api/auth/login", { data: {
+    email: "supervisor@beresin.example.com", password: "Supervisor123!"
+  }});
+  expect(supervisorLogin.ok()).toBeTruthy();
+  const supervisor = await supervisorLogin.json();
+  const headers = { Authorization: `Bearer ${supervisor.token}` };
+  const signal = await request.post("/api/internal/ops/signals", {
+    headers: { Authorization: "Bearer mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm" },
+    data: { source: "ui-owner-drill", title: "Synthetic approval drill", severity: "HIGH", resource: "ui-test" }
+  });
+  expect(signal.ok()).toBeTruthy();
+  const incident = await signal.json();
+  const proposal = await request.post(`/api/supervisor/ops/incidents/${incident.id}/proposals`, {
+    headers,
+    data: { action_type: "CODE_FIX", title: "Review synthetic patch", description: "No production mutation", risk: "Low" }
+  });
+  expect(proposal.ok()).toBeTruthy();
+  const approval = await proposal.json();
+
+  await page.goto("/login.html");
+  await page.evaluate(({ token }) => {
+    localStorage.setItem("beresin_token", token);
+    localStorage.setItem("beresin_user", JSON.stringify({ role: "SUPERVISOR", name: "Supervisor BERESIN" }));
+  }, { token: supervisor.token });
+  await page.goto("/supervisor/operations.html");
+  const approvalCard = page.locator("#ops-approvals .approval-item", { hasText: `Approval #${approval.approval_id}` });
+  await expect(approvalCard).toHaveCount(1);
+  page.once("dialog", (dialog) => dialog.accept("Supervisor123!"));
+  await approvalCard.getByRole("button", { name: "Approve" }).click();
+  await expect(approvalCard).toHaveCount(0);
+  const approvals = await request.get("/api/supervisor/ops/approvals", { headers });
+  expect(approvals.ok()).toBeTruthy();
+  const stored = (await approvals.json()).find((item) => item.id === approval.approval_id);
+  expect(stored.status).toBe("APPROVED");
+});

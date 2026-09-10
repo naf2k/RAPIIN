@@ -5,10 +5,11 @@
 For a single-user local deployment, bind the API to `127.0.0.1` and use exact
 loopback origins. This topology is not reachable from LAN or the internet, so
 public-domain TLS and Windows validation are not applicable. Keep the server,
-agent, health monitor, and daily backup as separate user LaunchAgents:
+agent, health monitor, queue worker, and daily backup as separate user LaunchAgents:
 
 - `com.beresin.server`
 - `com.beresin.agent`
+- `com.beresin.worker`
 - `com.beresin.monitor`
 - `com.beresin.backup`
 
@@ -20,15 +21,22 @@ under `server/data`, mode `0600`; never commit them.
 
 Before the reboot drill run `beresin startup-probe record`. After logging in
 again, run `beresin startup-probe verify`, require `/ready` to return HTTP 200,
-and confirm all four LaunchAgents are present.
+and confirm all five LaunchAgents are present. Run the complete local readiness
+gate with `server/.venv/bin/beresin-ops verify`.
 
 ## Supported release topology
 
-V1 supports one API instance with its SQLite database on a local persistent volume. Do not mount SQLite on NFS and do not run multiple API replicas against one database. Horizontal API scaling requires a PostgreSQL adapter and external durable queue; that is a post-V1 architecture gate, not a safe configuration switch.
+The verified local P1 topology uses one API instance, PostgreSQL, Redis, and one
+separate conversation worker. SQLite remains supported for development and
+single-process fallback. Do not mount SQLite on NFS or scale it horizontally.
 
 ## PostgreSQL migration path
 
-The server can select PostgreSQL with `BERESIN_DATABASE_URL`; leaving it empty preserves the verified SQLite local mode. Start disposable local infrastructure with `docker-compose.local-infra.yml`, migrate only into a confirmed empty target, and keep the source SQLite database read-only during the copy:
+The server selects PostgreSQL with `BERESIN_DATABASE_URL` and Redis with
+`BERESIN_REDIS_URL`; leaving both empty preserves SQLite/inline development
+mode. Start disposable infrastructure with `docker-compose.local-infra.yml`,
+migrate only into a confirmed empty target, and keep SQLite read-only during the
+copy:
 
 ```bash
 docker compose -f docker-compose.local-infra.yml up -d
@@ -37,6 +45,13 @@ server/.venv/bin/python ops/migrate_sqlite_to_postgres.py server/data/beresin.db
 ```
 
 The migration copies explicit IDs and advances every PostgreSQL identity sequence. Verify row counts, login, device polling, approval, AI Operations dispatch, and audit integrity before changing the live server connection. Keep the SQLite source and a transactionally consistent backup until the PostgreSQL cutover is signed off.
+
+Run the Redis worker and readiness gate separately:
+
+```bash
+server/.venv/bin/python ops/run_queue_worker.py
+server/.venv/bin/beresin-ops verify
+```
 
 ## Deploy
 
@@ -80,6 +95,24 @@ sqlite3 /tmp/beresin-restore.db 'PRAGMA integrity_check;'
 ```
 
 Encrypt backups at rest, restrict them to operations staff, retain them according to company policy, and test a restore before every production release.
+
+For PostgreSQL, the current-database wrapper chooses the correct backend and
+creates a SHA-256 sidecar. Restore accepts only a checksum-valid BERESIN archive
+and an empty target:
+
+```bash
+server/.venv/bin/python ops/backup_current.py
+createdb beresin_restore_drill
+server/.venv/bin/python ops/restore_postgres.py ~/BeresinBackups/beresin-postgres-TIMESTAMP.dump \
+  --database-url postgresql:///beresin_restore_drill --confirm-empty-target
+dropdb beresin_restore_drill
+```
+
+Run the final wall-clock observation gate with:
+
+```bash
+server/.venv/bin/python ops/ai_ops_soak.py --duration-hours 24
+```
 
 ## Incident response
 

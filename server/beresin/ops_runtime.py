@@ -113,9 +113,15 @@ def assign_default_roles(conn, incident_id: int) -> list[int]:
 
 def _daily_budget_available(conn) -> bool:
     day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
     count = conn.execute("SELECT COUNT(*) n FROM ops_agent_usage WHERE created_at >= ?", (day_start,)).fetchone()["n"]
     cost = conn.execute("SELECT COALESCE(SUM(estimated_cost_usd),0) n FROM ops_agent_usage WHERE created_at >= ?", (day_start,)).fetchone()["n"]
-    return count < settings.ops_agent_daily_run_limit and cost < settings.ops_agent_daily_cost_limit_usd
+    monthly_cost = conn.execute("SELECT COALESCE(SUM(estimated_cost_usd),0) n FROM ops_agent_usage WHERE created_at >= ?", (month_start,)).fetchone()["n"]
+    return (
+        count < settings.ops_agent_daily_run_limit
+        and cost < settings.ops_agent_daily_cost_limit_usd
+        and monthly_cost < settings.ops_agent_monthly_cost_limit_usd
+    )
 
 
 def provider_circuit_open(conn) -> bool:

@@ -414,7 +414,15 @@ def connect(db_path: Path | None = None):
         from psycopg.rows import dict_row
         from .postgres_support import PostgresConnection
 
-        return PostgresConnection(psycopg.connect(settings.beresin_database_url, row_factory=dict_row))
+        return PostgresConnection(
+            psycopg.connect(
+                settings.beresin_database_url,
+                row_factory=dict_row,
+                # Defense in depth: terminate forgotten transactions and fail
+                # boundedly on locks instead of freezing the service forever.
+                options="-c idle_in_transaction_session_timeout=30000 -c lock_timeout=5000",
+            )
+        )
     path = db_path or settings.db_path
     path.parent.mkdir(parents=True, exist_ok=True)
     try:

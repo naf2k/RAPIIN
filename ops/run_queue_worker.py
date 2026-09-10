@@ -14,4 +14,7 @@ from beresin.worker import run_queue_worker
 if not settings.beresin_redis_url:
     raise SystemExit("BERESIN_REDIS_URL wajib dikonfigurasi untuk worker terpisah.")
 
-run_queue_worker()
+try:
+    run_queue_worker()
+except KeyboardInterrupt:
+    pass

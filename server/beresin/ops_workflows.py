@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+import urllib.parse
 from pathlib import Path
 
 from .config import settings
@@ -28,14 +29,25 @@ def _sandbox_profile(worktree: Path, hermes_command: str) -> str:
     home = Path.home().resolve()
     hermes_binary = Path(hermes_command).resolve()
     hermes_runtime = next((p for p in hermes_binary.parents if p.name == "hermes-agent"), hermes_binary.parent)
+    official_runtime = (home / ".hermes" / "hermes-agent").resolve()
+    runtime_python = (official_runtime / "venv" / "bin" / "python").resolve()
+    python_runtime = next((p for p in runtime_python.parents if p.parent.name == "python"), runtime_python.parent)
     hermes_state = (settings.data_dir / "ops-hermes").resolve()
     git_metadata = (REPO_ROOT / ".git").resolve()
+    protected_reads = [
+        home / "Desktop", home / "Documents", home / "Downloads", home / "Pictures",
+        home / "Movies", home / "Music", home / ".ssh", home / ".aws", home / ".gnupg",
+        home / ".beresin", REPO_ROOT / "server" / ".env", REPO_ROOT / "server" / "data" / "secrets",
+    ]
+    read_denials = " ".join(f'(deny file-read* (subpath "{path.resolve()}"))' for path in protected_reads)
     return (
         '(version 1) (allow default) '
-        f'(deny file-read* (subpath "{home}")) '
+        f'{read_denials} '
         f'(allow file-read* (subpath "{worktree}")) '
         f'(allow file-read* (subpath "{git_metadata}")) '
         f'(allow file-read* (subpath "{hermes_runtime}")) '
+        f'(allow file-read* (subpath "{official_runtime}")) '
+        f'(allow file-read* (subpath "{python_runtime}")) '
         f'(allow file-read* (subpath "{hermes_state}")) '
         '(deny file-write*) (allow file-write* (literal "/dev/null")) '
         f'(allow file-write* (subpath "{worktree}")) '
@@ -144,6 +156,8 @@ def run_coder(conn, code_change_id: int, runner=None) -> dict:
             output = completed.stdout
             from .ops_runtime import read_usage_report
             usage = read_usage_report(usage_path)
+        # Intent-to-add makes new files visible in review without staging their content.
+        _run(["git", "add", "-N", "."], worktree)
         diff = _run(["git", "diff", "--stat"], worktree)
         conn.execute("UPDATE ops_code_changes SET status='READY_FOR_REVIEW',diff_summary=?,updated_at=? WHERE id=?", (diff.stdout[:4000], utcnow_iso(), code_change_id))
         _event(conn, change["incident_id"], "CODER_COMPLETED", "Coder", "CODER", {"change_id": code_change_id, "output": output[-2000:], "diff_summary": diff.stdout[:4000]})
@@ -312,7 +326,10 @@ def deploy(conn, incident_id: int, code_change_id: int, approval_id: int, enviro
         if not ok:
             raise RuntimeError("Perintah deployment gagal.")
         conn.execute("UPDATE ops_deployments SET status='VERIFYING' WHERE id=?", (deploy_id,)); conn.commit()
-        with urllib.request.urlopen(settings.ops_health_url, timeout=15) as response:
+        health_url = urllib.parse.urlparse(settings.ops_health_url)
+        if health_url.scheme not in {"http", "https"} or not health_url.hostname:
+            raise RuntimeError("OPS_HEALTH_URL wajib memakai origin HTTP(S) yang valid.")
+        with urllib.request.urlopen(settings.ops_health_url, timeout=15) as response:  # nosec B310
             health_ok = response.status == 200 and json.loads(response.read()).get("status") in {"ready", "healthy"}
         if not health_ok:
             raise RuntimeError("Post-deploy health check gagal.")

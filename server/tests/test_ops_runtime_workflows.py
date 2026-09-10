@@ -35,6 +35,20 @@ def test_daily_budget_fails_closed_at_estimated_cost_limit(monkeypatch):
     conn.close()
 
 
+def test_monthly_budget_fails_closed(monkeypatch):
+    conn = connect(); seed_ops(conn)
+    agent = conn.execute("SELECT id FROM ops_agents LIMIT 1").fetchone()
+    conn.execute(
+        "INSERT INTO ops_agent_usage(agent_id,estimated_cost_usd,status,created_at) VALUES(?,?,'SUCCEEDED',?)",
+        (agent["id"], 101.0, utcnow_iso()),
+    )
+    monkeypatch.setattr("beresin.ops_runtime.settings.ops_agent_daily_run_limit", 100)
+    monkeypatch.setattr("beresin.ops_runtime.settings.ops_agent_daily_cost_limit_usd", 200.0)
+    monkeypatch.setattr("beresin.ops_runtime.settings.ops_agent_monthly_cost_limit_usd", 100.0)
+    assert not _daily_budget_available(conn)
+    conn.close()
+
+
 def _actor(conn):
     return dict(conn.execute("SELECT * FROM users WHERE role='SUPERVISOR' LIMIT 1").fetchone())
 
@@ -47,9 +61,17 @@ def test_operations_repo_root_points_to_checkout():
 def test_coder_sandbox_denies_home_reads_except_assigned_scopes(tmp_path):
     worktree = tmp_path / "worktree"
     profile = _sandbox_profile(worktree, "/usr/bin/true")
-    assert f'(deny file-read* (subpath "{Path.home().resolve()}"))' in profile
+    assert f'(deny file-read* (subpath "{(Path.home() / "Documents").resolve()}"))' in profile
+    assert f'(deny file-read* (subpath "{(REPO_ROOT / "server" / ".env").resolve()}"))' in profile
     assert f'(allow file-read* (subpath "{worktree}"))' in profile
     assert f'(allow file-write* (subpath "{worktree}"))' in profile
+    assert f'(allow file-read* (subpath "{(Path.home() / ".hermes" / "hermes-agent").resolve()}"))' in profile
+
+
+def test_coder_review_marks_new_files_as_intent_to_add(tmp_path, monkeypatch):
+    # The exact command is a safety regression: untracked Coder output must be visible in review.
+    source = (REPO_ROOT / "server" / "beresin" / "ops_workflows.py").read_text()
+    assert '_run(["git", "add", "-N", "."], worktree)' in source
 
 
 def test_check_runner_records_launch_failure_instead_of_leaving_running(tmp_path, monkeypatch):
@@ -140,6 +162,13 @@ def test_ops_tick_retries_only_incident_missing_a_completed_role(monkeypatch):
     from beresin.main import _ops_tick
     conn = connect(); seed_ops(conn)
     incident = ingest_signal(conn, source="runtime", title="Partial role failure", severity="LOW")
+    # PostgreSQL integration mode enables Redis. Seed the worker liveness row
+    # so this focused retry test doesn't also dispatch a meta-monitor incident.
+    conn.execute(
+        "INSERT INTO ops_policies(key,value_json,updated_at) VALUES(?,?,?) "
+        "ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",
+        ("worker.conversation.heartbeat", '{"status":"ok"}', utcnow_iso()),
+    )
     for role, status in (("LEAD", "CANCELLED"), ("SECURITY", "COMPLETED"), ("DIAGNOSTIC", "COMPLETED")):
         agent = conn.execute("SELECT id FROM ops_agents WHERE role=?", (role,)).fetchone()
         conn.execute("INSERT INTO ops_agent_assignments(incident_id,agent_id,assignment,status,created_at) VALUES(?,?,?,?,?)", (incident["id"], agent["id"], role, status, utcnow_iso()))

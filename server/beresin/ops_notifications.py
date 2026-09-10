@@ -35,7 +35,9 @@ def notify_owner(incident: dict) -> dict:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        # URL origin is a hard-coded Telegram HTTPS endpoint; only the bot path
+        # and form payload vary.
+        with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310
             result = json.loads(response.read().decode())
         return {"status": "SENT" if result.get("ok") else "FAILED"}
     except Exception as exc:  # noqa: BLE001 - notification failure cannot break incident storage

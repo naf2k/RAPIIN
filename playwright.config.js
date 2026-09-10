@@ -25,7 +25,18 @@ module.exports = defineConfig({
       BERESIN_PORT: "8876",
       BERESIN_ENV: "test",
       BERESIN_DB_PATH: "/tmp/beresin-playwright.db",
-      BERESIN_DATA_DIR: "/tmp/beresin-playwright-data"
+      BERESIN_DATA_DIR: "/tmp/beresin-playwright-data",
+      BERESIN_DATABASE_URL: "",
+      BERESIN_REDIS_URL: "",
+      BERESIN_ALLOW_PUBLIC_REGISTRATION: "true",
+      BERESIN_INIT_SUPERVISOR_EMAIL: "supervisor@beresin.example.com",
+      BERESIN_INIT_SUPERVISOR_PASSWORD: "Supervisor123!",
+      BERESIN_INIT_SUPERVISOR_PASSWORD_FILE: "",
+      BERESIN_SECRET_KEY_FILE: "",
+      BERESIN_MONITORING_TOKEN_FILE: "",
+      BERESIN_MONITORING_TOKEN: "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+      OPS_TELEGRAM_BOT_TOKEN_FILE: "",
+      OPS_AGENTS_ENABLED: "false"
     }
   }
 });

@@ -197,6 +197,11 @@ def user_task_events(task_id: int, user=Depends(require_user), conn=Depends(get_
     if not task or task["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="Task tidak ditemukan.")
 
+    # A StreamingResponse keeps dependency cleanup pending until the stream
+    # closes. End the read transaction now so PostgreSQL never reports this
+    # long-lived SSE connection as idle in transaction.
+    conn.commit()
+
     from ..events import subscribe, unsubscribe
     subscriber = subscribe(task_id)
 

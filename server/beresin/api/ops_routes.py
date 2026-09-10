@@ -45,6 +45,7 @@ class ProposalBody(BaseModel):
 class ApprovalBody(BaseModel):
     decision: str
     note: str = Field(default="", max_length=4000)
+    password: str | None = Field(default=None, min_length=1, max_length=500)
 
 
 class StatusBody(BaseModel):
@@ -104,6 +105,7 @@ def ops_usage(conn=Depends(get_db), user=Depends(require_supervisor)):
     return {
         "daily_limit": settings.ops_agent_daily_run_limit,
         "daily_cost_limit_usd": settings.ops_agent_daily_cost_limit_usd,
+        "monthly_cost_limit_usd": settings.ops_agent_monthly_cost_limit_usd,
         "agents": [dict(row) for row in rows],
     }
 
@@ -155,6 +157,11 @@ def ops_approvals(conn=Depends(get_db), user=Depends(require_supervisor)):
 @router.post("/approvals/{approval_id}/respond")
 def ops_approval_response(approval_id: int, body: ApprovalBody, conn=Depends(get_db), user=Depends(require_supervisor)):
     try:
+        if body.decision.upper() == "APPROVED":
+            from ..security import verify_password
+            stored = conn.execute("SELECT password_hash FROM users WHERE id=?", (user["id"],)).fetchone()
+            if not body.password or not stored or not verify_password(body.password, stored["password_hash"]):
+                raise HTTPException(status_code=403, detail="Masukkan ulang password supervisor untuk approval berisiko.")
         return respond_approval(conn, approval_id, decision=body.decision, note=body.note, actor=user)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -276,3 +283,30 @@ def internal_signal(body: SignalBody, authorization: str | None = Header(default
         return ingest_signal(conn, source=body.source, title=body.title, severity=body.severity, summary=body.summary, resource=body.resource, details=body.details)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@internal_router.get("/health")
+def internal_ops_health(authorization: str | None = Header(default=None), conn=Depends(get_db)):
+    from datetime import datetime, timezone
+    expected = settings.beresin_monitoring_token
+    supplied = (authorization or "").removeprefix("Bearer ").strip()
+    if not expected or not hmac.compare_digest(supplied, expected):
+        raise HTTPException(status_code=403, detail="Monitoring credential tidak valid.")
+
+    def age_seconds(key: str):
+        row = conn.execute("SELECT updated_at FROM ops_policies WHERE key=?", (key,)).fetchone()
+        if not row:
+            return None
+        return max(0, int((datetime.now(timezone.utc) - datetime.fromisoformat(row["updated_at"])).total_seconds()))
+
+    operations_age = age_seconds("monitor.operations.heartbeat")
+    worker_age = age_seconds("worker.conversation.heartbeat") if settings.beresin_redis_url else 0
+    operations_ok = operations_age is not None and operations_age <= 180
+    worker_ok = worker_age is not None and worker_age <= 30
+    return {
+        "status": "healthy" if operations_ok and worker_ok else "degraded",
+        "operations_heartbeat_age_seconds": operations_age,
+        "worker_heartbeat_age_seconds": worker_age,
+        "operations_ok": operations_ok,
+        "worker_ok": worker_ok,
+    }

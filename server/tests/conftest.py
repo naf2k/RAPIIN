@@ -15,6 +15,22 @@ TEST_DATABASE_URL = os.environ.get("BERESIN_TEST_DATABASE_URL", "")
 if TEST_DATABASE_URL:
     os.environ["BERESIN_DATABASE_URL"] = TEST_DATABASE_URL
     os.environ["BERESIN_EMBEDDED_QUEUE_WORKER"] = "true"
+else:
+    # The application loads server/.env by absolute path. Explicitly override
+    # production backends so a local pytest run can never mutate the live DB.
+    os.environ["BERESIN_DATABASE_URL"] = ""
+    os.environ["BERESIN_REDIS_URL"] = ""
+    os.environ["BERESIN_EMBEDDED_QUEUE_WORKER"] = "false"
+os.environ["OPS_AGENTS_ENABLED"] = "false"
+os.environ["BERESIN_ALLOW_PUBLIC_REGISTRATION"] = "true"
+os.environ["BERESIN_INIT_SUPERVISOR_EMAIL"] = "supervisor@beresin.example.com"
+os.environ["BERESIN_INIT_SUPERVISOR_PASSWORD"] = "Supervisor123!"
+os.environ["BERESIN_INIT_SUPERVISOR_PASSWORD_FILE"] = ""
+os.environ["BERESIN_SECRET_KEY"] = "dev-secret-change-me"
+os.environ["BERESIN_SECRET_KEY_FILE"] = ""
+os.environ["BERESIN_MONITORING_TOKEN_FILE"] = ""
+os.environ["AI_API_KEY_FILE"] = ""
+os.environ["OPS_TELEGRAM_BOT_TOKEN_FILE"] = ""
 
 
 @pytest.fixture(autouse=True)

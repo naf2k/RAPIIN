@@ -1,6 +1,6 @@
 # Acceptance Evidence — PRD 35
 
-Evidence date: 2026-09-08. `LOCAL PASS` means automated or runtime evidence exists in this checkout. `EXTERNAL GATE` cannot be honestly passed without release infrastructure, provider credentials, another OS host, or an OS reboot.
+Evidence date: 2026-09-10. `LOCAL PASS` means automated or runtime evidence exists in this checkout. `EXTERNAL GATE` cannot be honestly passed without release infrastructure, another OS host, or a new OS reboot after the current release candidate.
 
 ## Multi-device targeting
 
@@ -38,9 +38,9 @@ Evidence date: 2026-09-08. `LOCAL PASS` means automated or runtime evidence exis
 
 Current local evidence:
 
-- Backend suite: 117 passing tests on 2026-09-10.
+- Backend suite: 122 passing tests on SQLite and 122 passing tests on real PostgreSQL/Redis on 2026-09-10.
 - Desktop Agent suite: 38 passing tests on 2026-09-10.
-- Browser/accessibility suite: 24 passing checks across desktop and mobile Chromium on 2026-09-10, including live authenticated pages.
+- Browser/accessibility suite: 26 passing checks across desktop and mobile Chromium on 2026-09-10, including owner approval re-authentication.
 - Bounded HTTP load probe: 1,000 requests, concurrency 20, zero failures, p50 142.6 ms, p95 239.0 ms, 135.9 requests/second.
 - Bandit medium/high scan: pass.
 - npm and Python dependency audits: zero known vulnerabilities (the unpublished local `beresin-agent` package itself is not present on PyPI and is therefore skipped by `pip-audit`).
@@ -53,11 +53,17 @@ Current local evidence:
 - Local macOS reboot drill: `com.beresin.server` and `com.beresin.agent` started automatically after login; `/ready`, SQLite integrity, device verification, queue readiness, health monitoring, and credentialed AI UAT all passed.
 - Local operations drill: restore to a disposable database returned SQLite integrity `ok` with the expected user/task rows; the fresh 1,000-request load probe completed with zero failures and p95 239.0 ms.
 - Live AI Operations smoke on 2026-09-10: the enabled background worker automatically dispatched a synthetic read-only incident to Lead, Security, and Diagnostic, then completed Lead synthesis. Four structured reports were persisted, concurrency remained bounded at one, and Hermes token/API-call usage was recorded. The synthetic incidents were resolved after verification.
+- PostgreSQL/Redis cutover drill: 31 tables and 5,426 rows migrated under write freeze; live login, agent polling, AI chat, audit verification, worker crash recovery, and readiness passed.
+- PostgreSQL disaster-recovery drill: a checksum-protected dump restored into an empty temporary database with expected user and incident counts; the temporary target was removed afterward.
+- Fault drills: worker termination raised a critical meta incident and restart auto-resolved it; Telegram failed delivery was retried and sent; three synthetic provider failures opened the circuit and cooldown recovery closed it.
+- Coder drill: official pinned Hermes operated only in an isolated worktree, fixed a synthetic negative-delay regression, produced four passing fixture tests plus green backend/agent/JS/diff checks, and the rejected synthetic change was safely cleaned without merge or deployment.
+- PostgreSQL lock regression: SSE reads now end their transaction before streaming, periodic monitors no longer run DDL, lock/idle-transaction timeouts are bounded, and an accelerated 36-second soak passed 17/17 samples.
 
-Open release blockers:
+Remaining external/final observation gates:
 
-- The AI provider credential used during diagnostics must be rotated before release, then the provider soak and release gate must be repeated.
-- CI and Security passed on the final source commit listed above. A documentation-only evidence commit may follow without changing runtime behavior.
+- Complete the 24-hour local soak on the final commit.
+- Repeat the macOS reboot/startup probe after the PostgreSQL, Redis, and worker LaunchAgents are finalized.
+- Production deployment still needs its real server/domain, protected GitHub environment, deploy/rollback commands, and organization identity controls.
 
 The pilot database now contains exactly two active supervisor accounts as required by PRD section 3. Two obsolete local/test identities were removed after creating the recoverable SQLite backup `server/data/backups/beresin-20260908T115222Z.db`.
 

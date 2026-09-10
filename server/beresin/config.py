@@ -7,7 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=str(BASE_DIR / ".env"), env_file_encoding="utf-8", extra="ignore")
 
     # Server
     beresin_db_path: str = "./data/beresin.db"
@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     ops_agent_timeout_seconds: int = 180
     ops_agent_daily_run_limit: int = 100
     ops_agent_daily_cost_limit_usd: float = 10.0
+    ops_agent_monthly_cost_limit_usd: float = 100.0
     ops_agent_max_concurrency: int = 1
     ops_agent_failure_threshold: int = 3
     ops_agent_circuit_cooldown_seconds: int = 900
@@ -89,7 +90,10 @@ class Settings(BaseSettings):
             secret_path = getattr(self, file_field)
             if secret_path:
                 try:
-                    setattr(self, value_field, Path(secret_path).read_text(encoding="utf-8").strip())
+                    resolved_secret = Path(secret_path)
+                    if not resolved_secret.is_absolute():
+                        resolved_secret = BASE_DIR / resolved_secret
+                    setattr(self, value_field, resolved_secret.read_text(encoding="utf-8").strip())
                 except OSError as exc:
                     raise RuntimeError(f"Secret file tidak dapat dibaca: {file_field}") from exc
         if self.beresin_env.lower() != "production":
@@ -115,6 +119,8 @@ class Settings(BaseSettings):
             errors.append("OPS_AGENT_DAILY_RUN_LIMIT tidak boleh lebih kecil dari concurrency")
         if self.ops_agent_daily_cost_limit_usd <= 0:
             errors.append("OPS_AGENT_DAILY_COST_LIMIT_USD wajib lebih besar dari nol")
+        if self.ops_agent_monthly_cost_limit_usd < self.ops_agent_daily_cost_limit_usd:
+            errors.append("OPS_AGENT_MONTHLY_COST_LIMIT_USD tidak boleh lebih kecil dari batas harian")
         if self.ops_agent_timeout_seconds < 30 or self.ops_agent_timeout_seconds > 900:
             errors.append("OPS_AGENT_TIMEOUT_SECONDS wajib antara 30 dan 900 detik")
         if self.ops_agent_failure_threshold < 1 or self.ops_agent_failure_threshold > 20:

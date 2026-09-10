@@ -1,6 +1,6 @@
 # BERESIN AI Operations Center — Full Implementation Plan
 
-Status: Local supervised Operations Agent implemented through isolated Coder/review gates; external notification, protected GitHub, staging deployment, SSO/MFA, and production drills remain activation gates
+Status: P0-P1 local Operations Agent implemented and under final soak/reboot verification; protected GitHub, staging deployment, organization SSO/MFA, and production server remain later activation gates
 Scope: Background monitoring, multi-agent incident response, human approval, code remediation, and remote operations  
 Target: Local pilot first, production server afterward
 
@@ -31,8 +31,13 @@ Implemented in the current local pilot:
 - daily run and estimated USD cost limits that fail closed before dispatch;
 - retention minimization that removes expired report/evidence payloads while retaining hashes and timelines;
 - supervisor-only sanitized audit export with chain-integrity status.
+- PostgreSQL as the active local source of truth plus Redis-backed conversation jobs and a separate restartable worker;
+- local meta-monitoring for the Operations loop and queue-worker heartbeats, including automatic recovery resolution;
+- password re-authentication for owner approval, monthly and daily cost limits, provider circuit breaker, and a readiness CLI;
+- verified PostgreSQL backup/checksum/empty-target restore tools and a wall-clock soak monitor;
+- a real isolated Coder drill where Hermes fixed a synthetic regression, all checks passed, and rejection removed only the disposable worktree.
 
-External activation still requires owner-controlled values: Telegram bot token/chat ID, a remotely reachable `BERESIN_OPS_URL`, GitHub Actions secrets, and real staging/production deploy and rollback commands. These are intentionally not invented or committed.
+Telegram is active for the local pilot through protected, ignored secret files. External activation still requires a remotely reachable `BERESIN_OPS_URL`, GitHub Actions secrets, and real staging/production deploy and rollback commands. These are intentionally not invented or committed.
 
 ## 1. Objective
 

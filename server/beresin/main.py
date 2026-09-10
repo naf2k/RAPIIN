@@ -42,23 +42,39 @@ async def _device_monitor_loop() -> None:
     """Periodically mark devices offline when their heartbeat is stale."""
     while True:
         try:
-            conn = init_db()
-            try:
-                mark_stale_devices_offline(conn)
-                from .agent_jobs import requeue_expired_jobs
-                requeue_expired_jobs(conn)
-                conn.commit()
-            finally:
-                conn.close()
+            await asyncio.to_thread(_device_monitor_tick)
         except Exception:  # noqa: BLE001 - keep the loop alive
-            pass
+            logger.exception("Device monitor tick failed")
         await asyncio.sleep(30)
+
+
+def _device_monitor_tick() -> None:
+    """Run one device-maintenance cycle without blocking the ASGI event loop."""
+    conn = connect()
+    try:
+        mark_stale_devices_offline(conn)
+        from .agent_jobs import requeue_expired_jobs
+        requeue_expired_jobs(conn)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _ops_tick() -> None:
     """One bounded Operations Center cycle outside the event loop."""
-    conn = init_db()
+    # Schema initialization belongs to startup/migrations. Re-running DDL from
+    # a periodic monitor can request relation locks and stall PostgreSQL.
+    conn = connect()
     try:
+        # Publish liveness before potentially slow AI triage. A Hermes call may
+        # legitimately use most of OPS_AGENT_TIMEOUT_SECONDS.
+        now = utcnow_iso()
+        conn.execute(
+            "INSERT INTO ops_policies(key,value_json,updated_at) VALUES(?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",
+            ("monitor.operations.heartbeat", '{"status":"running"}', now),
+        )
+        conn.commit()
         from .ops_incidents import auto_resolve, collect_runtime_signals, expire_pending_approvals, ingest_signal, queue_daily_digest
         from .ops_notifications import deliver_pending
         collect_runtime_signals(conn)
@@ -85,7 +101,18 @@ def _ops_tick() -> None:
                 "ORDER BY CASE i.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END, i.id LIMIT 5"
             ).fetchall()
             for row in rows:
+                in_flight = conn.execute(
+                    "SELECT COUNT(*) n FROM ops_agent_assignments WHERE status IN ('PENDING','ACTIVE')"
+                ).fetchone()["n"]
+                if in_flight >= settings.ops_agent_max_concurrency:
+                    break
                 dispatch_incident(conn, row["id"])
+        now = utcnow_iso()
+        conn.execute(
+            "INSERT INTO ops_policies(key,value_json,updated_at) VALUES(?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",
+            ("monitor.operations.heartbeat", '{"status":"ok"}', now),
+        )
         conn.commit()
     finally:
         conn.close()

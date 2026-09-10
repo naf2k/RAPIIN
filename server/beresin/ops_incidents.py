@@ -7,6 +7,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from .audit import record_audit
+from .config import settings
 from .database import utcnow_iso
 from .ops_adapter import ROLE_TOOLS
 from .ops_safety import content_hash, sanitize, sanitize_text
@@ -70,7 +71,7 @@ def ingest_signal(conn, *, source: str, title: str, severity: str, summary: str 
     fp = fingerprint(source, title, resource)
     placeholders = ",".join("?" for _ in ACTIVE_STATUSES)
     row = conn.execute(
-        f"SELECT * FROM ops_incidents WHERE fingerprint=? AND status IN ({placeholders}) ORDER BY id DESC LIMIT 1",
+        f"SELECT * FROM ops_incidents WHERE fingerprint=? AND status IN ({placeholders}) ORDER BY id DESC LIMIT 1",  # nosec B608 -- generated placeholders only
         (fp, *ACTIVE_STATUSES),
     ).fetchone()
     now = utcnow_iso()
@@ -111,7 +112,7 @@ def list_incidents(conn, status: str | None = None, severity: str | None = None,
         where.append("status=?"); args.append(status.upper())
     if severity:
         where.append("severity=?"); args.append(severity.upper())
-    sql = "SELECT * FROM ops_incidents" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END, last_seen_at DESC LIMIT ?"
+    sql = "SELECT * FROM ops_incidents" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END, last_seen_at DESC LIMIT ?"  # nosec B608 -- clauses are fixed constants
     return [dict(r) for r in conn.execute(sql, (*args, min(max(limit, 1), 500))).fetchall()]
 
 
@@ -263,7 +264,7 @@ def set_freeze(conn, enabled: bool, reason: str, actor: dict) -> dict:
     now = utcnow_iso()
     value = {"enabled": bool(enabled), "reason": reason.strip() or None, "changed_at": now}
     conn.execute("INSERT INTO ops_policies(key,value_json,updated_by,updated_at) VALUES('operations.freeze',?,?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_by=excluded.updated_by,updated_at=excluded.updated_at", (json.dumps(value), actor["id"], now))
-    _event_for_all = conn.execute(f"SELECT id FROM ops_incidents WHERE status IN ({','.join('?' for _ in ACTIVE_STATUSES)})", ACTIVE_STATUSES).fetchall()
+    _event_for_all = conn.execute(f"SELECT id FROM ops_incidents WHERE status IN ({','.join('?' for _ in ACTIVE_STATUSES)})", ACTIVE_STATUSES).fetchall()  # nosec B608 -- generated placeholders only
     for row in _event_for_all:
         _event(conn, row["id"], "EMERGENCY_PAUSE_CHANGED", actor["name"], actor["role"], value)
     record_audit(conn, actor=actor["name"], actor_role=actor["role"], user_id=actor["id"], action="ops_emergency_pause_enabled" if enabled else "ops_emergency_pause_disabled", resource="ops-policy:operations.freeze")
@@ -311,6 +312,14 @@ def collect_runtime_signals(conn) -> list[dict]:
         created.append(ingest_signal(conn, source="queue-monitor", title="Agent queue stuck", severity="CRITICAL", summary=f"{stuck} job melewati 15 menit.", resource="agent_jobs"))
     else:
         auto_resolve(conn, source="queue-monitor", resource="agent_jobs", note="Antrean kembali mengalir normal.")
+    if settings.beresin_redis_url:
+        heartbeat = conn.execute("SELECT updated_at FROM ops_policies WHERE key='worker.conversation.heartbeat'").fetchone()
+        worker_stale = not heartbeat or (datetime.now(timezone.utc) - datetime.fromisoformat(heartbeat["updated_at"])).total_seconds() > 30
+        if worker_stale:
+            created.append(ingest_signal(conn, source="operations-meta-monitor", title="Conversation worker heartbeat stale", severity="CRITICAL", summary="Redis worker tidak mengirim heartbeat dalam 30 detik.", resource="queue-worker"))
+        else:
+            auto_resolve(conn, source="operations-meta-monitor", resource="queue-worker", note="Redis worker heartbeat kembali normal.")
+            auto_resolve(conn, source="local-health-monitor", resource="operations-runtime", note="Operations runtime dan queue worker kembali sehat.")
     auto_resolve(conn, source="local-health-monitor", title="Server recovered after readiness failure", note="Recovery berhasil diverifikasi oleh readiness monitor.")
     return created
 
@@ -322,7 +331,7 @@ def auto_resolve(conn, *, source: str, resource: str | None = None, title: str |
         where.append("affected_resource=?"); args.append(resource)
     if title is not None:
         where.append("title=?"); args.append(title)
-    rows = conn.execute("SELECT id FROM ops_incidents WHERE " + " AND ".join(where), args).fetchall()
+    rows = conn.execute("SELECT id FROM ops_incidents WHERE " + " AND ".join(where), args).fetchall()  # nosec B608 -- clauses are fixed constants
     now = utcnow_iso()
     for row in rows:
         conn.execute("UPDATE ops_incidents SET status='RESOLVED',resolved_at=?,updated_at=? WHERE id=?", (now, now, row["id"]))
