@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     beresin_db_path: str = "./data/beresin.db"
     beresin_database_url: str = ""
     beresin_redis_url: str = ""
+    beresin_embedded_queue_worker: bool = False
     beresin_data_dir: str = "./data"
     beresin_secret_key: str = "dev-secret-change-me"
     beresin_host: str = "127.0.0.1"
@@ -126,6 +127,10 @@ class Settings(BaseSettings):
             errors.append("OPS_TELEGRAM_CHAT_ID wajib saat Telegram aktif")
         if self.ops_telegram_bot_token and not self.ops_public_base_url.startswith("https://"):
             errors.append("OPS_PUBLIC_BASE_URL wajib HTTPS saat Telegram aktif di production")
+        if bool(self.beresin_database_url) != bool(self.beresin_redis_url):
+            errors.append("BERESIN_DATABASE_URL dan BERESIN_REDIS_URL wajib diaktifkan bersama di production")
+        if self.beresin_redis_url and self.beresin_embedded_queue_worker:
+            errors.append("BERESIN_EMBEDDED_QUEUE_WORKER wajib false saat Redis digunakan di production")
         if errors:
             raise RuntimeError("Konfigurasi production tidak aman: " + "; ".join(errors))
 

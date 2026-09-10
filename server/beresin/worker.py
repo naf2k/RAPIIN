@@ -27,6 +27,9 @@ def spawn_conversation_task(*, user_id: int, conversation_id: int, task_id: int,
         conn.commit()
     finally:
         conn.close()
+    from .queue_backend import enqueue_conversation_task
+    if enqueue_conversation_task(task_id):
+        return
     thread = threading.Thread(
         target=_claim_and_run,
         kwargs={"task_id": task_id},
@@ -94,8 +97,36 @@ def recover_conversation_jobs() -> int:
     finally:
         conn.close()
     for pending_task_id in ids:
-        threading.Thread(target=_claim_and_run, kwargs={"task_id": pending_task_id}, name=f"beresin-recovery-{pending_task_id}", daemon=True).start()
+        from .queue_backend import enqueue_conversation_task
+        if not enqueue_conversation_task(pending_task_id):
+            threading.Thread(target=_claim_and_run, kwargs={"task_id": pending_task_id}, name=f"beresin-recovery-{pending_task_id}", daemon=True).start()
     return len(ids)
+
+
+def run_queue_worker(stop_event=None) -> None:
+    """Consume Redis hints; atomic database claims prevent duplicate execution."""
+    import json
+    import time
+    from .database import utcnow_iso
+    from .queue_backend import dequeue_conversation_task
+
+    while not (stop_event and stop_event.is_set()):
+        conn = connect()
+        try:
+            now = utcnow_iso()
+            conn.execute(
+                "INSERT INTO ops_policies(key,value_json,updated_at) VALUES(?,?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",
+                ("worker.conversation.heartbeat", json.dumps({"at": now}), now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        task_id = dequeue_conversation_task(timeout=2)
+        if task_id is not None:
+            _claim_and_run(task_id=task_id)
+        elif stop_event:
+            time.sleep(0.05)
 
 
 def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: int | None) -> None:

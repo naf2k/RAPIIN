@@ -150,6 +150,7 @@ def test_production_config_accepts_https_and_strong_secrets():
         beresin_allowed_origins="https://beresin.example.com",
         beresin_monitoring_token="monitoring-token-with-at-least-32-characters",
         beresin_allow_public_registration=False,
+        beresin_embedded_queue_worker=False,
     )
     safe.validate_for_startup()
     assert safe.allowed_origins == ["https://beresin.example.com"]
@@ -164,11 +165,14 @@ def test_production_operations_config_requires_bounded_runtime_and_secure_telegr
         beresin_allowed_origins="https://beresin.example.com",
         beresin_monitoring_token="monitoring-token-with-at-least-32-characters",
         beresin_allow_public_registration=False,
+        beresin_embedded_queue_worker=False,
     )
     with pytest.raises(RuntimeError, match="MAX_CONCURRENCY"):
         Settings(**base, ops_agent_max_concurrency=0).validate_for_startup()
     with pytest.raises(RuntimeError, match="DAILY_COST_LIMIT"):
         Settings(**base, ops_agent_daily_cost_limit_usd=0).validate_for_startup()
+    with pytest.raises(RuntimeError, match="DATABASE_URL.*REDIS_URL"):
+        Settings(**base, beresin_database_url="postgresql://localhost/beresin", beresin_redis_url="").validate_for_startup()
     with pytest.raises(RuntimeError, match="PUBLIC_BASE_URL"):
         Settings(**base, ops_telegram_bot_token="secret", ops_telegram_chat_id="owner", ops_public_base_url="http://localhost").validate_for_startup()
 
@@ -187,9 +191,10 @@ def test_production_config_loads_secret_files(tmp_path):
         beresin_env="production", beresin_init_supervisor_email="ops@example.id",
         beresin_allowed_origins="https://beresin.example.id",
         beresin_secret_key_file=str(secret), beresin_init_supervisor_password_file=str(password),
-        beresin_monitoring_token_file=str(monitoring), ai_api_key_file=str(ai_key),
-        beresin_allow_public_registration=False,
-    )
+            beresin_monitoring_token_file=str(monitoring), ai_api_key_file=str(ai_key),
+            beresin_allow_public_registration=False,
+            beresin_embedded_queue_worker=False,
+        )
     settings.validate_for_startup()
     assert settings.beresin_secret_key == "s" * 40
     assert settings.ai_api_key == "provider-key"

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -112,11 +113,22 @@ async def lifespan(app: FastAPI):
         conn.close()
     from .worker import recover_conversation_jobs
     recover_conversation_jobs()
+    queue_stop = None
+    queue_thread = None
+    if settings.beresin_redis_url and settings.beresin_embedded_queue_worker:
+        from .worker import run_queue_worker
+        queue_stop = threading.Event()
+        queue_thread = threading.Thread(target=run_queue_worker, args=(queue_stop,), name="beresin-embedded-queue", daemon=True)
+        queue_thread.start()
     task = asyncio.create_task(_device_monitor_loop())
     ops_task = asyncio.create_task(_ops_monitor_loop())
     yield
     task.cancel()
     ops_task.cancel()
+    if queue_stop:
+        queue_stop.set()
+    if queue_thread:
+        queue_thread.join(timeout=3)
     try:
         await task
     except asyncio.CancelledError:
@@ -187,7 +199,14 @@ def ready():
     except Exception:
         from fastapi.responses import JSONResponse
         return JSONResponse({"status": "not_ready", "database": "unavailable"}, status_code=503)
-    return {"status": "ready", "database": "ok"}
+    try:
+        from .queue_backend import redis_ready
+        if not redis_ready():
+            raise RuntimeError("Redis ping gagal")
+    except Exception:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"status": "not_ready", "database": "ok", "queue": "unavailable"}, status_code=503)
+    return {"status": "ready", "database": "ok", "queue": "ok" if settings.beresin_redis_url else "inline"}
 
 
 @app.get("/internal/metrics", response_class=PlainTextResponse)

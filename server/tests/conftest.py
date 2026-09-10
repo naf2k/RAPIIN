@@ -11,12 +11,29 @@ TEST_DIR = Path(tempfile.mkdtemp(prefix="beresin-test-"))
 os.environ["BERESIN_DB_PATH"] = str(TEST_DIR / "test.db")
 os.environ["BERESIN_DATA_DIR"] = str(TEST_DIR)
 os.environ["BERESIN_ENV"] = "test"
+TEST_DATABASE_URL = os.environ.get("BERESIN_TEST_DATABASE_URL", "")
+if TEST_DATABASE_URL:
+    os.environ["BERESIN_DATABASE_URL"] = TEST_DATABASE_URL
+    os.environ["BERESIN_EMBEDDED_QUEUE_WORKER"] = "true"
 
 
 @pytest.fixture(autouse=True)
 def _reset_db():
     """Drop all tables before each test so tests are isolated."""
-    from beresin.database import connect, SCHEMA
+    from beresin.database import connect, init_db, SCHEMA
+
+    if TEST_DATABASE_URL:
+        import psycopg
+        with psycopg.connect(TEST_DATABASE_URL, autocommit=True) as reset:
+            reset.execute("DROP SCHEMA public CASCADE")
+            reset.execute("CREATE SCHEMA public")
+        conn = init_db()
+        from beresin.main import seed_supervisor
+        seed_supervisor(conn)
+        conn.commit()
+        conn.close()
+        yield
+        return
 
     db_path = Path(os.environ["BERESIN_DB_PATH"])
     db_path.unlink(missing_ok=True)
