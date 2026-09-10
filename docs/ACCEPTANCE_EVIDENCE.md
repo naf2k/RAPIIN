@@ -58,11 +58,12 @@ Current local evidence:
 - Fault drills: worker termination raised a critical meta incident and restart auto-resolved it; Telegram failed delivery was retried and sent; three synthetic provider failures opened the circuit and cooldown recovery closed it.
 - Coder drill: official pinned Hermes operated only in an isolated worktree, fixed a synthetic negative-delay regression, produced four passing fixture tests plus green backend/agent/JS/diff checks, and the rejected synthetic change was safely cleaned without merge or deployment.
 - PostgreSQL lock regression: SSE reads now end their transaction before streaming, periodic monitors no longer run DDL, lock/idle-transaction timeouts are bounded, and an accelerated 36-second soak passed 17/17 samples.
+- Final macOS reboot drill: boot identifier changed and server, PostgreSQL, Redis, queue worker, desktop agent, monitor, and backup services all auto-started. The drill exposed and then removed a transient startup false-positive by adding an Operations heartbeat grace period.
 
 Remaining external/final observation gates:
 
 - Complete the 24-hour local soak on the final commit.
-- Repeat the macOS reboot/startup probe after the PostgreSQL, Redis, and worker LaunchAgents are finalized.
+- Preserve the verified macOS LaunchAgent definitions when packaging the production host.
 - Production deployment still needs its real server/domain, protected GitHub environment, deploy/rollback commands, and organization identity controls.
 
 The pilot database now contains exactly two active supervisor accounts as required by PRD section 3. Two obsolete local/test identities were removed after creating the recoverable SQLite backup `server/data/backups/beresin-20260908T115222Z.db`.

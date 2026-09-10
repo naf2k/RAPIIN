@@ -44,7 +44,19 @@ def readiness() -> dict:
         record("audit_chain", integrity.get("valid") is True, f"events={integrity.get('count', 0)}")
         record("provider_circuit", not provider_circuit_open(conn), "closed" if not provider_circuit_open(conn) else "open")
         pending = conn.execute("SELECT COUNT(*) n FROM ops_agent_assignments WHERE status IN ('PENDING','ACTIVE')").fetchone()["n"]
-        record("assignment_queue", pending == 0, f"pending_or_active={pending}")
+        stale = conn.execute(
+            "SELECT COUNT(*) n FROM ops_agent_assignments WHERE "
+            "(status='ACTIVE' AND lease_expires_at IS NOT NULL AND lease_expires_at < ?) OR "
+            "(status='PENDING' AND created_at < ?)",
+            (
+                datetime.now(timezone.utc).isoformat(),
+                datetime.fromtimestamp(
+                    datetime.now(timezone.utc).timestamp() - settings.ops_agent_timeout_seconds * 2,
+                    timezone.utc,
+                ).isoformat(),
+            ),
+        ).fetchone()["n"]
+        record("assignment_queue", stale == 0, f"in_flight={pending},stale={stale}")
         conn.close()
     except Exception as exc:
         record("database", False, type(exc).__name__)
