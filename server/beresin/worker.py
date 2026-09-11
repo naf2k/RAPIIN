@@ -106,26 +106,32 @@ def recover_conversation_jobs() -> int:
 def run_queue_worker(stop_event=None) -> None:
     """Consume Redis hints; atomic database claims prevent duplicate execution."""
     import json
+    import logging
     import time
     from .database import utcnow_iso
     from .queue_backend import dequeue_conversation_task
 
+    logger = logging.getLogger(__name__)
     while not (stop_event and stop_event.is_set()):
-        conn = connect()
         try:
-            now = utcnow_iso()
-            conn.execute(
-                "INSERT INTO ops_policies(key,value_json,updated_at) VALUES(?,?,?) "
-                "ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",
-                ("worker.conversation.heartbeat", json.dumps({"at": now}), now),
-            )
-            conn.commit()
-        finally:
-            conn.close()
-        task_id = dequeue_conversation_task(timeout=2)
-        if task_id is not None:
-            _claim_and_run(task_id=task_id)
-        elif stop_event:
+            conn = connect()
+            try:
+                now = utcnow_iso()
+                conn.execute(
+                    "INSERT INTO ops_policies(key,value_json,updated_at) VALUES(?,?,?) "
+                    "ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",
+                    ("worker.conversation.heartbeat", json.dumps({"at": now}), now),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            task_id = dequeue_conversation_task(timeout=2)
+            if task_id is not None:
+                _claim_and_run(task_id=task_id)
+        except Exception:  # noqa: BLE001 - a transient outage must not kill the worker
+            logger.exception("Queue worker poll failed; retrying")
+            time.sleep(1)
+        if stop_event:
             time.sleep(0.05)
 
 

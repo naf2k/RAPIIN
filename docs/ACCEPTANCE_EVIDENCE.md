@@ -70,7 +70,7 @@ Remaining external/final observation gates:
 
 Verified directly from source and runtime after the fixes below; supersedes earlier counts where they differ.
 
-- Backend suite: 127 passing tests on SQLite and 127 passing tests on real PostgreSQL/Redis (the 4 earlier PG failures were caused by the test run sharing the pilot Redis queue and are fixed).
+- Backend suite: 130 passing tests on SQLite and 130 passing tests on real PostgreSQL/Redis (the 4 earlier PG failures were caused by the test run sharing the pilot Redis queue and are fixed).
 - Desktop Agent suite: 38 passing.
 - Browser/accessibility suite: 26 passing across desktop and mobile Chromium, including owner approval re-authentication.
 - Release gate (`ops/release_gate.py --topology local-macos`): backend, agent, frontend syntax, UI/accessibility, macOS reboot probe, credentialed UAT, and local health checks all pass.
@@ -88,6 +88,7 @@ Verified directly from source and runtime after the fixes below; supersedes earl
 - **Ops CLI entry point:** `python -m beresin.ops_cli verify` no longer exits silently without a report. Regression test added.
 - **Redis test isolation:** with `BERESIN_TEST_DATABASE_URL` set, tests now use a dedicated Redis logical database (15). Previously the shared queue key let the live conversation worker consume test jobs and could apply test task ids against the pilot database.
 - **Soak integrity:** the soak script now uses a wall-clock deadline and records a `SamplingGap` failure whenever the host suspends sampling, so a sleeping laptop can no longer produce a green 24-hour report.
+- **Queue worker resilience:** a single Redis socket timeout used to kill the worker process (observed in the pilot log after a host sleep/wake, exit status 1 followed by a launchd restart). `dequeue_conversation_task` now treats a transient Redis failure as "no work", `enqueue_conversation_task` returns `False` so callers fall back to the in-process thread instead of dropping the task, `redis_ready` reports not-ready instead of raising, and the poll loop logs, backs off, and keeps consuming. The BRPOP socket timeout was also raised above the blocking timeout so an empty queue returns `None` instead of racing its own read deadline. Regression tests added.
 
 ### Drill artifact cleanup
 
@@ -97,7 +98,8 @@ Verified directly from source and runtime after the fixes below; supersedes earl
 
 ### Open items
 
-- The 24-hour soak was restarted on this revision at 2026-09-10 14:52:25 UTC (21:52 WIB) and is expected to finish at 2026-09-11 14:52 UTC (21:52 WIB). Results will be recorded in `server/data/ai-ops-soak-final.json` and in this document when it completes. The LaunchAgent now wraps the soak in `caffeinate` so the host will not idle-sleep mid-run, and the script records a `SamplingGap` failure if sampling is ever suspended.
+- The 24-hour soak was restarted on this revision at 2026-09-11 02:29:31 UTC (09:29 WIB) and is expected to finish at 2026-09-12 02:29 UTC (09:29 WIB). Results will be recorded in `server/data/ai-ops-soak-final.json` and in this document when it completes. The LaunchAgent wraps the soak in `caffeinate` and `pmset -a disablesleep 1` is active, so the host cannot idle-sleep or lid-sleep mid-run; the script records a `SamplingGap` failure if sampling is ever suspended anyway. An earlier attempt was discarded because the charger detached, the battery drained to 0%, and macOS force-slept for 79 minutes.
+- `pmset -a disablesleep 1` is a temporary drill setting and must be reverted with `sudo pmset -a disablesleep 0` once the soak finishes.
 - Incident #2 (`Disk space critically low`) remains correctly OPEN: the host volume is genuinely below the 10% free threshold used by `ops/local_health_monitor.py`. Resolving it requires the owner to free space on the Mac; BERESIN's own footprint is about 15 MB of data plus backups.
 
 The pilot database now contains exactly two active supervisor accounts as required by PRD section 3. Two obsolete local/test identities were removed after creating the recoverable SQLite backup `server/data/backups/beresin-20260908T115222Z.db`.
