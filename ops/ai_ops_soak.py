@@ -37,6 +37,22 @@ def sample() -> dict:
     }
 
 
+def build_report(started, finished, args, samples: int, gaps: int, failures: list, status: str) -> dict:
+    return {
+        "status": status,
+        "started_at": started.isoformat(), "finished_at": finished.isoformat(),
+        "duration_hours": args.duration_hours,
+        "wall_clock_hours": round((finished - started).total_seconds() / 3600, 2),
+        "samples": samples, "gaps": gaps, "failures": failures,
+        "passed": not failures,
+    }
+
+
+def write_report(output: Path, report: dict) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--duration-hours", type=float, default=24)
@@ -69,17 +85,13 @@ def main() -> int:
                 failures.append({"at": datetime.now(timezone.utc).isoformat(), "sample": item})
         except Exception as exc:
             failures.append({"at": datetime.now(timezone.utc).isoformat(), "error": type(exc).__name__})
+        # Rewrite the report every sample so an operator can read progress
+        # instead of waiting for the run to finish.
+        write_report(args.output, build_report(started, datetime.now(timezone.utc), args, samples, gaps, failures, "running"))
         time.sleep(min(args.interval_seconds, max(0, deadline - time.time())))
     finished = datetime.now(timezone.utc)
-    report = {
-        "started_at": started.isoformat(), "finished_at": finished.isoformat(),
-        "duration_hours": args.duration_hours,
-        "wall_clock_hours": round((finished - started).total_seconds() / 3600, 2),
-        "samples": samples, "gaps": gaps, "failures": failures,
-        "passed": not failures,
-    }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    report = build_report(started, finished, args, samples, gaps, failures, "completed")
+    write_report(args.output, report)
     print(json.dumps(report, ensure_ascii=False))
     return 0 if report["passed"] else 1
 
