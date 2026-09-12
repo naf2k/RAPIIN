@@ -60,3 +60,42 @@ def test_notification_payload_contains_friendly_copy(monkeypatch):
     assert result == {"status": "SENT"}
     assert "Apa yang terjadi?" in captured["text"][0]
     assert "disable_web_page_preview" not in captured["text"][0]
+
+
+def test_deliver_pending_closes_transaction_before_network_call(monkeypatch):
+    """Regression: the Telegram call ran inside an open transaction.
+
+    Holding the read transaction across the 10s Telegram timeout tripped
+    PostgreSQL's idle_in_transaction_session_timeout, which terminated the
+    connection and aborted the monitor tick (observed as a 282s tick stall and
+    a `FATAL: terminating connection due to idle-in-transaction timeout`).
+    """
+    from beresin.ops_notifications import deliver_pending
+
+    events = []
+
+    class Cursor:
+        def fetchall(self):
+            return [{
+                "id": 1, "incident_id": 5, "title": "t", "body": "b", "severity": "HIGH",
+                "incident_title": "Incident", "incident_status": "OPEN", "incident_summary": "s",
+                "attempt_count": 0, "next_attempt_at": None, "delivery_status": "PENDING",
+            }]
+
+    class Conn:
+        def execute(self, query, params=()):
+            events.append("execute")
+            return Cursor()
+
+        def commit(self):
+            events.append("commit")
+
+    def fake_notify(incident):
+        events.append("network")
+        return {"status": "SENT"}
+
+    monkeypatch.setattr("beresin.ops_notifications.notify_owner", fake_notify)
+    results = deliver_pending(Conn())
+    assert results and results[0]["status"] == "SENT"
+    assert events.index("commit") < events.index("network"), "transaction must be closed before the network call"
+    assert events[-1] == "commit", "the delivery result must be committed"

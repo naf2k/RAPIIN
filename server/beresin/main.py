@@ -77,12 +77,19 @@ def _ops_tick() -> None:
         conn.commit()
         from .ops_incidents import auto_resolve, collect_runtime_signals, expire_pending_approvals, ingest_signal, queue_daily_digest
         from .ops_notifications import deliver_pending
+        # Each phase commits on its own. A single tick-wide transaction would
+        # stay open across slow work (Telegram calls, Hermes runs) and trip
+        # PostgreSQL's idle_in_transaction_session_timeout, which kills the
+        # connection and aborts the rest of the tick.
         collect_runtime_signals(conn)
         expire_pending_approvals(conn)
+        conn.commit()
         queue_daily_digest(conn)
+        conn.commit()
         from .ops_maintenance import apply_ops_retention, queue_approval_reminders
         queue_approval_reminders(conn)
         apply_ops_retention(conn)
+        conn.commit()
         deliver_pending(conn)
         if settings.ops_agents_enabled:
             from .ops_runtime import (

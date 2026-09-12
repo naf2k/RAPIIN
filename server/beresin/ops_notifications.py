@@ -86,12 +86,21 @@ def notify_owner(incident: dict) -> dict:
 
 
 def deliver_pending(conn, limit: int = 10) -> list[dict]:
+    """Send queued owner notifications without holding a transaction open.
+
+    A Telegram request can block for its full 10s timeout. Keeping the read
+    transaction open across that call trips PostgreSQL's
+    `idle_in_transaction_session_timeout`, which terminates the connection and
+    aborts the whole monitor tick, so the pending rows are read, the
+    transaction is closed, and each result is committed on its own.
+    """
     rows = conn.execute(
         """SELECT n.*, i.title incident_title, i.status incident_status, i.summary incident_summary
            FROM ops_notifications n LEFT JOIN ops_incidents i ON i.id=n.incident_id
            WHERE (n.delivery_status='PENDING' OR (n.delivery_status='FAILED' AND n.next_attempt_at <= ?))
              AND n.attempt_count < 3 ORDER BY n.id LIMIT ?""", (utcnow_iso(), limit),
     ).fetchall()
+    conn.commit()
     results = []
     for row in rows:
         incident = {"id": row["incident_id"], "title": row["incident_title"] or row["title"], "severity": row["severity"], "status": row["incident_status"] or "OPEN", "summary": row["incident_summary"] or row["body"]}
@@ -104,5 +113,6 @@ def deliver_pending(conn, limit: int = 10) -> list[dict]:
             "UPDATE ops_notifications SET delivery_status=?,delivered_at=?,last_error=?,attempt_count=?,next_attempt_at=? WHERE id=?",
             (result["status"], utcnow_iso() if result["status"] == "SENT" else None, result.get("reason"), attempts, retry_at, row["id"]),
         )
+        conn.commit()
         results.append({"notification_id": row["id"], **result})
     return results
