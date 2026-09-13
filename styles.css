@@ -2207,17 +2207,20 @@ button:disabled {
   }
 }
 
-/* The empty state becomes the full chat surface so the aurora can sit behind. */
+/* The empty state is the aurora surface: dark base with the bars behind it. */
 .user-chat-page .chat-shell .empty-state {
   position: relative;
   align-self: stretch;
   justify-self: stretch;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: auto;
   margin: 0;
-  padding: 24px;
+  padding: 0;
   overflow: hidden;
+  background-color: rgb(10 10 10);
 }
 
 .aurora {
@@ -2227,9 +2230,6 @@ button:disabled {
   display: flex;
   overflow: hidden;
   pointer-events: none;
-  background:
-    radial-gradient(120% 85% at 50% 118%, rgb(109 40 217 / 0.55), transparent 62%),
-    radial-gradient(95% 65% at 50% -25%, rgb(76 29 149 / 0.4), transparent 72%);
 }
 
 .aurora > span {
@@ -2252,51 +2252,69 @@ button:disabled {
 .empty-content {
   position: relative;
   z-index: 1;
-  display: grid;
-  justify-items: center;
-  width: min(100%, 760px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.empty-hero {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 24px 16px;
 }
 
 .empty-hero h1 {
-  max-width: 620px;
   margin: 0 auto;
   color: #fff;
-  text-shadow: 0 2px 20px rgb(0 0 0 / 0.5);
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 1.1;
 }
 
 .empty-subtitle {
-  max-width: 520px;
-  margin: 14px auto 0;
-  color: rgb(212 212 212);
-  font-size: 15px;
-  line-height: 1.6;
-  text-shadow: 0 1px 12px rgb(0 0 0 / 0.55);
+  margin: 8px 0 0;
+  color: rgb(229 229 229);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Mirrors the source layout: w-full max-w-3xl with mb-[20vh]. */
+.composer-block {
+  width: 100%;
+  max-width: 48rem;
+  margin-bottom: 20vh;
+  padding: 0 16px;
 }
 
 .user-chat-page .composer {
   overflow: hidden;
   border: 1px solid var(--chat-hairline);
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--chat-glass);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 18px 42px rgb(0 0 0 / 0.38);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .user-chat-page .composer:focus-within {
   border-color: rgb(167 139 250 / 0.8);
-  box-shadow: 0 0 0 3px rgb(139 92 246 / 0.2), 0 18px 42px rgb(0 0 0 / 0.38);
+  box-shadow: 0 0 0 3px rgb(139 92 246 / 0.2);
 }
 
 .user-chat-page .composer textarea {
   min-height: 48px;
-  max-height: 160px;
-  padding: 16px 18px 4px;
+  max-height: 150px;
+  padding: 12px 16px;
   resize: none;
   overflow-y: auto;
   color: #fff;
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .user-chat-page .composer textarea::placeholder {
@@ -2307,91 +2325,80 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 12px 12px;
+  padding: 12px;
 }
 
 .composer-tool {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
-  color: rgb(163 163 163);
+  color: #fff;
   cursor: pointer;
-  transition: background-color 160ms ease, color 160ms ease;
+  transition: background-color 160ms ease;
 }
 
 .composer-tool svg {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
 }
 
 .composer-tool:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .composer-tool:not(:disabled):hover {
-  background: rgb(38 38 38);
-  color: #fff;
+  background: rgb(64 64 64);
 }
 
 .user-chat-page .send-button {
   position: static;
-  width: 36px;
-  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  padding: 8px 12px;
   border: 0;
-  border-radius: 10px;
-  background: rgb(167 139 250);
-  color: rgb(28 12 56);
+  border-radius: 8px;
+  background: rgb(64 64 64);
+  color: rgb(163 163 163);
   cursor: pointer;
-  transition: background-color 160ms ease, transform 160ms ease;
 }
 
 .user-chat-page .send-button svg {
-  width: 17px;
-  height: 17px;
-}
-
-.user-chat-page .send-button:hover {
-  background: rgb(196 181 253);
-}
-
-.user-chat-page .send-button:active {
-  transform: scale(0.96);
+  width: 16px;
+  height: 16px;
 }
 
 .user-chat-page .prompt-suggestions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
-  gap: 10px;
-  margin-top: 28px;
+  gap: 12px;
+  margin-top: 24px;
 }
 
 .user-chat-page .prompt-chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 0;
+  min-height: 40px;
   max-width: 100%;
-  padding: 9px 15px;
+  padding: 8px 16px;
   border: 1px solid var(--chat-hairline);
   border-radius: 999px;
   background: rgb(0 0 0 / 0.5);
   color: rgb(212 212 212);
   font-size: 12px;
+  font-weight: 500;
   line-height: 1;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .user-chat-page .prompt-chip:hover {
-  border-color: rgb(115 115 115);
-  background: rgb(38 38 38 / 0.85);
+  background: rgb(64 64 64);
   color: #fff;
 }
 
@@ -2402,22 +2409,21 @@ button:disabled {
 
 .chip-icon {
   flex: 0 0 auto;
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
 }
 
 @media (max-width: 760px) {
-  .user-chat-page .chat-shell .empty-state {
-    padding: 16px;
+  .empty-hero h1 {
+    font-size: 28px;
   }
 
-  .user-chat-page .empty-subtitle {
-    font-size: 14px;
+  .empty-subtitle {
+    font-size: 15px;
   }
 
-  .user-chat-page .prompt-suggestions {
-    gap: 8px;
-    margin-top: 20px;
+  .composer-block {
+    margin-bottom: 12vh;
   }
 
   .user-chat-page .prompt-chip {

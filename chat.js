@@ -20,7 +20,7 @@
 
   // Animated aurora bars behind the hero. Bar height follows the source design:
   // tall at the edges and short in the middle, so the text keeps a calm valley.
-  var AURORA_BARS = 7;
+  var AURORA_BARS = 15;
 
   function initAurora() {
     var host = BERESIN.el("aurora");
@@ -128,7 +128,7 @@
   function autoResize(t) {
     if (!t) return;
     t.style.height = "auto";
-    t.style.height = Math.min(t.scrollHeight, 160) + "px";
+    t.style.height = Math.min(t.scrollHeight, 150) + "px";
   }
 
   function formatTime(iso) {
