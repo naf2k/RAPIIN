@@ -101,8 +101,8 @@ def test_latest_successful_rerun_supersedes_old_failure():
         "VALUES(?,?,?,?,?,'READY_FOR_REVIEW',?,?)",
         (incident["id"], approval["approval_id"], "ops/test-rerun", "/tmp/test-rerun", "base", now, now),
     ).lastrowid
-    conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'FAILED')", (change_id, "javascript"))
-    for name in ("backend", "agent", "javascript-app", "javascript-chat", "javascript-supervisor", "diff-integrity", "security-bandit"):
+    conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'FAILED')", (change_id, "diff-integrity"))
+    for name in ("backend", "agent", "diff-integrity", "security-bandit"):
         conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'PASSED')", (change_id, name))
     assert _latest_checks_passed(conn, change_id)
     conn.close()
@@ -251,7 +251,7 @@ def test_deployment_uses_second_approval_and_rolls_back(monkeypatch):
     conn = connect(); incident, fix = _incident_and_approval(conn)
     now = utcnow_iso()
     change_id = conn.execute("INSERT INTO ops_code_changes(incident_id,approval_id,branch_name,worktree_path,base_commit,commit_sha,status,created_at,updated_at) VALUES(?,?,?,?,?,?,'READY_FOR_REVIEW',?,?)", (incident["id"], fix["approval_id"], "ops/test", "/tmp/test", "base", "artifact123", now, now)).lastrowid
-    for name in ("backend", "agent", "javascript-app", "javascript-chat", "javascript-supervisor", "diff-integrity", "security-bandit"):
+    for name in ("backend", "agent", "diff-integrity", "security-bandit"):
         conn.execute("INSERT INTO ops_check_runs(code_change_id,name,status) VALUES(?,?,'PASSED')", (change_id, name))
     try:
         deploy(conn, incident["id"], change_id, fix["approval_id"], command_runner=lambda action, artifact: True)

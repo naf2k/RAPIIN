@@ -2,6 +2,8 @@
 
 Evidence date: 2026-09-10. `LOCAL PASS` means automated or runtime evidence exists in this checkout. `EXTERNAL GATE` cannot be honestly passed without release infrastructure, another OS host, or a new OS reboot after the current release candidate.
 
+> **Frontend extracted (2026-09-13).** The static frontend (`index.html`, `login.html`, `app.js`, `chat.js`, `supervisor.js`, `styles.css`, `supervisor/`, `user/`, `states/`), the Playwright suite, and the npm tooling no longer live in this repository; they moved to a separate frontend project that consumes this API. Evidence below that names UI, browser, accessibility, frontend-syntax, or npm gates records runs from when the frontend was still in-tree. Those gates are no longer part of this checkout — re-verify them in the frontend project. Backend and Desktop Agent evidence is unaffected. Cross-origin API access for the new frontend is configured through `allowed_origins` in the server settings.
+
 ## Multi-device targeting
 
 - Pesan menerima `device_id` milik user dan menolak device milik user lain atau
@@ -72,12 +74,12 @@ Verified directly from source and runtime after the fixes below; supersedes earl
 
 - Backend suite: 131 passing tests on SQLite and 131 passing tests on real PostgreSQL/Redis (the 4 earlier PG failures were caused by the test run sharing the pilot Redis queue and are fixed).
 - Desktop Agent suite: 38 passing.
-- Browser/accessibility suite: 26 passing across desktop and mobile Chromium, including owner approval re-authentication.
-- Release gate (`ops/release_gate.py --topology local-macos`): backend, agent, frontend syntax, UI/accessibility, macOS reboot probe, credentialed UAT, and local health checks all pass.
-- Operations incident drill (`ops/incident_drill.py`): pass (41 Operations tests, 38 agent tests, JS syntax).
+- Browser/accessibility suite: 26 passing across desktop and mobile Chromium, including owner approval re-authentication. (Run while the frontend was in-tree; the suite now lives in the frontend project.)
+- Release gate (`ops/release_gate.py --topology local-macos`): backend, agent, macOS reboot probe, credentialed UAT, and local health checks all pass. (The frontend-syntax and UI/accessibility gates were removed with the frontend.)
+- Operations incident drill (`ops/incident_drill.py`): pass (41 Operations tests, 38 agent tests). (The JS syntax step was removed with the frontend.)
 - Provider contract smoke: streaming and tool-calling contracts pass against the configured provider.
 - Bounded HTTP load probe: 1,000 requests, concurrency 20, zero failures, p50 556.6 ms, p95 807.5 ms, 34.3 req/s while the Operations AI monitor was active.
-- Bandit medium/high scan: pass. npm audit, pip-audit (server and agent): zero known vulnerabilities.
+- Bandit medium/high scan: pass. pip-audit (server and agent): zero known vulnerabilities. (npm audit no longer applies in this checkout — the npm tooling moved to the frontend project.)
 - Readiness CLI (`beresin-ops verify`): all checks green — server, PostgreSQL, roles, audit hash chain, provider circuit closed, assignment queue empty, Redis, pinned Hermes version, Operations enabled, Telegram configured, LaunchAgents loaded, fresh backups.
 - Final PostgreSQL backup/restore drill: a checksum-protected dump was created, verified, and restored into an empty throwaway database; user, supervisor, incident, and audit-event counts matched exactly (3 / 2 / 20 / 2826), and the temporary database was dropped afterward.
 - Audit hash chain verified valid after every step of this session's cleanup work.

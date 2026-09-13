@@ -31,7 +31,7 @@ Parser PDF, DOCX, XLSX, PPTX, gambar, CSV, JSON, ZIP, dan teks dipasang sebagai 
 ## First-run
 
 ```bash
-# Daftar akun user dulu lewat web (login.html -> register) atau API.
+# Daftar akun user dulu lewat API register, atau dari aplikasi klien yang memakai API ini.
 beresin setup --server http://127.0.0.1:8000
 # akan menanyakan email & kata sandi, lalu mendaftarkan perangkat ini.
 ```

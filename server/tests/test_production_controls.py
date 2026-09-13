@@ -68,11 +68,13 @@ def test_readiness_and_security_headers(client):
     assert response.headers["x-request-id"] == "test-request-id"
 
 
-def test_root_opens_login_application(client):
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/html")
-    assert "Masuk ke BERESIN" in response.text
+def test_api_only_server_does_not_serve_frontend_assets(client):
+    # The frontend lives in its own project now; this service must stay API-only.
+    for path in ("/", "/index.html", "/login.html", "/styles.css", "/supervisor/overview.html"):
+        response = client.get(path)
+        assert response.status_code == 404, path
+        assert not response.headers["content-type"].startswith("text/html"), path
+    response = client.get("/ready")
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["permissions-policy"].startswith("camera=()")
 

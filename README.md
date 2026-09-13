@@ -18,7 +18,6 @@ SQLite task/job queue
 Desktop Agent ── filesystem user (workspace terbatas)
 ```
 
-- Frontend statis: `index.html`, `chat.js`, `supervisor/`, dan `user/`.
 - Backend: `server/beresin/`; memisahkan `/api/auth`, `/api/user`, `/api/supervisor`, dan `/api/agent`.
 - Worker: task conversation berjalan di background thread dan mengirim progress/token melalui SSE.
 - Desktop Agent: `agent/beresin_agent/`; hanya menjalankan tool terdaftar dalam folder yang diizinkan user.
@@ -60,9 +59,6 @@ beresin-agent autostart
 ```bash
 cd server && uv run pytest -q
 cd ../agent && uv run --with pytest pytest -q
-node --check ../app.js
-node --check ../chat.js
-node --check ../supervisor.js
 ```
 
 Suite mencakup RBAC, approval/resume, isolasi user, queue agent, 1.000+ file, file terkunci, reconnect, toggle autostart, progress count, dan concurrent device.

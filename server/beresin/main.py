@@ -7,20 +7,16 @@ import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import PlainTextResponse
 
 from .api import agent_routes, auth_routes, ops_routes, supervisor_routes, user_routes
 from .config import settings
 from .database import connect, init_db, utcnow_iso
 from .devices import mark_stale_devices_offline
 from .security import hash_password
-
-# Frontend lives one level above the server package root.
-FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 def seed_supervisor(conn) -> None:
@@ -230,12 +226,6 @@ async def production_headers_and_request_log(request: Request, call_next):
     return response
 
 
-@app.get("/")
-def root():
-    # The product URL opens the product; operators use /health and /ready.
-    return FileResponse(str(FRONTEND_DIR / "login.html"))
-
-
 @app.get("/health")
 def health():
     return {"status": "healthy"}
@@ -282,19 +272,3 @@ app.include_router(supervisor_routes.router)
 app.include_router(ops_routes.router)
 app.include_router(ops_routes.internal_router)
 app.include_router(agent_routes.router)
-
-# Serve the static frontend (HTML/CSS/JS). API routes are registered first,
-# so this catch-all only handles non-API paths.
-
-
-@app.get("/{full_path:path}", include_in_schema=False)
-def frontend_fallback(full_path: str):
-    candidate = (FRONTEND_DIR / full_path).resolve()
-    # Prevent path traversal outside the frontend directory.
-    try:
-        candidate.relative_to(FRONTEND_DIR.resolve())
-    except ValueError:
-        candidate = FRONTEND_DIR / "index.html"
-    if candidate.is_file():
-        return FileResponse(str(candidate))
-    return FileResponse(str(FRONTEND_DIR / "index.html"))

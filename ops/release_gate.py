@@ -16,8 +16,6 @@ ROOT = Path(__file__).resolve().parents[1]
 CHECKS = {
     "backend_tests": ([str(ROOT / "server/.venv/bin/python"), "-m", "pytest", "-q"], ROOT / "server"),
     "agent_tests": ([str(ROOT / "agent/.venv/bin/python"), "-m", "pytest", "-q"], ROOT / "agent"),
-    "frontend_syntax": (["node", "--check", "chat.js"], ROOT),
-    "ui_accessibility": (["npm", "run", "test:ui"], ROOT),
 }
 
 

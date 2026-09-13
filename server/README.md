@@ -29,7 +29,7 @@ cd server
 .venv/bin/python run.py
 ```
 
-Server berjalan di `http://127.0.0.1:8000`. Frontend dapat diakses langsung di `http://127.0.0.1:8000/login.html` (auth nyata), dan dokumentasi API di `/docs`.
+Server berjalan di `http://127.0.0.1:8000`. Hanya API yang disajikan di sini; dokumentasi API di `/docs`, dan pemeriksaan runtime di `/health` serta `/ready`.
 
 ## Menjalankan (production, Docker)
 

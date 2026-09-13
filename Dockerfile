@@ -1,4 +1,4 @@
-# BERESIN production image - serves both the API and the frontend.
+# BERESIN production image - API and worker only.
 FROM ghcr.io/astral-sh/uv:latest AS uv
 FROM python:3.13-alpine
 
@@ -13,11 +13,6 @@ WORKDIR /app
 
 # Pull current distribution security fixes into the immutable release image.
 RUN apk upgrade --no-cache
-
-# Frontend first (static assets served by FastAPI catch-all)
-COPY index.html app.js chat.js styles.css supervisor.js login.html ./
-COPY user/ ./user/
-COPY supervisor/ ./supervisor/
 
 # Server package
 COPY server/pyproject.toml server/uv.lock* ./server/

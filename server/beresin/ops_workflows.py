@@ -249,13 +249,9 @@ def run_checks(conn, code_change_id: int) -> list[dict]:
     if not change:
         raise LookupError("Code change tidak ditemukan.")
     worktree = Path(change["worktree_path"])
-    node_command = shutil.which("node") or str(Path.home() / ".local/bin/node")
     commands = [
         ("backend", [str(REPO_ROOT / "server/.venv/bin/python"), "-m", "pytest", "-q", "server/tests"]),
         ("agent", [str(REPO_ROOT / "agent/.venv/bin/python"), "-m", "pytest", "-q", "agent/tests"]),
-        ("javascript-app", [node_command, "--check", "app.js"]),
-        ("javascript-chat", [node_command, "--check", "chat.js"]),
-        ("javascript-supervisor", [node_command, "--check", "supervisor.js"]),
         ("diff-integrity", ["git", "diff", "--check"]),
     ]
     bandit = REPO_ROOT / "server/.venv/bin/bandit"
@@ -292,7 +288,7 @@ def _latest_checks_passed(conn, code_change_id: int) -> bool:
         (code_change_id,),
     ).fetchall()
     latest = {row["name"]: row["status"] for row in rows}
-    required = {"backend", "agent", "javascript-app", "javascript-chat", "javascript-supervisor", "diff-integrity"}
+    required = {"backend", "agent", "diff-integrity"}
     if (REPO_ROOT / "server/.venv/bin/bandit").is_file():
         required.add("security-bandit")
     return all(latest.get(name) == "PASSED" for name in required)

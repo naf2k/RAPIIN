@@ -15,7 +15,6 @@ def main() -> int:
     commands = [
         [str(ROOT / "server/.venv/bin/python"), "-m", "pytest", "-q", "server/tests/test_operations_center.py", "server/tests/test_ops_runtime_workflows.py", "server/tests/test_ops_adapter.py", "server/tests/test_ops_safety.py", "server/tests/test_ops_maintenance.py"],
         [str(ROOT / "agent/.venv/bin/python"), "-m", "pytest", "-q", "agent/tests"],
-        ["node", "--check", "supervisor.js"],
     ]
     checks = []
     for command in commands:
