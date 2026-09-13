@@ -203,6 +203,77 @@
     setInterval(refresh, 15000);
   }
 
+  var ICON_MENU = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>';
+  var ICON_CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
+  // The sidebar rests as an icon rail on desktop and becomes a sheet behind a
+  // hamburger on small screens. The toggle and scrim are built here so every
+  // page that already renders .sidebar gains the behaviour without new markup.
+  function initSidebarDrawer() {
+    var sidebar = document.querySelector(".sidebar");
+    if (!sidebar) return;
+
+    var toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "sidebar-toggle";
+    toggle.setAttribute("aria-label", "Buka navigasi");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-controls", "beresin-sidebar");
+    toggle.innerHTML = ICON_MENU;
+    if (!sidebar.id) sidebar.id = "beresin-sidebar";
+
+    var topbar = document.querySelector(".topbar");
+    var brand = topbar && topbar.querySelector(".mobile-brand");
+    if (topbar && brand) topbar.insertBefore(toggle, brand);
+    else if (topbar) topbar.insertBefore(toggle, topbar.firstChild);
+    else document.body.insertBefore(toggle, document.body.firstChild);
+
+    var scrim = document.createElement("div");
+    scrim.className = "sidebar-scrim";
+    scrim.hidden = true;
+    document.body.appendChild(scrim);
+
+    var close = document.createElement("button");
+    close.type = "button";
+    close.className = "sidebar-close";
+    close.setAttribute("aria-label", "Tutup navigasi");
+    close.innerHTML = ICON_CLOSE;
+    var head = document.createElement("div");
+    head.className = "sidebar-drawer-head";
+    head.appendChild(close);
+    sidebar.insertBefore(head, sidebar.firstChild);
+
+    var lastFocused = null;
+
+    function openDrawer() {
+      lastFocused = document.activeElement;
+      document.body.classList.add("sidebar-drawer-open");
+      scrim.hidden = false;
+      toggle.setAttribute("aria-expanded", "true");
+      close.focus();
+    }
+
+    function closeDrawer() {
+      document.body.classList.remove("sidebar-drawer-open");
+      scrim.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+      if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
+    }
+
+    toggle.addEventListener("click", function () {
+      if (document.body.classList.contains("sidebar-drawer-open")) closeDrawer();
+      else openDrawer();
+    });
+    close.addEventListener("click", closeDrawer);
+    scrim.addEventListener("click", closeDrawer);
+    sidebar.addEventListener("click", function (event) {
+      if (event.target.closest("a") && document.body.classList.contains("sidebar-drawer-open")) closeDrawer();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && document.body.classList.contains("sidebar-drawer-open")) closeDrawer();
+    });
+  }
+
   function initLogoutButtons() {
     document.querySelectorAll("[data-logout]").forEach(function (btn) {
       btn.addEventListener("click", function (e) {
@@ -246,9 +317,11 @@
     initLogoutButtons: initLogoutButtons,
     initAuthGuard: initAuthGuard,
     initNotifications: initNotifications,
+    initSidebarDrawer: initSidebarDrawer,
   };
 
   document.addEventListener("DOMContentLoaded", function () {
+    window.BERESIN.initSidebarDrawer();
     window.BERESIN.initLogoutButtons();
     window.BERESIN.initAuthGuard();
     window.BERESIN.initNotifications();
