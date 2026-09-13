@@ -1,10 +1,46 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: beresin
+      POSTGRES_USER: beresin
+      POSTGRES_PASSWORD: ${BERESIN_POSTGRES_PASSWORD:?Set BERESIN_POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beresin -d beresin"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "5"}
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${BERESIN_REDIS_PASSWORD:?Set BERESIN_REDIS_PASSWORD}"]
+    environment:
+      BERESIN_REDIS_PASSWORD: ${BERESIN_REDIS_PASSWORD:?Set BERESIN_REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$BERESIN_REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "5"}
+
   beresin:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
-      BERESIN_DB_PATH: /app/server/data/beresin.db
       BERESIN_DATA_DIR: /app/server/data
       BERESIN_ENV: production
       BERESIN_ALLOW_PUBLIC_REGISTRATION: "false"
@@ -17,6 +53,16 @@ services:
       AI_API_KEY_FILE: /run/secrets/ai_api_key
       AI_BASE_URL: ${AI_BASE_URL:?Set HTTPS or private AI provider URL}
       AI_MODEL: ${AI_MODEL:-ai-rapiin}
+      # Same PostgreSQL/Redis topology the local pilot and the test suite were
+      # verified against; BERESIN_DB_PATH stays as the SQLite fallback used
+      # when BERESIN_DATABASE_URL is empty.
+      BERESIN_DATABASE_URL: postgresql://beresin:${BERESIN_POSTGRES_PASSWORD}@postgres:5432/beresin
+      BERESIN_REDIS_URL: redis://:${BERESIN_REDIS_PASSWORD}@redis:6379/0
+      # AI Operations agents need the pinned official Hermes runtime, which is
+      # not part of this image. Leave disabled until Hermes is provisioned and
+      # the sandbox question is settled: the Coder refuses to run without an OS
+      # sandbox, so Linux hosts need bubblewrap/firejail first.
+      OPS_AGENTS_ENABLED: "false"
     expose: ["8000"]
     volumes:
       - beresin_data:/app/server/data
@@ -25,6 +71,43 @@ services:
       - supervisor_password
       - monitoring_token
       - ai_api_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "5"}
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Separate queue worker: a long conversation job must not block the API.
+    command: [".venv/bin/python", "-m", "beresin.worker"]
+    environment:
+      BERESIN_DATA_DIR: /app/server/data
+      BERESIN_ENV: production
+      BERESIN_SECRET_KEY_FILE: /run/secrets/beresin_secret_key
+      AI_API_KEY_FILE: /run/secrets/ai_api_key
+      AI_BASE_URL: ${AI_BASE_URL:?Set HTTPS or private AI provider URL}
+      AI_MODEL: ${AI_MODEL:-ai-rapiin}
+      BERESIN_DATABASE_URL: postgresql://beresin:${BERESIN_POSTGRES_PASSWORD}@postgres:5432/beresin
+      BERESIN_REDIS_URL: redis://:${BERESIN_REDIS_PASSWORD}@redis:6379/0
+    secrets:
+      - beresin_secret_key
+      - ai_api_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     read_only: true
     tmpfs: ["/tmp:size=64m,mode=1777"]
@@ -73,6 +156,8 @@ secrets:
 
 volumes:
   beresin_data:
+  postgres_data:
+  redis_data:
   caddy_data:
   caddy_config:
   prometheus_data:

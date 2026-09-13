@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     ops_public_base_url: str = "http://127.0.0.1:8000"
     ops_github_repo: str = "naf2k/BERESIN"
     ops_worktree_root: str = ""
+    # The Coder must run inside an OS sandbox. Set this only on a host where no
+    # sandbox mechanism exists and the isolation trade-off is understood.
+    ops_coder_allow_unsandboxed: bool = False
     ops_deploy_command: str = ""
     ops_rollback_command: str = ""
     ops_health_url: str = "http://127.0.0.1:8000/ready"

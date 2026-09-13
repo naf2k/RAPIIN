@@ -57,6 +57,26 @@ def _sandbox_profile(worktree: Path, hermes_command: str) -> str:
     )
 
 
+def _sandboxed(command: list[str], worktree: Path, hermes_command: str) -> list[str]:
+    """Wrap the Coder command in an OS sandbox, or refuse to run.
+
+    The Coder is only allowed to touch its worktree. Previously the sandbox was
+    applied only when `sandbox-exec` existed, so on any host without it (Linux
+    containers, for example) Hermes ran with full access to the machine. Now a
+    missing sandbox is a hard failure instead of a silent downgrade.
+    """
+    if shutil.which("sandbox-exec"):
+        return ["sandbox-exec", "-p", _sandbox_profile(worktree, hermes_command), *command]
+    if settings.ops_coder_allow_unsandboxed:
+        return command
+    raise RuntimeError(
+        "Coder memerlukan sandbox OS (sandbox-exec di macOS). Sandbox belum "
+        "tersedia di host ini; jalankan Coder di macOS atau sediakan padanan "
+        "Linux (bubblewrap/firejail) sebelum mengaktifkannya. Set "
+        "OPS_CODER_ALLOW_UNSANDBOXED=true hanya jika Anda menerima risikonya."
+    )
+
+
 def _approved(conn, approval_id: int, incident_id: int, approval_type: str):
     row = conn.execute("SELECT * FROM ops_approvals WHERE id=? AND incident_id=? AND approval_type=?", (approval_id, incident_id, approval_type)).fetchone()
     if not row or row["status"] != "APPROVED":
@@ -143,9 +163,7 @@ def run_coder(conn, code_change_id: int, runner=None) -> dict:
             usage_path = Path(handle.name)
             handle.close()
             command[1:1] = ["--usage-file", str(usage_path)]
-            if shutil.which("sandbox-exec"):
-                profile = _sandbox_profile(worktree, hermes_command)
-                command = ["sandbox-exec", "-p", profile, *command]
+            command = _sandboxed(command, worktree, hermes_command)
             from .ops_runtime import hermes_process_environment
             try:
                 completed = _run(command, worktree, timeout=max(settings.ops_agent_timeout_seconds, 300), env=hermes_process_environment("coder"))

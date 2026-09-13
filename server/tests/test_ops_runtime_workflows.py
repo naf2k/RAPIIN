@@ -3,6 +3,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from beresin.database import connect, utcnow_iso
 from beresin.ops_incidents import create_proposal, ingest_signal, respond_approval, seed_ops
 from beresin.ops_notifications import deliver_pending
@@ -316,3 +318,32 @@ def test_ops_cli_module_entrypoint_emits_report(monkeypatch, capsys):
     # Regression guard: without this block `python -m beresin.ops_cli` exits
     # silently with code 0 and no report.
     assert 'if __name__ == "__main__":' in inspect.getsource(ops_cli)
+
+
+def test_coder_refuses_to_run_without_an_os_sandbox(monkeypatch):
+    """Regression: without sandbox-exec the Coder ran completely unsandboxed.
+
+    On Linux containers `shutil.which("sandbox-exec")` is None, so Hermes used
+    to run with full access to the host instead of being confined to its
+    worktree. A missing sandbox must be a hard failure, not a silent downgrade.
+    """
+    from beresin.config import settings
+    from beresin.ops_workflows import _sandboxed
+
+    monkeypatch.setattr("beresin.ops_workflows.shutil.which", lambda _name: None)
+    monkeypatch.setattr(settings, "ops_coder_allow_unsandboxed", False)
+    with pytest.raises(RuntimeError, match="sandbox"):
+        _sandboxed(["hermes", "-z", "prompt"], Path("/tmp/worktree"), "hermes")
+
+    monkeypatch.setattr(settings, "ops_coder_allow_unsandboxed", True)
+    assert _sandboxed(["hermes"], Path("/tmp/worktree"), "hermes") == ["hermes"]
+
+
+def test_coder_is_wrapped_by_sandbox_exec_when_available(monkeypatch, tmp_path):
+    from beresin.ops_workflows import _sandboxed
+
+    monkeypatch.setattr("beresin.ops_workflows.shutil.which", lambda _name: "/usr/bin/sandbox-exec")
+    wrapped = _sandboxed(["hermes", "-z", "prompt"], tmp_path, "hermes")
+    assert wrapped[0] == "sandbox-exec"
+    assert wrapped[1] == "-p"
+    assert wrapped[3:] == ["hermes", "-z", "prompt"]

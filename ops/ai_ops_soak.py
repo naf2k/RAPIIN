@@ -16,9 +16,31 @@ from beresin.audit import verify_audit_chain
 from beresin.config import settings
 from beresin.database import connect
 
+READY_URL = "http://127.0.0.1:8000/ready"
+
+
+def wait_for_readiness(timeout_seconds: int = 300) -> bool:
+    """Wait until the server answers before the first sample is counted.
+
+    The soak LaunchAgent shares RunAtLoad with the server, so after a reboot it
+    can start sampling while the API is still booting and record failures that
+    say nothing about stability. Bounded so a genuinely dead server is still
+    reported.
+    """
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(READY_URL, timeout=5) as response:
+                if response.status == 200:
+                    return True
+        except Exception:  # noqa: BLE001 - retry until the bounded deadline
+            pass
+        time.sleep(5)
+    return False
+
 
 def sample() -> dict:
-    with urllib.request.urlopen("http://127.0.0.1:8000/ready", timeout=5) as response:
+    with urllib.request.urlopen(READY_URL, timeout=5) as response:
         ready = json.loads(response.read().decode())
     conn = connect()
     try:
@@ -37,13 +59,14 @@ def sample() -> dict:
     }
 
 
-def build_report(started, finished, args, samples: int, gaps: int, failures: list, status: str) -> dict:
+def build_report(started, finished, args, samples: int, gaps: int, failures: list, status: str, startup_ready: bool = True) -> dict:
     return {
         "status": status,
         "started_at": started.isoformat(), "finished_at": finished.isoformat(),
         "duration_hours": args.duration_hours,
         "wall_clock_hours": round((finished - started).total_seconds() / 3600, 2),
         "samples": samples, "gaps": gaps, "failures": failures,
+        "startup_ready": startup_ready,
         "passed": not failures,
     }
 
@@ -60,6 +83,10 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=ROOT / "server/data/ai-ops-soak.json")
     args = parser.parse_args()
     settings.validate_for_startup()
+    # Do not start the clock until the API answers: after a reboot this job and
+    # the server start together, and sampling too early records failures that
+    # describe the boot, not the run.
+    startup_ready = wait_for_readiness()
     started = datetime.now(timezone.utc)
     # Wall-clock deadline: host sleep must consume the budget, not pause it,
     # otherwise a suspended laptop silently stretches the soak.
@@ -87,10 +114,10 @@ def main() -> int:
             failures.append({"at": datetime.now(timezone.utc).isoformat(), "error": type(exc).__name__})
         # Rewrite the report every sample so an operator can read progress
         # instead of waiting for the run to finish.
-        write_report(args.output, build_report(started, datetime.now(timezone.utc), args, samples, gaps, failures, "running"))
+        write_report(args.output, build_report(started, datetime.now(timezone.utc), args, samples, gaps, failures, "running", startup_ready))
         time.sleep(min(args.interval_seconds, max(0, deadline - time.time())))
     finished = datetime.now(timezone.utc)
-    report = build_report(started, finished, args, samples, gaps, failures, "completed")
+    report = build_report(started, finished, args, samples, gaps, failures, "completed", startup_ready)
     write_report(args.output, report)
     print(json.dumps(report, ensure_ascii=False))
     return 0 if report["passed"] else 1

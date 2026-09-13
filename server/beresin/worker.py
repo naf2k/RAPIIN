@@ -135,6 +135,23 @@ def run_queue_worker(stop_event=None) -> None:
             time.sleep(0.05)
 
 
+def main() -> int:
+    """Entry point for a standalone queue worker process (`python -m beresin.worker`)."""
+    from .config import settings
+
+    if not settings.beresin_redis_url:
+        raise SystemExit("BERESIN_REDIS_URL wajib dikonfigurasi untuk worker terpisah.")
+    try:
+        run_queue_worker()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
 def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: int | None) -> None:
     """Execute the conversation task in this thread (own DB connection)."""
     from .agent.core import HermesCore

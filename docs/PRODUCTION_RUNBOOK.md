@@ -61,13 +61,16 @@ server/.venv/bin/beresin-ops verify
 4. Run `docker compose up -d`, then require `/health` and `/ready` to return HTTP 200.
 5. Verify login, one read-only device task, approval review, an approved move in a disposable folder, and audit visibility.
 
-The production topology is defined in `docker-compose.production.yml` with Caddy TLS and Prometheus scraping. Create a protected directory containing four files (`beresin_secret_key`, `supervisor_password`, `monitoring_token`, `ai_api_key`), each readable only by the deployment operator. Then set `BERESIN_SECRETS_DIR`, `BERESIN_DOMAIN`, `BERESIN_INIT_SUPERVISOR_EMAIL`, `AI_BASE_URL`, and run:
+The production topology is defined in `docker-compose.production.yml`: the API, a separate queue worker, PostgreSQL, Redis, Caddy TLS, and Prometheus scraping. Create a protected directory containing four files (`beresin_secret_key`, `supervisor_password`, `monitoring_token`, `ai_api_key`), each readable only by the deployment operator. Then set `BERESIN_SECRETS_DIR`, `BERESIN_DOMAIN`, `BERESIN_INIT_SUPERVISOR_EMAIL`, `AI_BASE_URL`, `BERESIN_POSTGRES_PASSWORD`, and `BERESIN_REDIS_PASSWORD`, and run:
 
 ```bash
 docker compose -f docker-compose.production.yml config
 docker compose -f docker-compose.production.yml up --build -d
+docker compose -f docker-compose.production.yml ps          # postgres and redis must be healthy
 curl --fail https://YOUR_DOMAIN/ready
 ```
+
+This stack runs the same PostgreSQL + Redis + separate-worker topology that the local pilot and the test suite were verified against. `OPS_AGENTS_ENABLED` is deliberately `false`: the AI Operations agents need the pinned official Hermes runtime, which is not part of the image, and the Coder refuses to run without an OS sandbox (`sandbox-exec` on macOS; Linux hosts need bubblewrap or firejail first). Do not set `OPS_CODER_ALLOW_UNSANDBOXED` on a shared host.
 
 Validate the live provider without sending files:
 
