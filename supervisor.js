@@ -40,7 +40,11 @@
     var icon = document.createElement("span");
     icon.className = "status-icon";
     icon.setAttribute("aria-hidden", "true");
-    icon.textContent = m[0] === "offline" || m[0] === "failed" ? "○" : m[0] === "completed" ? "✓" : "●";
+    icon.innerHTML = m[0] === "offline" || m[0] === "failed"
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>'
+      : m[0] === "completed"
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/></svg>';
     span.appendChild(icon);
     span.appendChild(document.createTextNode(m[1]));
     return span;
@@ -83,7 +87,9 @@
       var icon = document.createElement("span");
       icon.className = "item-icon " + (item.type === "task_failed" ? "item-icon--danger" : "item-icon--warning");
       icon.setAttribute("aria-hidden", "true");
-      icon.textContent = item.type === "device_offline" ? "○" : "!";
+      icon.innerHTML = item.type === "device_offline"
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 8v4"/><path d="M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>';
       var copy = document.createElement("span");
       copy.className = "item-copy";
       var t = document.createElement("strong");
@@ -107,7 +113,9 @@
       var icon = document.createElement("span");
       icon.className = "item-icon";
       icon.setAttribute("aria-hidden", "true");
-      icon.textContent = item.result === "FAILED" ? "!" : "✓";
+      icon.innerHTML = item.result === "FAILED"
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 8v4"/><path d="M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
       var copy = document.createElement("span");
       copy.className = "item-copy";
       var t = document.createElement("strong");
@@ -750,7 +758,7 @@
       var checkList = document.createElement("div"); checkList.className = "ops-check-list";
       Object.keys(latestChecks).sort().forEach(function (name) {
         var check = latestChecks[name]; var line = document.createElement("p");
-        line.textContent = (check.status === "PASSED" ? "✓ " : check.status === "FAILED" ? "✕ " : "… ") + name + " — " + check.status;
+        line.textContent = (check.status === "PASSED" ? "Lulus: " : check.status === "FAILED" ? "Gagal: " : "Berjalan: ") + name + " - " + check.status;
         checkList.appendChild(line);
       });
       if (Object.keys(latestChecks).length) report.appendChild(checkList);

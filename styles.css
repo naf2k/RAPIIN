@@ -1,18 +1,20 @@
 :root {
   color-scheme: dark;
-  --background: #0b0f0e;
-  --surface: #111716;
-  --surface-raised: #171e1c;
-  --surface-hover: #1b2421;
-  --border: #25302d;
-  --border-strong: #34423d;
-  --text-primary: #f1f6f2;
-  --text-secondary: #a5b1ab;
-  --text-muted: #7d8d85;
-  --accent: #9de2bf;
-  --accent-strong: #b9f1d2;
-  --accent-ink: #10251b;
-  --danger: #f0a6a6;
+  --background: #0d0e10;
+  --surface: #14161a;
+  --surface-raised: #1b1e24;
+  --surface-hover: #242932;
+  --border: #2a2e36;
+  --border-strong: #414854;
+  --text-primary: #f4f5f7;
+  --text-secondary: #b9bec7;
+  --text-muted: #7f8792;
+  --accent: #e4e7ec;
+  --accent-strong: #ffffff;
+  --accent-ink: #111318;
+  --success: #8cc9a8;
+  --warning: #d7b77a;
+  --danger: #e39a9e;
   --radius: 12px;
   --sidebar-width: 272px;
   font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
@@ -73,6 +75,26 @@ textarea:focus-visible {
 }
 
 /* The chat is an application viewport: only the message list scrolls. */
+body.user-page,
+body.user-chat-page {
+  --surface-role: #16181d;
+  --surface-role-raised: #20232a;
+  --accent-role: #e4e7ec;
+}
+
+body.supervisor-page {
+  --surface-role: #12151a;
+  --surface-role-raised: #1b1f27;
+  --accent-role: #dce2ea;
+}
+
+body.auth-page {
+  --surface-role: #15171b;
+  --surface-role-raised: #1d2026;
+  --accent-role: #f4f5f7;
+  background: #0d0e10;
+}
+
 .user-chat-page {
   overflow: hidden;
 }
@@ -288,10 +310,10 @@ textarea:focus-visible {
   place-items: center;
   width: 32px;
   height: 32px;
-  border: 1px solid rgb(157 226 191 / 0.3);
+  border: 1px solid var(--border-strong);
   border-radius: 50%;
-  background: #30463b;
-  color: var(--accent-strong);
+  background: var(--surface-hover);
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -360,7 +382,7 @@ textarea:focus-visible {
   height: 7px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 3px rgb(157 226 191 / 0.1);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.08);
 }
 
 .conversation-area {
@@ -462,7 +484,7 @@ h1 {
 
 .composer:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgb(157 226 191 / 0.08), 0 10px 28px rgb(0 0 0 / 0.1);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.08), 0 10px 28px rgb(0 0 0 / 0.1);
 }
 
 textarea {
@@ -996,12 +1018,19 @@ textarea::placeholder {
   display: inline-grid;
   flex: 0 0 auto;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--border-strong);
-  border-radius: 7px;
-  color: var(--text-secondary);
-  font-size: 11px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.item-icon svg,
+.status-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .item-icon--warning {
@@ -1146,7 +1175,7 @@ textarea::placeholder {
 .ops-severity--critical { background:#8e3d3d; color:#fff; }
 .ops-severity--high { background:#ead3cf; color:#792f2f; }
 .ops-severity--medium { background:#efe3bd; color:#6b5518; }
-.ops-severity--low { background:#dbe7df; color:#315c43; }
+.ops-severity--low { background:#303b37; color:#c5ddd2; }
 @media (max-width: 900px) { .ops-detail-grid,.ops-agent-grid { grid-template-columns:1fr; } .ops-freeze-card { align-items:flex-start; flex-direction:column; } }
 
 .progress-summary {
@@ -2061,7 +2090,7 @@ button:disabled {
 }
 
 .notif-item--unread {
-  background: rgb(157 226 191 / 0.07);
+  background: rgb(255 255 255 / 0.06);
 }
 
 @media (max-width: 760px) {
@@ -2204,7 +2233,8 @@ button:disabled {
 }
 
 /* Mobile: the rail becomes a sheet behind a hamburger. */
-.sidebar-toggle {
+.sidebar-toggle,
+.sidebar-drawer-head {
   display: none;
 }
 
@@ -2329,9 +2359,9 @@ button:disabled {
    -------------------------------------------------------------------------- */
 
 .user-chat-page {
-  --aurora-from: rgb(167 139 250);
-  --chat-glass: rgb(0 0 0 / 0.6);
-  --chat-hairline: rgb(64 64 64);
+  --aurora-from: rgb(213 216 222);
+  --chat-glass: rgb(0 0 0 / 0.62);
+  --chat-hairline: rgb(78 83 92);
 }
 
 @keyframes auroraPulse {
@@ -2366,6 +2396,8 @@ button:disabled {
   display: flex;
   overflow: hidden;
   pointer-events: none;
+  opacity: 0.34;
+  filter: grayscale(1);
 }
 
 .aurora > span {
@@ -2566,6 +2598,598 @@ button:disabled {
   .user-chat-page .prompt-chip {
     padding: 8px 12px;
     font-size: 11px;
+  }
+}
+
+/* ==========================================================================
+   BERESIN redesign system
+   Work = calm employee workspace. Control = denser supervisor console.
+   Trust = focused authentication. Shared black/white foundation, scoped role
+   accents only where they carry semantic meaning.
+   ========================================================================== */
+
+:root {
+  --background: #0d0e10;
+  --surface: #14161a;
+  --surface-raised: #1b1e24;
+  --surface-hover: #242932;
+  --border: #2a2e36;
+  --border-strong: #414854;
+  --text-primary: #f4f5f7;
+  --text-secondary: #b9bec7;
+  --text-muted: #7f8792;
+  --accent: #e4e7ec;
+  --accent-strong: #ffffff;
+  --accent-ink: #111318;
+  --danger: #e39a9e;
+  --radius: 12px;
+}
+
+body {
+  background: var(--background);
+  color: var(--text-primary);
+}
+
+body.user-page,
+body.user-chat-page {
+  --role-accent: #d8dde5;
+  --role-surface: #15171b;
+  --role-raised: #1d2026;
+  background:
+    radial-gradient(800px 420px at 78% -12%, rgb(255 255 255 / 0.06), transparent 70%),
+    var(--background);
+}
+
+body.supervisor-page {
+  --role-accent: #c8d2de;
+  --role-surface: #111419;
+  --role-raised: #1a1e25;
+  background:
+    radial-gradient(720px 380px at 100% 0%, rgb(180 195 214 / 0.07), transparent 68%),
+    var(--background);
+}
+
+body.auth-page {
+  --role-accent: #f4f5f7;
+  --role-surface: #15171b;
+  --role-raised: #1d2026;
+  background:
+    radial-gradient(620px 520px at 0% 100%, rgb(255 255 255 / 0.055), transparent 70%),
+    var(--background);
+}
+
+body.supervisor-page .app-shell,
+body.user-page .app-shell,
+body.user-chat-page .app-shell {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+body.supervisor-page .sidebar,
+body.user-page .sidebar,
+body.user-chat-page .sidebar {
+  background: color-mix(in srgb, var(--role-surface) 92%, black);
+  border-color: var(--border);
+}
+
+body.supervisor-page .workspace,
+body.user-page .workspace,
+body.user-chat-page .workspace {
+  background: transparent;
+}
+
+body.supervisor-page .topbar,
+body.user-page .topbar,
+body.user-chat-page .topbar {
+  height: 72px;
+  padding: 0 36px;
+  background: rgb(13 14 16 / 0.82);
+  border-bottom-color: var(--border);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+body.supervisor-page .connection-status,
+body.user-page .connection-status,
+body.user-chat-page .connection-status {
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+body.supervisor-page .status-dot,
+body.user-page .status-dot,
+body.user-chat-page .status-dot {
+  background: var(--role-accent);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.07);
+}
+
+body.supervisor-page .page-content,
+body.user-page .page-content {
+  width: min(100%, 1280px);
+  min-width: 0;
+  padding: 46px clamp(24px, 4vw, 64px) 72px;
+}
+
+body.supervisor-page .page-header,
+body.user-page .page-header {
+  margin-bottom: 36px;
+}
+
+body.supervisor-page .page-title,
+body.user-page .page-title {
+  font-size: clamp(28px, 3.2vw, 42px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+body.supervisor-page .page-description,
+body.user-page .page-description {
+  max-width: 62ch;
+  margin-top: 12px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+body.supervisor-page .section,
+body.user-page .section {
+  margin-top: 36px;
+}
+
+body.supervisor-page .panel,
+body.user-page .panel,
+body.supervisor-page .metric,
+body.user-page .metric,
+body.supervisor-page .ops-freeze-card {
+  border-color: var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--role-surface) 94%, transparent);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.13);
+}
+
+body.supervisor-page .panel-header,
+body.user-page .panel-header {
+  padding: 20px 22px;
+  border-bottom-color: var(--border);
+}
+
+body.supervisor-page .panel-title,
+body.user-page .panel-title,
+body.supervisor-page .section-title,
+body.user-page .section-title {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+body.supervisor-page .panel-meta,
+body.user-page .panel-meta {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+body.supervisor-page .metric-grid,
+body.user-page .metric-grid {
+  gap: 12px;
+}
+
+body.supervisor-page .metric,
+body.user-page .metric {
+  min-height: 132px;
+  padding: 20px;
+  border-radius: 14px;
+}
+
+body.supervisor-page .metric-label,
+body.user-page .metric-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body.supervisor-page .metric-value,
+body.user-page .metric-value {
+  margin-top: 12px;
+  color: var(--text-primary);
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+body.supervisor-page .metric-note,
+body.user-page .metric-note {
+  margin-top: 4px;
+  color: var(--text-muted);
+}
+
+body.supervisor-page .button,
+body.user-page .button,
+body.auth-page .button {
+  min-height: 42px;
+  border-radius: 10px;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+body.supervisor-page .button--primary,
+body.user-page .button--primary,
+body.auth-page .button--primary {
+  border-color: var(--role-accent);
+  background: var(--role-accent);
+  color: #121419;
+}
+
+body.supervisor-page .button--primary:hover,
+body.user-page .button--primary:hover,
+body.auth-page .button--primary:hover {
+  border-color: #ffffff;
+  background: #ffffff;
+}
+
+body.supervisor-page .button--secondary,
+body.user-page .button--secondary,
+body.auth-page .button--secondary {
+  border-color: var(--border-strong);
+  background: var(--role-raised);
+  color: var(--text-primary);
+}
+
+body.supervisor-page .button--secondary:hover,
+body.user-page .button--secondary:hover,
+body.auth-page .button--secondary:hover {
+  border-color: var(--role-accent);
+  background: var(--surface-hover);
+}
+
+body.supervisor-page .input,
+body.supervisor-page .select,
+body.supervisor-page .search-field,
+body.user-page .input,
+body.user-page .select,
+body.user-page .search-field {
+  border-color: var(--border-strong);
+  border-radius: 10px;
+  background: var(--role-raised);
+  color: var(--text-primary);
+}
+
+body.supervisor-page .input:focus,
+body.supervisor-page .select:focus,
+body.supervisor-page .search-field:focus,
+body.user-page .input:focus,
+body.user-page .select:focus,
+body.user-page .search-field:focus {
+  border-color: var(--role-accent);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.08);
+}
+
+body.supervisor-page .data-table-wrap,
+body.user-page .data-table-wrap {
+  overflow-x: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--role-surface);
+}
+
+body.supervisor-page .data-table,
+body.user-page .data-table {
+  min-width: 720px;
+}
+
+body.supervisor-page .data-table th,
+body.user-page .data-table th {
+  color: var(--text-muted);
+  background: var(--role-raised);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body.supervisor-page .data-table td,
+body.user-page .data-table td {
+  border-color: var(--border);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+body.supervisor-page .data-table tbody tr:hover,
+body.user-page .data-table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+/* Trust surface */
+body.auth-page .auth-layout {
+  min-height: 100dvh;
+  padding: 24px;
+  background:
+    radial-gradient(520px 420px at 50% 0%, rgb(255 255 255 / 0.05), transparent 72%),
+    var(--background);
+}
+
+body.auth-page .auth-panel {
+  width: min(100%, 480px);
+  padding: 52px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgb(20 22 26 / 0.94);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.3);
+}
+
+body.auth-page .auth-copy {
+  margin-top: 72px;
+}
+
+body.auth-page .auth-copy .eyebrow {
+  margin-bottom: 14px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+body.auth-page .auth-copy h1 {
+  font-size: clamp(30px, 5vw, 48px);
+  letter-spacing: -0.05em;
+  text-wrap: balance;
+}
+
+body.auth-page .auth-copy p:not(.eyebrow) {
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+body.auth-page .auth-form {
+  margin-top: 36px;
+}
+
+body.auth-page .input {
+  min-height: 48px;
+  border-color: var(--border-strong);
+  border-radius: 10px;
+  background: #101216;
+  color: var(--text-primary);
+}
+
+body.auth-page .input:focus {
+  border-color: var(--role-accent);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.08);
+}
+
+body.auth-page .auth-submit {
+  width: 100%;
+  margin-top: 10px;
+}
+
+body.auth-page .auth-assurance {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+body.auth-page .auth-assurance-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--text-primary);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.07);
+}
+
+body.auth-page .auth-note {
+  margin-top: 20px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Control surface: denser, flatter, operational. */
+body.supervisor-page .sidebar {
+  width: 240px;
+  padding: 28px 16px 18px;
+  background: #101216;
+}
+
+body.supervisor-page .sidebar:hover,
+body.supervisor-page .sidebar:focus-within {
+  width: 240px;
+}
+
+body.supervisor-page .sidebar :is(
+  .brand > span:last-child,
+  .new-chat-button > span:last-child,
+  .nav-label,
+  .supervisor-label,
+  .history-group-label,
+  .history-copy,
+  .history-empty,
+  .sidebar-link > span:last-child,
+  .account-copy,
+  .chevron
+) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.supervisor-page .supervisor-label {
+  margin: 10px 12px 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+body.supervisor-page .supervisor-nav {
+  display: grid;
+  gap: 5px;
+  margin-top: 18px;
+}
+
+body.supervisor-page .supervisor-nav-caption {
+  padding: 0 12px 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+body.supervisor-page .supervisor-nav .sidebar-link {
+  min-height: 44px;
+  color: var(--text-secondary);
+  border-radius: 10px;
+}
+
+body.supervisor-page .supervisor-nav .sidebar-link[aria-current="page"] {
+  background: #252a32;
+  color: var(--text-primary);
+  box-shadow: inset 2px 0 0 var(--role-accent);
+}
+
+body.supervisor-page .supervisor-nav .sidebar-link:hover {
+  background: #1d2128;
+  color: var(--text-primary);
+}
+
+body.supervisor-page .supervisor-page .nav-icon,
+body.supervisor-page .sidebar .nav-icon {
+  width: 18px;
+  height: 18px;
+}
+
+body.supervisor-page .ops-freeze-card {
+  position: relative;
+  z-index: 1;
+  border-color: #4d353a;
+  background: #1b171b;
+}
+
+body.supervisor-page .ops-detail-grid {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+}
+
+body.supervisor-page .ops-detail-grid > * {
+  min-width: 0;
+}
+
+body.supervisor-page .ops-detail-grid .panel {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+body.supervisor-page .ops-detail-grid .button,
+body.supervisor-page #ops-approvals .button {
+  position: relative;
+  z-index: 2;
+  touch-action: manipulation;
+}
+
+body.supervisor-page .ops-agent-card,
+body.supervisor-page .ops-report {
+  border-radius: 12px;
+  background: #171a20;
+  border-color: var(--border);
+}
+
+body.supervisor-page .ops-agent-card > span {
+  color: var(--role-accent);
+}
+
+body.supervisor-page .ops-severity--critical {
+  background: #61343b;
+  color: #ffe4e6;
+}
+
+body.supervisor-page .ops-severity--high {
+  background: #4f4432;
+  color: #f3ddb0;
+}
+
+body.supervisor-page .ops-severity--medium {
+  background: #3d3b31;
+  color: #e6dbb8;
+}
+
+body.supervisor-page .ops-severity--low {
+  background: #303b37;
+  color: #c5ddd2;
+}
+
+body.supervisor-page .status--online,
+body.supervisor-page .status--completed {
+  color: var(--success);
+}
+
+body.supervisor-page .status--warning,
+body.supervisor-page .status--running {
+  color: var(--warning);
+}
+
+body.supervisor-page .status--failed,
+body.supervisor-page .status--offline {
+  color: var(--danger);
+}
+
+body.supervisor-page .metric-value {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  body.supervisor-page .ops-detail-grid,
+  body.supervisor-page .ops-agent-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    min-width: 0;
+  }
+
+  body.supervisor-page .ops-detail-grid > *,
+  body.supervisor-page .ops-agent-grid > * {
+    min-width: 0;
+    width: 100%;
+  }
+
+  body.supervisor-page .sidebar {
+    width: 300px;
+  }
+
+  body.supervisor-page .sidebar:hover,
+  body.supervisor-page .sidebar:focus-within {
+    width: 300px;
+  }
+
+  body.supervisor-page .page-content,
+  body.user-page .page-content {
+    width: 100%;
+    min-width: 0;
+    padding: 32px 18px 48px;
+    overflow-x: hidden;
+  }
+
+  body.auth-page .auth-layout {
+    padding: 14px;
+  }
+
+  body.auth-page .auth-panel {
+    padding: 32px 24px;
+  }
+
+  body.auth-page .auth-copy {
+    margin-top: 52px;
   }
 }
 
