@@ -2186,3 +2186,243 @@ button:disabled {
     right: -8px;
   }
 }
+
+/* --------------------------------------------------------------------------
+   AI chat surface — animated aurora background, glass composer, action chips.
+   Scoped to the user chat page so supervisor and settings pages are untouched.
+   -------------------------------------------------------------------------- */
+
+.user-chat-page {
+  --aurora-from: rgb(167 139 250);
+  --chat-glass: rgb(0 0 0 / 0.6);
+  --chat-hairline: rgb(64 64 64);
+}
+
+@keyframes auroraPulse {
+  from {
+    transform: scaleY(var(--bar-scale));
+  }
+  to {
+    transform: scaleY(calc(var(--bar-scale) * 0.7));
+  }
+}
+
+/* The empty state becomes the full chat surface so the aurora can sit behind. */
+.user-chat-page .chat-shell .empty-state {
+  position: relative;
+  align-self: stretch;
+  justify-self: stretch;
+  display: grid;
+  place-items: center;
+  width: auto;
+  margin: 0;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 85% at 50% 118%, rgb(109 40 217 / 0.55), transparent 62%),
+    radial-gradient(95% 65% at 50% -25%, rgb(76 29 149 / 0.4), transparent 72%);
+}
+
+.aurora > span {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  background: linear-gradient(to top, var(--aurora-from), transparent);
+  transform-origin: bottom center;
+  animation: auroraPulse var(--aurora-duration, 2s) ease-in-out infinite alternate;
+  animation-delay: var(--bar-delay, 0s);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora > span {
+    animation: none;
+  }
+}
+
+.empty-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  width: min(100%, 760px);
+}
+
+.empty-hero h1 {
+  max-width: 620px;
+  margin: 0 auto;
+  color: #fff;
+  text-shadow: 0 2px 20px rgb(0 0 0 / 0.5);
+}
+
+.empty-subtitle {
+  max-width: 520px;
+  margin: 14px auto 0;
+  color: rgb(212 212 212);
+  font-size: 15px;
+  line-height: 1.6;
+  text-shadow: 0 1px 12px rgb(0 0 0 / 0.55);
+}
+
+.user-chat-page .composer {
+  overflow: hidden;
+  border: 1px solid var(--chat-hairline);
+  border-radius: 16px;
+  background: var(--chat-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 18px 42px rgb(0 0 0 / 0.38);
+}
+
+.user-chat-page .composer:focus-within {
+  border-color: rgb(167 139 250 / 0.8);
+  box-shadow: 0 0 0 3px rgb(139 92 246 / 0.2), 0 18px 42px rgb(0 0 0 / 0.38);
+}
+
+.user-chat-page .composer textarea {
+  min-height: 48px;
+  max-height: 160px;
+  padding: 16px 18px 4px;
+  resize: none;
+  overflow-y: auto;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.user-chat-page .composer textarea::placeholder {
+  color: rgb(163 163 163);
+}
+
+.composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px 12px;
+}
+
+.composer-tool {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgb(163 163 163);
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.composer-tool svg {
+  width: 17px;
+  height: 17px;
+}
+
+.composer-tool:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.composer-tool:not(:disabled):hover {
+  background: rgb(38 38 38);
+  color: #fff;
+}
+
+.user-chat-page .send-button {
+  position: static;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: rgb(167 139 250);
+  color: rgb(28 12 56);
+  cursor: pointer;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.user-chat-page .send-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.user-chat-page .send-button:hover {
+  background: rgb(196 181 253);
+}
+
+.user-chat-page .send-button:active {
+  transform: scale(0.96);
+}
+
+.user-chat-page .prompt-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.user-chat-page .prompt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  max-width: 100%;
+  padding: 9px 15px;
+  border: 1px solid var(--chat-hairline);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.5);
+  color: rgb(212 212 212);
+  font-size: 12px;
+  line-height: 1;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.user-chat-page .prompt-chip:hover {
+  border-color: rgb(115 115 115);
+  background: rgb(38 38 38 / 0.85);
+  color: #fff;
+}
+
+.user-chat-page .prompt-chip > span:last-child {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.chip-icon {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+}
+
+@media (max-width: 760px) {
+  .user-chat-page .chat-shell .empty-state {
+    padding: 16px;
+  }
+
+  .user-chat-page .empty-subtitle {
+    font-size: 14px;
+  }
+
+  .user-chat-page .prompt-suggestions {
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  .user-chat-page .prompt-chip {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+}
+

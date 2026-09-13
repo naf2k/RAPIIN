@@ -74,36 +74,77 @@
         <div class="conversation-area chat-shell">
           <!-- Empty state shown before any conversation exists -->
           <div class="empty-state" id="empty-state">
-            <h1>Bagaimana saya dapat membantu?</h1>
-            <div class="composer-wrap">
-              <div class="device-picker">
-                <label for="target-device">Kerjakan di</label>
-                <select class="select" id="target-device" aria-describedby="device-picker-help">
-                  <option value="">Memuat perangkat...</option>
-                </select>
-                <span id="device-picker-help" class="sr-only">Pilih laptop yang akan mengerjakan perintah file.</span>
+            <div class="aurora" id="aurora" aria-hidden="true"></div>
+
+            <div class="empty-content">
+              <div class="empty-hero">
+                <h1>Bagaimana saya dapat membantu?</h1>
+                <p class="empty-subtitle">
+                  Ceritakan pekerjaan yang ingin dibereskan — BERESIN yang mengurus detailnya.
+                </p>
               </div>
-              <form class="composer" id="composer">
-                <label class="sr-only" for="message">Tulis pesan untuk BERESIN</label>
-                <textarea id="message" name="message" rows="1" placeholder="Tulis permintaan Anda"></textarea>
-                <button class="send-button" type="submit" aria-label="Kirim pesan">
-                  <span aria-hidden="true">↑</span>
+
+              <div class="composer-wrap">
+                <div class="device-picker">
+                  <label for="target-device">Kerjakan di</label>
+                  <select class="select" id="target-device" aria-describedby="device-picker-help">
+                    <option value="">Memuat perangkat...</option>
+                  </select>
+                  <span id="device-picker-help" class="sr-only">Pilih laptop yang akan mengerjakan perintah file.</span>
+                </div>
+
+                <form class="composer" id="composer">
+                  <label class="sr-only" for="message">Tulis pesan untuk BERESIN</label>
+                  <textarea id="message" name="message" rows="1" placeholder="Tulis permintaan Anda"></textarea>
+                  <div class="composer-toolbar">
+                    <button class="composer-tool" type="button" disabled aria-label="Lampirkan berkas (belum tersedia)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                        <path d="M21.4 11.05 12.25 20.2a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l8.48-8.49" />
+                      </svg>
+                    </button>
+                    <button class="send-button" type="submit" aria-label="Kirim pesan">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                        <path d="M12 19V5" /><path d="m5 12 7-7 7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <div class="prompt-suggestions" aria-label="Contoh permintaan">
+                <button class="prompt-chip" type="button" data-prompt="Rapikan folder Downloads saya">
+                  <svg class="chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+                  <span>Rapikan folder Downloads</span>
                 </button>
-              </form>
-            </div>
-            <div class="prompt-suggestions" aria-label="Contoh permintaan">
-              <button class="prompt-chip" type="button" data-prompt="Rapikan folder Downloads saya">
-                <span class="prompt-icon folder-icon" aria-hidden="true"></span>
-                <span>Rapikan folder Downloads saya</span>
-              </button>
-              <button class="prompt-chip" type="button" data-prompt="Temukan laporan bulan lalu">
-                <span class="prompt-icon document-icon" aria-hidden="true"></span>
-                <span>Temukan laporan bulan lalu</span>
-              </button>
-              <button class="prompt-chip" type="button" data-prompt="Periksa file yang duplikat">
-                <span class="prompt-icon duplicate-icon" aria-hidden="true"></span>
-                <span>Periksa file yang duplikat</span>
-              </button>
+                <button class="prompt-chip" type="button" data-prompt="Temukan laporan bulan lalu">
+                  <svg class="chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                  <span>Temukan laporan bulan lalu</span>
+                </button>
+                <button class="prompt-chip" type="button" data-prompt="Periksa file yang duplikat">
+                  <svg class="chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h8" /></svg>
+                  <span>Periksa file duplikat</span>
+                </button>
+                <button class="prompt-chip" type="button" data-prompt="Kelompokkan dokumen berdasarkan jenisnya">
+                  <svg class="chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3 3 8l9 5 9-5-9-5Z" /><path d="m3 14 9 5 9-5" /></svg>
+                  <span>Kelompokkan dokumen</span>
+                </button>
+                <button class="prompt-chip" type="button" data-prompt="Ganti nama file agar konsisten">
+                  <svg class="chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  <span>Ganti nama file</span>
+                </button>
+                <button class="prompt-chip" type="button" data-prompt="Pindahkan file ke folder yang sesuai">
+                  <svg class="chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
+                  <span>Pindahkan file</span>
+                </button>
+                <button class="prompt-chip" type="button" data-prompt="Ringkas isi dokumen ini">
+                  <svg class="chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 7v14" /><path d="M3 5h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6v12h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3H3z" /></svg>
+                  <span>Ringkas isi dokumen</span>
+                </button>
+                <button class="prompt-chip" type="button" data-prompt="Arsipkan file yang sudah lama tidak dipakai">
+                  <svg class="chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" /><path d="M10 12h4" /></svg>
+                  <span>Arsipkan file lama</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -122,9 +163,18 @@
               <form class="composer" id="active-composer">
                 <label class="sr-only" for="active-message">Tulis pesan untuk BERESIN</label>
                 <textarea id="active-message" name="message" rows="1" placeholder="Tulis pesan Anda"></textarea>
-                <button class="send-button" type="submit" aria-label="Kirim pesan">
-                  <span aria-hidden="true">↑</span>
-                </button>
+                <div class="composer-toolbar">
+                  <button class="composer-tool" type="button" disabled aria-label="Lampirkan berkas (belum tersedia)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                      <path d="M21.4 11.05 12.25 20.2a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l8.48-8.49" />
+                    </svg>
+                  </button>
+                  <button class="send-button" type="submit" aria-label="Kirim pesan">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                      <path d="M12 19V5" /><path d="m5 12 7-7 7 7" />
+                    </svg>
+                  </button>
+                </div>
               </form>
             </div>
           </div>

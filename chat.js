@@ -18,6 +18,25 @@
 
   function qs(sel) { return document.querySelector(sel); }
 
+  // Animated aurora bars behind the hero. Bar height follows the source design:
+  // tall at the edges and short in the middle, so the text keeps a calm valley.
+  var AURORA_BARS = 7;
+
+  function initAurora() {
+    var host = BERESIN.el("aurora");
+    if (!host || host.childElementCount) return;
+    var fragment = document.createDocumentFragment();
+    for (var index = 0; index < AURORA_BARS; index += 1) {
+      var bar = document.createElement("span");
+      var distance = Math.abs(index / (AURORA_BARS - 1) - 0.5);
+      var scale = (30 + 70 * Math.pow(distance * 2, 1.2)) / 100;
+      bar.style.setProperty("--bar-scale", scale.toFixed(3));
+      bar.style.setProperty("--bar-delay", (index * 0.1).toFixed(1) + "s");
+      fragment.appendChild(bar);
+    }
+    host.appendChild(fragment);
+  }
+
   function init() {
     els.historyList = BERESIN.el("history-list");
     els.chatMessages = BERESIN.el("chat-messages");
@@ -30,6 +49,8 @@
     els.newChatBtn = BERESIN.el("new-chat-btn");
     els.targetDevice = BERESIN.el("target-device");
     els.activeTargetDevice = BERESIN.el("active-target-device");
+
+    initAurora();
 
     // Populate account info.
     var user = BERESIN.getUser();
