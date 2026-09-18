@@ -1,4 +1,4 @@
-# BERESIN AI Operations Center — Full Implementation Plan
+# RAPIIN AI Operations Center — Full Implementation Plan
 
 Status: P0-P1 local Operations Agent implemented and under final soak/reboot verification; protected GitHub, staging deployment, organization SSO/MFA, and production server remain later activation gates
 Scope: Background monitoring, multi-agent incident response, human approval, code remediation, and remote operations  
@@ -37,15 +37,15 @@ Implemented in the current local pilot:
 - verified PostgreSQL backup/checksum/empty-target restore tools and a wall-clock soak monitor;
 - a real isolated Coder drill where Hermes fixed a synthetic regression, all checks passed, and rejection removed only the disposable worktree.
 
-Telegram is active for the local pilot through protected, ignored secret files. External activation still requires a remotely reachable `BERESIN_OPS_URL`, GitHub Actions secrets, and real staging/production deploy and rollback commands. These are intentionally not invented or committed.
+Telegram is active for the local pilot through protected, ignored secret files. External activation still requires a remotely reachable `RAPIIN_OPS_URL`, GitHub Actions secrets, and real staging/production deploy and rollback commands. These are intentionally not invented or committed.
 
 ## 1. Objective
 
-Build an operations layer behind BERESIN that can run continuously, detect failures, coordinate specialized AI agents, notify the owner, and prepare safe code fixes only after explicit approval.
+Build an operations layer behind RAPIIN that can run continuously, detect failures, coordinate specialized AI agents, notify the owner, and prepare safe code fixes only after explicit approval.
 
 The system must:
 
-- monitor BERESIN continuously without continuously spending LLM tokens;
+- monitor RAPIIN continuously without continuously spending LLM tokens;
 - wake AI agents only for meaningful incidents or scheduled analysis;
 - provide Lead, Diagnostic, Security, and Coder roles with separate permissions;
 - let agents exchange structured messages through a durable incident workflow;
@@ -59,28 +59,28 @@ The system must:
 
 | Concern | Recommended component |
 |---|---|
-| User-facing control | BERESIN AI Operations Center web dashboard |
+| User-facing control | RAPIIN AI Operations Center web dashboard |
 | Agent runtime | Official Nous Research Hermes Agent |
-| Durable orchestration | BERESIN control plane and database-backed incident queue |
+| Durable orchestration | RAPIIN control plane and database-backed incident queue |
 | Local pilot remote access | Tailscale Serve |
 | Production remote access | HTTPS domain with Cloudflare Access or organization SSO |
 | Urgent notifications | Telegram initially; Slack or Microsoft Teams later |
 | Metrics | Prometheus |
 | Dashboards and alert routing | Grafana |
-| Application error tracking | Sentry-compatible error ingestion or BERESIN incident collector |
+| Application error tracking | Sentry-compatible error ingestion or RAPIIN incident collector |
 | Source changes | Isolated Git worktree and pull request |
 | CI and deployment approval | GitHub Actions and protected environments |
 | Secrets | Production secret manager or protected server secret files |
 
-Hermes is used as an agent runtime, tool host, memory/skills system, messaging gateway, and scheduled-agent runner. BERESIN remains the source of truth for identity, authorization, incidents, approvals, audit, and deployment state.
+Hermes is used as an agent runtime, tool host, memory/skills system, messaging gateway, and scheduled-agent runner. RAPIIN remains the source of truth for identity, authorization, incidents, approvals, audit, and deployment state.
 
-Hermes delegation is not treated as a durable workflow queue. Long-running ownership and agent-to-agent communication are persisted by BERESIN.
+Hermes delegation is not treated as a durable workflow queue. Long-running ownership and agent-to-agent communication are persisted by RAPIIN.
 
 ## 3. High-Level Architecture
 
 ```mermaid
 flowchart TD
-    B[BERESIN API and Desktop Agents] --> M[Deterministic Monitor]
+    B[RAPIIN API and Desktop Agents] --> M[Deterministic Monitor]
     P[Prometheus / Logs / CI / Provider] --> M
     M --> I[Incident Queue]
     I --> L[Lead Agent]
@@ -311,7 +311,7 @@ High-risk approvals require recent re-authentication or MFA.
 - overall system status;
 - active incidents by severity;
 - online/offline agent roles;
-- BERESIN device health;
+- RAPIIN device health;
 - task success rate and queue latency;
 - AI provider availability and latency;
 - latest deployment and backup status;
@@ -380,7 +380,7 @@ New tables:
 - `ops_agent_usage`: model, tokens, latency, estimated cost;
 - `ops_policies`: thresholds, role permissions, escalation and approval rules.
 
-Existing BERESIN user/device/task/approval/audit tables remain authoritative for user-facing file operations. Operations Center approval records must not bypass those controls.
+Existing RAPIIN user/device/task/approval/audit tables remain authoritative for user-facing file operations. Operations Center approval records must not bypass those controls.
 
 ## 11. API Plan
 
@@ -424,10 +424,10 @@ Use the official `NousResearch/hermes-agent` source pinned to an immutable relea
 Create separate Hermes profiles:
 
 ```text
-beresin-lead
-beresin-diagnostic
-beresin-security
-beresin-coder
+rapiin-lead
+rapiin-diagnostic
+rapiin-security
+rapiin-coder
 ```
 
 Each profile must have:
@@ -438,9 +438,9 @@ Each profile must have:
 - a bounded token/time budget;
 - an explicit repository/environment scope;
 - no `--yolo` mode;
-- a BERESIN MCP/API adapter that exposes only role-permitted operations.
+- a RAPIIN MCP/API adapter that exposes only role-permitted operations.
 
-Required BERESIN tools exposed to Hermes:
+Required RAPIIN tools exposed to Hermes:
 
 - `get_incident`;
 - `list_incident_evidence`;
@@ -454,13 +454,13 @@ Required BERESIN tools exposed to Hermes:
 - `request_deployment_approval` (Lead only);
 - no unrestricted production shell.
 
-Hermes Gateway runs as a managed service. Scheduled tasks handle periodic reviews and digests. Event-triggered incidents are dispatched by the BERESIN control plane.
+Hermes Gateway runs as a managed service. Scheduled tasks handle periodic reviews and digests. Event-triggered incidents are dispatched by the RAPIIN control plane.
 
 ## 13. Remote Control
 
 ### Local pilot
 
-- keep BERESIN bound to `127.0.0.1`;
+- keep RAPIIN bound to `127.0.0.1`;
 - expose Operations Center through Tailscale Serve;
 - allow only the owner's tailnet identity;
 - use Telegram for notification summaries and deep links;
@@ -468,7 +468,7 @@ Hermes Gateway runs as a managed service. Scheduled tasks handle periodic review
 
 ### Production
 
-- deploy BERESIN and Operations Center to a managed Linux server;
+- deploy RAPIIN and Operations Center to a managed Linux server;
 - expose `ops.<domain>` through HTTPS;
 - protect with Cloudflare Access or organization SSO;
 - require MFA for supervisor and deployment actions;
@@ -523,7 +523,7 @@ Every monitoring component also requires meta-monitoring so alerting failure its
 Initial Telegram messages:
 
 ```text
-[SEV-2] BERESIN task failure rate increased
+[SEV-2] RAPIIN task failure rate increased
 Affected: file operations on 3 devices
 Lead assessment: provider requests succeed; agent job result handling is failing
 Risk: approved operations may remain incomplete
@@ -609,7 +609,7 @@ Production gate:
 
 ### Failure drills
 
-- BERESIN API unavailable;
+- RAPIIN API unavailable;
 - database lock/corruption warning;
 - AI provider unavailable or slow;
 - Hermes Gateway restart;
@@ -647,7 +647,7 @@ Exit criteria: approved architecture and security policy.
 - add incident/event schema;
 - create monitoring signal ingestion;
 - implement deduplication, severity, recovery, and retention;
-- connect existing BERESIN metrics, readiness, tasks, devices, provider, CI, backup, and disk status;
+- connect existing RAPIIN metrics, readiness, tasks, devices, provider, CI, backup, and disk status;
 - build incident list/detail API.
 
 Exit criteria: incidents are created and resolved without any LLM.
@@ -664,7 +664,7 @@ Exit criteria: owner can inspect and decide an incident locally.
 ### Phase 3 — Lead and Security agents
 
 - install pinned official Hermes on a separate runtime;
-- create BERESIN MCP/API adapter;
+- create RAPIIN MCP/API adapter;
 - configure Lead and Security profiles/tool policies;
 - implement durable assignments and structured reports;
 - add token/runtime/concurrency limits.
@@ -781,7 +781,7 @@ The second release adds Diagnostic, Security, and isolated Coder workflows.
 - zero unapproved source or production mutations;
 - 100% of changes linked to incident, approval, commit, and check evidence;
 - 100% rollback availability for production releases;
-- agent analysis failure does not affect core BERESIN file operations;
+- agent analysis failure does not affect core RAPIIN file operations;
 - monthly token/compute spending remains inside configured budget;
 - mean time to diagnose and recover improves across pilot incidents.
 

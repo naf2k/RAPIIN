@@ -34,54 +34,6 @@ wheels = [
 ]
 
 [[package]]
-name = "beresin-server"
-version = "1.0.0"
-source = { editable = "." }
-dependencies = [
-    { name = "email-validator" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "msgpack" },
-    { name = "openpyxl" },
-    { name = "psycopg", extra = ["binary", "pool"] },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pypdf" },
-    { name = "python-docx" },
-    { name = "python-multipart" },
-    { name = "python-pptx" },
-    { name = "redis" },
-    { name = "setuptools" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "email-validator", specifier = ">=2.1" },
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "msgpack", specifier = ">=1.2.1" },
-    { name = "openpyxl", specifier = ">=3.1" },
-    { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2" },
-    { name = "pydantic", specifier = ">=2.7" },
-    { name = "pydantic-settings", specifier = ">=2.3" },
-    { name = "pypdf", specifier = ">=4.2" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
-    { name = "python-docx", specifier = ">=1.1" },
-    { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "python-pptx", specifier = ">=0.6.23" },
-    { name = "redis", specifier = ">=5.2" },
-    { name = "setuptools", specifier = ">=78.1.1" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
-]
-provides-extras = ["dev"]
-
-[[package]]
 name = "certifi"
 version = "2026.7.22"
 source = { registry = "https://pypi.org/simple" }
@@ -833,6 +785,54 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/f0/7a/1c7270340330e575b92f397352af856a8c06f230aa3e76f86b39d01b416a/pyyaml-6.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4ad1906908f2f5ae4e5a8ddfce73c320c2a1429ec52eafd27138b7f1cbe341c9", size = 174062, upload-time = "2025-09-25T21:32:55.767Z" },
     { url = "https://files.pythonhosted.org/packages/f1/12/de94a39c2ef588c7e6455cfbe7343d3b2dc9d6b6b2f40c4c6565744c873d/pyyaml-6.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:ebc55a14a21cb14062aa4162f906cd962b28e2e9ea38f9b4391244cd8de4ae0b", size = 149341, upload-time = "2025-09-25T21:32:56.828Z" },
 ]
+
+[[package]]
+name = "rapiin-server"
+version = "1.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "email-validator" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "msgpack" },
+    { name = "openpyxl" },
+    { name = "psycopg", extra = ["binary", "pool"] },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pypdf" },
+    { name = "python-docx" },
+    { name = "python-multipart" },
+    { name = "python-pptx" },
+    { name = "redis" },
+    { name = "setuptools" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "email-validator", specifier = ">=2.1" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "msgpack", specifier = ">=1.2.1" },
+    { name = "openpyxl", specifier = ">=3.1" },
+    { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2" },
+    { name = "pydantic", specifier = ">=2.7" },
+    { name = "pydantic-settings", specifier = ">=2.3" },
+    { name = "pypdf", specifier = ">=4.2" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
+    { name = "python-docx", specifier = ">=1.1" },
+    { name = "python-multipart", specifier = ">=0.0.9" },
+    { name = "python-pptx", specifier = ">=0.6.23" },
+    { name = "redis", specifier = ">=5.2" },
+    { name = "setuptools", specifier = ">=78.1.1" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "redis"

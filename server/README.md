@@ -1,6 +1,6 @@
-# BERESIN Server
+# RAPIIN Server
 
-Backend BERESIN V1 - Hermes Core (engine agent Python/FastAPI) + frontend terintegrasi.
+Backend RAPIIN V1 - Hermes Core (engine agent Python/FastAPI) + frontend terintegrasi.
 Server menyajikan API (`/api/*`) sekaligus frontend statis di root repo.
 
 ## Prasyarat
@@ -19,8 +19,8 @@ cp .env.example .env   # lalu isi AI_API_KEY sesuai router Anda
 
 `.env` berisi:
 - `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` untuk provider AI (V1: 9router)
-- `BERESIN_INIT_SUPERVISOR_EMAIL` / `BERESIN_INIT_SUPERVISOR_PASSWORD` untuk akun supervisor awal
-- `BERESIN_DB_PATH` lokasi database SQLite
+- `RAPIIN_INIT_SUPERVISOR_EMAIL` / `RAPIIN_INIT_SUPERVISOR_PASSWORD` untuk akun supervisor awal
+- `RAPIIN_DB_PATH` lokasi database SQLite
 
 ## Menjalankan (development)
 
@@ -42,12 +42,12 @@ Atau tanpa Docker:
 
 ```bash
 cd server
-BERESIN_ENV=production .venv/bin/python run.py
+RAPIIN_ENV=production .venv/bin/python run.py
 ```
 
 ## Akun awal
 
-- Supervisor: `supervisor@beresin.example.com` / `Supervisor123!` (di-seed otomatis saat pertama kali server berjalan)
+- Supervisor: `supervisor@rapiin.example.com` / `Supervisor123!` (di-seed otomatis saat pertama kali server berjalan)
 - User: daftar melalui `POST /api/auth/register` atau via UI login
 
 ## Endpoint utama
@@ -65,7 +65,7 @@ BERESIN_ENV=production .venv/bin/python run.py
 
 ```text
 server/
-├── beresin/
+├── rapiin/
 │   ├── ai/           # provider AI (OpenAI-compatible, retry + SSE parsing)
 │   ├── agent/        # Hermes Core loop + prompts
 │   ├── tools/        # Tool Gateway, filesystem, parser, duplicate, verify, analysis
@@ -107,6 +107,6 @@ cd server
 
 ## Catatan
 
-- File yang diakses agent dibatasi pada sandbox root (default folder Downloads atau `BERESIN_SANDBOX_ROOT`).
+- File yang diakses agent dibatasi pada sandbox root (default folder Downloads atau `RAPIIN_SANDBOX_ROOT`).
 - Operasi destruktif tidak dijalankan tanpa persetujuan (user/supervisor).
 - Audit log bersifat append-only dan tidak dapat diubah user biasa.

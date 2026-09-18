@@ -14,15 +14,15 @@ def test_user_approval_respond_flow(client):
     token = _login(client, "andi@example.com")
 
     # Create approval directly in the DB for the registered user.
-    from beresin.approval import create_approval, get_approval
-    from beresin.database import db_session
+    from rapiin.approval import create_approval, get_approval
+    from rapiin.database import db_session
 
     with db_session() as conn:
         approval_id = create_approval(
             conn,
             task_id=None,
             user_id=user_id,
-            requested_by="BERESIN",
+            requested_by="RAPIIN",
             kind="USER",
             action="Memindahkan file laporan",
             scope="Downloads/laporan.pdf",
@@ -48,20 +48,20 @@ def test_supervisor_required_for_supervisor_approval(client):
     user_id = user_reg.json()["user_id"]
     user_token = _login(client, "andi@example.com")
     sup_login = client.post(
-        "/api/auth/login", json={"email": "supervisor@beresin.example.com", "password": "Supervisor123!"}
+        "/api/auth/login", json={"email": "supervisor@rapiin.example.com", "password": "Supervisor123!"}
     )
     assert sup_login.status_code == 200, sup_login.text
     sup_token = sup_login.json()["token"]
 
-    from beresin.approval import create_approval, get_approval
-    from beresin.database import db_session
+    from rapiin.approval import create_approval, get_approval
+    from rapiin.database import db_session
 
     with db_session() as conn:
         approval_id = create_approval(
             conn,
             task_id=None,
             user_id=user_id,
-            requested_by="BERESIN",
+            requested_by="RAPIIN",
             kind="SUPERVISOR",
             action="Menghapus 183 file duplikat",
             risk="Penghapusan permanen",
@@ -86,8 +86,8 @@ def test_supervisor_required_for_supervisor_approval(client):
 
 
 def test_supervisor_approvals_list(client):
-    from beresin.approval import create_approval
-    from beresin.database import db_session
+    from rapiin.approval import create_approval
+    from rapiin.database import db_session
 
     reg = _register_user(client, "andi@example.com")
     user_id = reg.json()["user_id"]
@@ -97,13 +97,13 @@ def test_supervisor_approvals_list(client):
             conn,
             task_id=None,
             user_id=user_id,
-            requested_by="BERESIN",
+            requested_by="RAPIIN",
             kind="SUPERVISOR",
             action="Bulk rename",
             risk="Perubahan file",
         )
 
-    token = _login(client, "supervisor@beresin.example.com", "Supervisor123!")
+    token = _login(client, "supervisor@rapiin.example.com", "Supervisor123!")
     resp = client.get("/api/supervisor/approvals", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     assert len(resp.json()) >= 1

@@ -1,4 +1,4 @@
-# BERESIN production image - API and worker only.
+# RAPIIN production image - API and worker only.
 FROM ghcr.io/astral-sh/uv:latest AS uv
 FROM python:3.13-alpine
 
@@ -7,7 +7,7 @@ COPY --from=uv /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1 \
-    BERESIN_ENV=production
+    RAPIIN_ENV=production
 
 WORKDIR /app
 
@@ -20,15 +20,15 @@ WORKDIR /app/server
 RUN uv sync --no-dev --no-install-project \
     && uv cache clean \
     && python -m pip uninstall --yes pip
-COPY server/beresin ./beresin
+COPY server/rapiin ./rapiin
 COPY server/run.py ./run.py
 COPY server/.env.example ./.env.example
 
 # Runtime data directory (SQLite + sandbox)
 RUN mkdir -p /app/server/data
-RUN addgroup -S -g 10001 beresin \
-    && adduser -S -D -H -u 10001 -G beresin beresin \
-    && chown -R beresin:beresin /app/server/data
+RUN addgroup -S -g 10001 rapiin \
+    && adduser -S -D -H -u 10001 -G rapiin rapiin \
+    && chown -R rapiin:rapiin /app/server/data
 VOLUME ["/app/server/data"]
 
 EXPOSE 8000

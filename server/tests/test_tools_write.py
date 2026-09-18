@@ -5,15 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from beresin.permissions import sandbox_root
-from beresin.tools import filesystem
+from rapiin.permissions import sandbox_root
+from rapiin.tools import filesystem
 
 
 @pytest.fixture()
 def sandbox_dir():
     """A temp dir inside the sandbox so permission checks pass."""
     root = sandbox_root()
-    d = root / ".beresin_test_write"
+    d = root / ".rapiin_test_write"
     if d.exists():
         shutil.rmtree(d)
     d.mkdir(parents=True)

@@ -4,7 +4,7 @@ from .test_auth import _register_user
 
 def _supervisor_headers(client):
     response = client.post("/api/auth/login", json={
-        "email": "supervisor@beresin.example.com", "password": "Supervisor123!",
+        "email": "supervisor@rapiin.example.com", "password": "Supervisor123!",
     })
     return {"Authorization": f"Bearer {response.json()['token']}"}
 
@@ -29,7 +29,7 @@ def test_ops_seeded_role_boundaries(client):
 
 
 def test_audit_hash_chain_detects_tampering(client):
-    from beresin.database import connect
+    from rapiin.database import connect
     headers = _supervisor_headers(client)
     integrity = client.get("/api/supervisor/ops/audit/integrity", headers=headers)
     assert integrity.status_code == 200 and integrity.json()["valid"] is True
@@ -51,8 +51,8 @@ def test_sanitized_audit_export_is_supervisor_only(client):
 
 
 def test_signal_deduplicates_and_timeline_is_auditable(client, monkeypatch):
-    from beresin.config import settings
-    monkeypatch.setattr(settings, "beresin_monitoring_token", "x" * 32)
+    from rapiin.config import settings
+    monkeypatch.setattr(settings, "rapiin_monitoring_token", "x" * 32)
     headers = {"Authorization": "Bearer " + "x" * 32}
     payload = {"source": "ci", "title": "Release tests failed", "severity": "HIGH", "summary": "2 tests failed", "resource": "main", "details": {"run": 42}}
     first = client.post("/api/internal/ops/signals", json=payload, headers=headers)
@@ -65,8 +65,8 @@ def test_signal_deduplicates_and_timeline_is_auditable(client, monkeypatch):
 
 
 def test_code_and_deployment_use_separate_owner_approvals(client, monkeypatch):
-    from beresin.config import settings
-    monkeypatch.setattr(settings, "beresin_monitoring_token", "y" * 32)
+    from rapiin.config import settings
+    monkeypatch.setattr(settings, "rapiin_monitoring_token", "y" * 32)
     incident = client.post("/api/internal/ops/signals", headers={"Authorization": "Bearer " + "y" * 32}, json={"source": "security", "title": "Dependency vulnerability", "severity": "CRITICAL", "resource": "server"}).json()
     sup = _supervisor_headers(client)
     fix = client.post(f"/api/supervisor/ops/incidents/{incident['id']}/proposals", headers=sup, json={"action_type": "CODE_FIX", "title": "Patch dependency", "description": "Update affected package", "risk": "Regression"}).json()
@@ -83,9 +83,9 @@ def test_code_and_deployment_use_separate_owner_approvals(client, monkeypatch):
 
 
 def test_ops_approval_is_idempotent_expires_and_rejects_tampering(client, monkeypatch):
-    from beresin.config import settings
-    from beresin.database import connect
-    monkeypatch.setattr(settings, "beresin_monitoring_token", "z" * 32)
+    from rapiin.config import settings
+    from rapiin.database import connect
+    monkeypatch.setattr(settings, "rapiin_monitoring_token", "z" * 32)
     incident = client.post("/api/internal/ops/signals", headers={"Authorization": "Bearer " + "z" * 32}, json={"source": "ops", "title": "Guard approval", "severity": "HIGH"}).json()
     sup = _supervisor_headers(client)
     body = {"action_type": "CODE_FIX", "title": "Safe patch", "description": "Bounded", "risk": "Low", "idempotency_key": "incident-guard-001"}
@@ -101,10 +101,10 @@ def test_ops_approval_is_idempotent_expires_and_rejects_tampering(client, monkey
 
 
 def test_pending_ops_approval_expires_automatically(client, monkeypatch):
-    from beresin.config import settings
-    from beresin.database import connect
-    from beresin.ops_incidents import expire_pending_approvals
-    monkeypatch.setattr(settings, "beresin_monitoring_token", "e" * 32)
+    from rapiin.config import settings
+    from rapiin.database import connect
+    from rapiin.ops_incidents import expire_pending_approvals
+    monkeypatch.setattr(settings, "rapiin_monitoring_token", "e" * 32)
     incident = client.post("/api/internal/ops/signals", headers={"Authorization": "Bearer " + "e" * 32}, json={"source": "ops", "title": "Expiry", "severity": "LOW"}).json()
     created = client.post(f"/api/supervisor/ops/incidents/{incident['id']}/proposals", headers=_supervisor_headers(client), json={"action_type": "CODE_FIX", "title": "Expiring", "description": "No action", "risk": "Low"}).json()
     conn = connect()
@@ -116,8 +116,8 @@ def test_pending_ops_approval_expires_automatically(client, monkeypatch):
 
 
 def test_nonurgent_incidents_are_grouped_into_one_daily_digest(client, monkeypatch):
-    from beresin.database import connect
-    from beresin.ops_incidents import ingest_signal, queue_daily_digest
+    from rapiin.database import connect
+    from rapiin.ops_incidents import ingest_signal, queue_daily_digest
     conn = connect()
     first = ingest_signal(conn, source="digest", title="Low one", severity="LOW")
     ingest_signal(conn, source="digest", title="Medium two", severity="MEDIUM")
@@ -152,8 +152,8 @@ def test_invalid_monitor_credential_is_rejected(client):
 
 
 def test_audit_chain_detects_tampering_and_integrity_endpoint_is_supervisor_only(client):
-    from beresin.audit import record_audit, verify_audit_chain
-    from beresin.database import connect
+    from rapiin.audit import record_audit, verify_audit_chain
+    from rapiin.database import connect
     conn = connect()
     record_audit(conn, actor="system", actor_role="SYSTEM", action="first")
     second = record_audit(conn, actor="system", actor_role="SYSTEM", action="second")
@@ -167,8 +167,8 @@ def test_audit_chain_detects_tampering_and_integrity_endpoint_is_supervisor_only
 
 
 def test_recovered_device_signal_is_auto_resolved(client):
-    from beresin.database import connect
-    from beresin.ops_incidents import collect_runtime_signals, ingest_signal
+    from rapiin.database import connect
+    from rapiin.ops_incidents import collect_runtime_signals, ingest_signal
     conn = connect()
     incident = ingest_signal(conn, source="device-monitor", title="Desktop agent offline", severity="HIGH", resource="devices")
     collect_runtime_signals(conn)
@@ -180,9 +180,9 @@ def test_recovered_device_signal_is_auto_resolved(client):
 
 
 def test_prometheus_contains_operations_metrics(client, monkeypatch):
-    from beresin.config import settings
-    monkeypatch.setattr(settings, "beresin_monitoring_token", "m" * 32)
+    from rapiin.config import settings
+    monkeypatch.setattr(settings, "rapiin_monitoring_token", "m" * 32)
     response = client.get("/internal/metrics", headers={"Authorization": "Bearer " + "m" * 32})
     assert response.status_code == 200
-    assert "beresin_ops_active_incidents" in response.text
-    assert "beresin_ops_pending_approvals" in response.text
+    assert "rapiin_ops_active_incidents" in response.text
+    assert "rapiin_ops_pending_approvals" in response.text

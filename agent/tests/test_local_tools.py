@@ -8,8 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from beresin_agent import local_tools
-from beresin_agent import config
+from rapiin_agent import local_tools
+from rapiin_agent import config
 
 
 def _set_workspace(tmp: str):

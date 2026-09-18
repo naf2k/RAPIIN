@@ -53,15 +53,15 @@ def test_memory_isolated_per_user(client):
 
 def test_approval_engine_supervisor_kind(client):
     """Approval engine: bulk destructive ops require SUPERVISOR approval."""
-    from beresin.approval import create_approval, get_approval
-    from beresin.database import db_session
+    from rapiin.approval import create_approval, get_approval
+    from rapiin.database import db_session
 
     with db_session() as conn:
         approval_id = create_approval(
             conn,
             task_id=None,
             user_id=1,
-            requested_by="BERESIN",
+            requested_by="RAPIIN",
             kind="SUPERVISOR",
             action="Bulk delete file",
             scope="Downloads",

@@ -1,4 +1,4 @@
-Berikut daftar pekerjaan sampai BERESIN benar-benar layak produksi sesuai PRD. Saya pisahkan antara blocker rilis, kelengkapan produk, testing, dan operasional.
+Berikut daftar pekerjaan sampai RAPIIN benar-benar layak produksi sesuai PRD. Saya pisahkan antara blocker rilis, kelengkapan produk, testing, dan operasional.
 ## P0 — Blocker produksi
 
 ### 1. Perbaiki arsitektur multi-device
@@ -14,17 +14,17 @@ Berikut daftar pekerjaan sampai BERESIN benar-benar layak produksi sesuai PRD. S
 ### 2. Buat Desktop Agent benar-benar bisa di-install
 
 - Tambahkan build system Python yang benar.
-- Pastikan entry point `beresin-agent` ikut terpasang.
+- Pastikan entry point `rapiin-agent` ikut terpasang.
 - Build wheel/package agent.
 - Uji instalasi pada environment kosong.
 - Pastikan perintah berikut bekerja setelah install:
-  - `beresin-agent setup`
-  - `beresin-agent run`
-  - `beresin-agent status`
-  - `beresin-agent verify`
-  - `beresin-agent autostart on`
-  - `beresin-agent autostart off`
-  - `beresin-agent logout`
+  - `rapiin-agent setup`
+  - `rapiin-agent run`
+  - `rapiin-agent status`
+  - `rapiin-agent verify`
+  - `rapiin-agent autostart on`
+  - `rapiin-agent autostart off`
+  - `rapiin-agent logout`
 - Tentukan mekanisme distribusi dan update agent.
 - Tanda tangani package/binary untuk macOS dan Windows.
 - Tambahkan version compatibility antara agent dan server.
@@ -533,7 +533,7 @@ Lakukan pada setiap OS yang benar-benar didukung:
 
 ## Definisi “siap produksi”
 
-BERESIN baru layak dinyatakan siap produksi jika:
+RAPIIN baru layak dinyatakan siap produksi jika:
 
 - seluruh acceptance criteria 1–20 mempunyai bukti test;
 - tidak ada operasi file yang bisa melewati approval dan permission;

@@ -45,7 +45,7 @@ def _wait_task(client, token, task_id, timeout=15):
 
 
 def _patch_provider(monkeypatch):
-    import beresin.ai.provider as provider_mod
+    import rapiin.ai.provider as provider_mod
 
     monkeypatch.setattr(provider_mod, "get_provider", lambda: DummyProvider())
 
@@ -110,7 +110,7 @@ def test_tasks_listed_for_user(client, monkeypatch):
 
 
 def test_casual_chat_hides_filesystem_tools_but_file_request_exposes_them():
-    from beresin.agent.core import HermesCore
+    from rapiin.agent.core import HermesCore
 
     seen = []
     class CapturingProvider(DummyProvider):

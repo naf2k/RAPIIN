@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: beresin
-      POSTGRES_USER: beresin
-      POSTGRES_PASSWORD: ${BERESIN_POSTGRES_PASSWORD:?Set BERESIN_POSTGRES_PASSWORD}
+      POSTGRES_DB: rapiin
+      POSTGRES_USER: rapiin
+      POSTGRES_PASSWORD: ${RAPIIN_POSTGRES_PASSWORD:?Set RAPIIN_POSTGRES_PASSWORD}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - beresin_postgres_data:/var/lib/postgresql/data
+      - rapiin_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U beresin -d beresin"]
+      test: ["CMD-SHELL", "pg_isready -U rapiin -d rapiin"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -18,20 +18,20 @@ services:
 
   redis:
     image: redis:7.4-alpine
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${BERESIN_REDIS_PASSWORD:?Set BERESIN_REDIS_PASSWORD}"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${RAPIIN_REDIS_PASSWORD:?Set RAPIIN_REDIS_PASSWORD}"]
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
-      - beresin_redis_data:/data
+      - rapiin_redis_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$$BERESIN_REDIS_PASSWORD\" ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$RAPIIN_REDIS_PASSWORD\" ping | grep PONG"]
       interval: 5s
       timeout: 3s
       retries: 20
     environment:
-      BERESIN_REDIS_PASSWORD: ${BERESIN_REDIS_PASSWORD:?Set BERESIN_REDIS_PASSWORD}
+      RAPIIN_REDIS_PASSWORD: ${RAPIIN_REDIS_PASSWORD:?Set RAPIIN_REDIS_PASSWORD}
     restart: unless-stopped
 
 volumes:
-  beresin_postgres_data:
-  beresin_redis_data:
+  rapiin_postgres_data:
+  rapiin_redis_data:

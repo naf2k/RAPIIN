@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from beresin.ops_safety import parse_agent_report, sanitize
+from rapiin.ops_safety import parse_agent_report, sanitize
 
 
 def test_recursive_sanitization_redacts_secrets_and_instructions():
@@ -32,9 +32,9 @@ def test_agent_report_is_schema_validated_and_sanitized():
 
 
 def test_hermes_profiles_are_isolated_and_do_not_write_credentials(tmp_path, monkeypatch):
-    from beresin.config import settings
-    from beresin.ops_runtime import hermes_process_environment
-    monkeypatch.setattr(settings, "beresin_data_dir", str(tmp_path))
+    from rapiin.config import settings
+    from rapiin.ops_runtime import hermes_process_environment
+    monkeypatch.setattr(settings, "rapiin_data_dir", str(tmp_path))
     monkeypatch.setattr(settings, "ai_api_key", "secret-only-in-process")
     lead = hermes_process_environment("lead")
     coder = hermes_process_environment("coder")

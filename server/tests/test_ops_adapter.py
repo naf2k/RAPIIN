@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from beresin.database import connect
-from beresin.ops_adapter import OpsToolGateway
-from beresin.ops_incidents import ingest_signal, seed_ops
+from rapiin.database import connect
+from rapiin.ops_adapter import OpsToolGateway
+from rapiin.ops_incidents import ingest_signal, seed_ops
 
 
 def _gateway(role="LEAD"):

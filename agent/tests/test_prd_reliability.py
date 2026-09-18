@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from beresin_agent import cli, config, local_tools
+from rapiin_agent import cli, config, local_tools
 
 
 def test_bares_command_starts_setup_on_first_run(monkeypatch):
@@ -78,7 +78,7 @@ def test_agent_reconnects_until_server_recovers(monkeypatch):
 
 
 def test_autostart_can_be_enabled_and_disabled(tmp_path, monkeypatch):
-    target = tmp_path / "com.beresin.agent.plist"
+    target = tmp_path / "com.rapiin.agent.plist"
     monkeypatch.setattr(cli, "_autostart_paths", lambda: [target])
     monkeypatch.setattr(cli, "_launch_agent_plist", lambda: target)
     monkeypatch.setattr(cli.sys, "platform", "darwin")
@@ -89,7 +89,7 @@ def test_autostart_can_be_enabled_and_disabled(tmp_path, monkeypatch):
 
 
 def test_upgrade_accepts_only_local_agent_wheel(tmp_path, monkeypatch):
-    wheel = tmp_path / "beresin_agent-2.0.0-py3-none-any.whl"
+    wheel = tmp_path / "rapiin_agent-2.0.0-py3-none-any.whl"
     wheel.write_bytes(b"wheel")
     calls = []
     monkeypatch.setattr(cli.shutil, "which", lambda command: "/usr/bin/uv" if command == "uv" else None)
@@ -105,7 +105,7 @@ def test_upgrade_accepts_only_local_agent_wheel(tmp_path, monkeypatch):
 
 
 def test_upgrade_falls_back_to_pip_when_uv_is_unavailable(tmp_path, monkeypatch):
-    wheel = tmp_path / "beresin_agent-2.0.0-py3-none-any.whl"
+    wheel = tmp_path / "rapiin_agent-2.0.0-py3-none-any.whl"
     wheel.write_bytes(b"wheel")
     calls = []
     monkeypatch.setattr(cli.shutil, "which", lambda _command: None)
@@ -136,10 +136,10 @@ def test_startup_probe_requires_real_boot_change(monkeypatch):
 
 def test_frozen_binary_autostart_command_does_not_use_python_module_flag(monkeypatch):
     monkeypatch.setattr(cli.sys, "frozen", True, raising=False)
-    monkeypatch.setattr(cli.sys, "executable", "/Applications/BERESIN Agent")
-    assert cli._agent_run_command() == ["/Applications/BERESIN Agent", "run"]
+    monkeypatch.setattr(cli.sys, "executable", "/Applications/RAPIIN Agent")
+    assert cli._agent_run_command() == ["/Applications/RAPIIN Agent", "run"]
     monkeypatch.delattr(cli.sys, "frozen", raising=False)
-    assert cli._agent_run_command()[-3:] == ["-m", "beresin_agent.cli", "run"]
+    assert cli._agent_run_command()[-3:] == ["-m", "rapiin_agent.cli", "run"]
 
 
 def test_config_file_permissions_and_no_plaintext_secrets(tmp_path, monkeypatch):
@@ -157,7 +157,7 @@ def test_config_file_permissions_and_no_plaintext_secrets(tmp_path, monkeypatch)
 
 
 def test_index_is_incremental_versioned_and_removes_stale_entries(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "CONFIG_DIR", tmp_path / ".beresin")
+    monkeypatch.setattr(config, "CONFIG_DIR", tmp_path / ".rapiin")
     workspace = tmp_path / "files"
     workspace.mkdir()
     monkeypatch.setattr(config, "workspace_root", lambda: workspace)

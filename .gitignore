@@ -22,7 +22,7 @@ data/
 
 # Agent runtime state (credentials on employee machines)
 agent/.venv/
-.beresin/
+.rapiin/
 
 # Logs
 *.log

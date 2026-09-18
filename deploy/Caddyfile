@@ -1,9 +1,9 @@
-{$BERESIN_DOMAIN} {
+{$RAPIIN_DOMAIN} {
     encode zstd gzip
     header {
         -Server
     }
-    reverse_proxy beresin:8000 {
+    reverse_proxy rapiin:8000 {
         health_uri /ready
         health_interval 15s
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded, non-destructive HTTP load probe for a staging BERESIN API."""
+"""Bounded, non-destructive HTTP load probe for a staging RAPIIN API."""
 from __future__ import annotations
 
 import argparse

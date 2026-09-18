@@ -5,19 +5,19 @@ import sqlite3
 import tempfile
 from pathlib import Path
 
-from beresin.database import SCHEMA, connect, utcnow_iso
-from beresin.permissions import sandbox_root
-from beresin.security import hash_password
+from rapiin.database import SCHEMA, connect, utcnow_iso
+from rapiin.permissions import sandbox_root
+from rapiin.security import hash_password
 
 
 def test_approved_approval_never_falls_back_to_server_filesystem():
     """An approved action without its Desktop Agent must not touch server files."""
-    from beresin.approval import create_approval, respond_approval
-    from beresin.database import db_session
-    from beresin.tasks import create_task, get_task
+    from rapiin.approval import create_approval, respond_approval
+    from rapiin.database import db_session
+    from rapiin.tasks import create_task, get_task
 
     root = sandbox_root()
-    d = root / ".beresin_test_approval"
+    d = root / ".rapiin_test_approval"
     if d.exists():
         shutil.rmtree(d)
     d.mkdir()
@@ -32,7 +32,7 @@ def test_approved_approval_never_falls_back_to_server_filesystem():
             conn,
             task_id=task_id,
             user_id=user_id,
-            requested_by="BERESIN",
+            requested_by="RAPIIN",
             kind="USER",
             action="Hapus file",
             scope=str(target),
@@ -58,9 +58,9 @@ def test_approved_approval_never_falls_back_to_server_filesystem():
 
 def test_rejected_approval_cancels_task():
     """A rejected approval cancels the waiting task without executing."""
-    from beresin.approval import create_approval, respond_approval
-    from beresin.database import db_session
-    from beresin.tasks import create_task, get_task
+    from rapiin.approval import create_approval, respond_approval
+    from rapiin.database import db_session
+    from rapiin.tasks import create_task, get_task
 
     with db_session() as conn:
         user_id = conn.execute("SELECT id FROM users LIMIT 1").fetchone()["id"]
@@ -69,7 +69,7 @@ def test_rejected_approval_cancels_task():
             conn,
             task_id=task_id,
             user_id=user_id,
-            requested_by="BERESIN",
+            requested_by="RAPIIN",
             kind="SUPERVISOR",
             action="Bulk delete",
             risk="Permanent",
@@ -106,7 +106,7 @@ def test_db_migration_adds_approval_columns():
     conn.commit()
     conn.close()
 
-    from beresin.database import _migrate
+    from rapiin.database import _migrate
 
     conn = connect(path)
     _migrate(conn)

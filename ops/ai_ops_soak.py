@@ -12,9 +12,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "server"))
-from beresin.audit import verify_audit_chain
-from beresin.config import settings
-from beresin.database import connect
+from rapiin.audit import verify_audit_chain
+from rapiin.config import settings
+from rapiin.database import connect
 
 READY_URL = "http://127.0.0.1:8000/ready"
 

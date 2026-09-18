@@ -1,6 +1,6 @@
-# BERESIN
+# RAPIIN
 
-BERESIN adalah asisten kerja berbasis percakapan dengan Desktop Agent yang menjalankan operasi file secara lokal, approval sebelum mutasi, verifikasi hasil, isolasi user, dan dashboard supervisor. Spesifikasi produk lengkap ada di [PRD-BERESIN.md](PRD-BERESIN.md).
+RAPIIN adalah asisten kerja berbasis percakapan dengan Desktop Agent yang menjalankan operasi file secara lokal, approval sebelum mutasi, verifikasi hasil, isolasi user, dan dashboard supervisor. Spesifikasi produk lengkap ada di [PRD-RAPIIN.md](PRD-RAPIIN.md).
 
 ## Arsitektur
 
@@ -18,9 +18,9 @@ SQLite task/job queue
 Desktop Agent ── filesystem user (workspace terbatas)
 ```
 
-- Backend: `server/beresin/`; memisahkan `/api/auth`, `/api/user`, `/api/supervisor`, dan `/api/agent`.
+- Backend: `server/rapiin/`; memisahkan `/api/auth`, `/api/user`, `/api/supervisor`, dan `/api/agent`.
 - Worker: task conversation berjalan di background thread dan mengirim progress/token melalui SSE.
-- Desktop Agent: `agent/beresin_agent/`; hanya menjalankan tool terdaftar dalam folder yang diizinkan user.
+- Desktop Agent: `agent/rapiin_agent/`; hanya menjalankan tool terdaftar dalam folder yang diizinkan user.
 - Frontend (React): lives di repo terpisah `workspaces/test/hafgufa/` dan bicara ke backend murni via `/api` (same-origin; saat dev, Vite proxy `/api` ke backend).
 - Secret device disimpan di credential vault OS melalui `keyring`, dengan fallback Fernet terikat mesin. File konfigurasi dibatasi ke mode `0600` pada OS POSIX.
 
@@ -44,17 +44,17 @@ Di terminal kedua:
 ```bash
 cd agent
 uv sync --extra docs --extra dev
-uv run beresin-agent setup --server http://127.0.0.1:8000
-uv run beresin-agent verify
-uv run beresin-agent run
+uv run rapiin-agent setup --server http://127.0.0.1:8000
+uv run rapiin-agent verify
+uv run rapiin-agent run
 ```
 
-Jika entry point belum dipasang, gunakan `uv run python -m beresin_agent.cli ...`. Saat setup, user memilih mode manual atau auto. Mode juga dapat dikelola dengan:
+Jika entry point belum dipasang, gunakan `uv run python -m rapiin_agent.cli ...`. Saat setup, user memilih mode manual atau auto. Mode juga dapat dikelola dengan:
 
 ```bash
-beresin-agent autostart on
-beresin-agent autostart off
-beresin-agent autostart
+rapiin-agent autostart on
+rapiin-agent autostart off
+rapiin-agent autostart
 ```
 
 ## Pengujian
@@ -83,7 +83,7 @@ Contoh satu-host:
 ```bash
 docker compose up --build -d
 docker compose ps
-docker compose logs -f beresin
+docker compose logs -f rapiin
 ```
 
 Untuk produksi multi-instance, queue di source saat ini belum dimaksudkan sebagai pengganti broker durable. Jangan menaruh database SQLite pada shared network filesystem.
@@ -104,7 +104,7 @@ Dokumentasi komponen: [server/README.md](server/README.md) dan [agent/README.md]
 
 Desktop Agent tidak terbatas pada Downloads. Instalasi baru mengizinkan
 Downloads, Documents, dan Desktop, sedangkan folder kerja lain dapat ditambah
-dengan `beresin folders add "/path/folder"`. Akses tetap berbasis allowlist;
+dengan `rapiin folders add "/path/folder"`. Akses tetap berbasis allowlist;
 folder sistem dan kredensial tidak dibuka kepada AI.
 
 Untuk memasang agent pada laptop kedua melalui jaringan privat, ikuti

@@ -6,17 +6,17 @@ from pathlib import Path
 
 import pytest
 
-from beresin.permissions import sandbox_root
-from beresin.tools import filesystem, verify
-from beresin.tools.analysis import classify_file, parse_and_summarize
-from beresin.tools.parsing import parse_file
+from rapiin.permissions import sandbox_root
+from rapiin.tools import filesystem, verify
+from rapiin.tools.analysis import classify_file, parse_and_summarize
+from rapiin.tools.parsing import parse_file
 
 
 @pytest.fixture()
 def sandbox_dir():
     """A temp dir inside the sandbox so permission checks pass."""
     root = sandbox_root()
-    d = root / ".beresin_test_parser"
+    d = root / ".rapiin_test_parser"
     if d.exists():
         shutil.rmtree(d)
     d.mkdir(parents=True)

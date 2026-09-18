@@ -50,7 +50,7 @@ jobs:
         with:
           context: .
           push: false
-          tags: beresin:test
+          tags: rapiin:test
           load: true
           # Trivy scans the loaded final filesystem directly. BuildKit provenance
           # otherwise includes packages from discarded build stages as a third-party
@@ -58,7 +58,7 @@ jobs:
           provenance: false
       - uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: beresin:test
+          image-ref: rapiin:test
           severity: CRITICAL,HIGH
           exit-code: "1"
 
@@ -67,10 +67,10 @@ jobs:
     needs: [server, agent, frontend, docker]
     runs-on: ubuntu-latest
     steps:
-      - name: Report failed CI to BERESIN Operations Center
+      - name: Report failed CI to RAPIIN Operations Center
         env:
-          OPS_URL: ${{ secrets.BERESIN_OPS_URL }}
-          OPS_TOKEN: ${{ secrets.BERESIN_MONITORING_TOKEN }}
+          OPS_URL: ${{ secrets.RAPIIN_OPS_URL }}
+          OPS_TOKEN: ${{ secrets.RAPIIN_MONITORING_TOKEN }}
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
           if [ -z "$OPS_URL" ] || [ -z "$OPS_TOKEN" ]; then exit 0; fi

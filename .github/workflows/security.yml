@@ -34,7 +34,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
-      - run: uv run --with bandit bandit -q -ll -r server/beresin agent/beresin_agent -x server/tests,agent/tests
+      - run: uv run --with bandit bandit -q -ll -r server/rapiin agent/rapiin_agent -x server/tests,agent/tests
 
   notify-operations:
     if: always()
@@ -43,8 +43,8 @@ jobs:
     steps:
       - name: Report failed security scan
         env:
-          OPS_URL: ${{ secrets.BERESIN_OPS_URL }}
-          OPS_TOKEN: ${{ secrets.BERESIN_MONITORING_TOKEN }}
+          OPS_URL: ${{ secrets.RAPIIN_OPS_URL }}
+          OPS_TOKEN: ${{ secrets.RAPIIN_MONITORING_TOKEN }}
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
           if [ -z "$OPS_URL" ] || [ -z "$OPS_TOKEN" ]; then exit 0; fi

@@ -2,7 +2,7 @@
 
 ## Supported V1 envelope
 
-The production configuration intentionally supports one BERESIN API instance, one local persistent SQLite volume, and many independently polling Desktop Agents. This avoids unsafe multi-writer/network-filesystem assumptions while keeping scanning and hashing on employee devices.
+The production configuration intentionally supports one RAPIIN API instance, one local persistent SQLite volume, and many independently polling Desktop Agents. This avoids unsafe multi-writer/network-filesystem assumptions while keeping scanning and hashing on employee devices.
 
 Release targets:
 

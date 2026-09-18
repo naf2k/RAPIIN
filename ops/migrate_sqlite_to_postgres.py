@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy a BERESIN SQLite database into an empty PostgreSQL database."""
+"""Copy a RAPIIN SQLite database into an empty PostgreSQL database."""
 from __future__ import annotations
 
 import argparse
@@ -19,8 +19,8 @@ def migrate(source: Path, database_url: str) -> dict:
         raise ValueError("Target wajib berupa PostgreSQL DATABASE_URL.")
     import psycopg
     from psycopg import sql
-    from beresin.database import SCHEMA
-    from beresin.postgres_support import postgres_schema
+    from rapiin.database import SCHEMA
+    from rapiin.postgres_support import postgres_schema
 
     src = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
     src.row_factory = sqlite3.Row
@@ -60,7 +60,7 @@ def migrate(source: Path, database_url: str) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
-    parser.add_argument("--database-url", default=os.getenv("BERESIN_DATABASE_URL", ""))
+    parser.add_argument("--database-url", default=os.getenv("RAPIIN_DATABASE_URL", ""))
     parser.add_argument("--confirm-empty-target", action="store_true")
     args = parser.parse_args()
     if not args.confirm_empty_target:

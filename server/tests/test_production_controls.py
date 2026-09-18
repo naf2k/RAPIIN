@@ -6,7 +6,7 @@ def _login(client, email, password="Password123!"):
 
 
 def test_supervisor_can_configure_safe_policy_but_not_auto_delete(client):
-    supervisor = _login(client, "supervisor@beresin.example.com", "Supervisor123!")
+    supervisor = _login(client, "supervisor@rapiin.example.com", "Supervisor123!")
     headers = {"Authorization": f"Bearer {supervisor}"}
     updated = client.put("/api/supervisor/policies/file_move", json={"approval_kind": "SUPERVISOR", "bulk_threshold": 5}, headers=headers)
     assert updated.status_code == 200
@@ -18,8 +18,8 @@ def test_supervisor_can_configure_safe_policy_but_not_auto_delete(client):
 
 
 def test_permission_engine_loads_database_policy(client):
-    from beresin.database import db_session, utcnow_iso
-    from beresin.permissions import PermissionEngine
+    from rapiin.database import db_session, utcnow_iso
+    from rapiin.permissions import PermissionEngine
     with db_session() as conn:
         conn.execute("INSERT INTO action_policies VALUES (?, ?, ?, ?, ?)", ("file_move", "SUPERVISOR", 5, 1, utcnow_iso()))
         engine = PermissionEngine.from_db(conn)
@@ -29,8 +29,8 @@ def test_permission_engine_loads_database_policy(client):
 def test_user_can_cancel_pending_task(client):
     _register_user(client, "cancel@example.com")
     token = _login(client, "cancel@example.com")
-    from beresin.database import db_session
-    from beresin.tasks import create_task
+    from rapiin.database import db_session
+    from rapiin.tasks import create_task
     with db_session() as conn:
         user_id = conn.execute("SELECT id FROM users WHERE email = 'cancel@example.com'").fetchone()["id"]
         task_id = create_task(conn, user_id=user_id, device_id=None, type="scan")
@@ -42,7 +42,7 @@ def test_user_can_cancel_pending_task(client):
 
 
 def test_tool_gateway_exposes_all_prd_parser_and_verification_contracts():
-    from beresin.tools.registry import get_tools_schema
+    from rapiin.tools.registry import get_tools_schema
     names = {tool["function"]["name"] for tool in get_tools_schema()}
     assert {"pdf_parser", "spreadsheet_parser", "verification"} <= names
 
@@ -80,12 +80,12 @@ def test_api_only_server_does_not_serve_frontend_assets(client):
 
 
 def test_internal_metrics_requires_dedicated_monitoring_token(client, monkeypatch):
-    from beresin.config import settings
-    monkeypatch.setattr(settings, "beresin_monitoring_token", "monitor-token-abcdefghijklmnopqrstuvwxyz")
+    from rapiin.config import settings
+    monkeypatch.setattr(settings, "rapiin_monitoring_token", "monitor-token-abcdefghijklmnopqrstuvwxyz")
     assert client.get("/internal/metrics").status_code == 403
     response = client.get("/internal/metrics", headers={"Authorization": "Bearer monitor-token-abcdefghijklmnopqrstuvwxyz"})
     assert response.status_code == 200
-    assert "beresin_queue_length" in response.text
+    assert "rapiin_queue_length" in response.text
 
 
 def test_login_rate_limit_and_logout_revokes_token(client):
@@ -106,8 +106,8 @@ def test_login_rate_limit_and_logout_revokes_token(client):
 
 
 def test_public_registration_can_be_disabled(client, monkeypatch):
-    from beresin.config import settings
-    monkeypatch.setattr(settings, "beresin_allow_public_registration", False)
+    from rapiin.config import settings
+    monkeypatch.setattr(settings, "rapiin_allow_public_registration", False)
     response = client.post("/api/auth/register", json={
         "email": "closed@example.com", "name": "Closed", "password": "Password123!",
         "device_name": "PC", "os": "Test", "agent_version": "1.0",
@@ -116,7 +116,7 @@ def test_public_registration_can_be_disabled(client, monkeypatch):
 
 
 def test_supervisor_account_limit_is_enforced(client):
-    token = _login(client, "supervisor@beresin.example.com", "Supervisor123!")
+    token = _login(client, "supervisor@rapiin.example.com", "Supervisor123!")
     headers = {"Authorization": f"Bearer {token}"}
     created = client.post("/api/supervisor/accounts", json={"name": "Supervisor Dua", "email": "sup2@example.com", "password": "StrongPassword123!"}, headers=headers)
     assert created.status_code == 200

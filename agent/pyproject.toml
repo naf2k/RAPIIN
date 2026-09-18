@@ -3,9 +3,9 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "beresin-agent"
+name = "rapiin-agent"
 version = "1.0.0"
-description = "BERESIN Desktop Agent - menjalankan pekerjaan file lokal di komputer pegawai"
+description = "RAPIIN Desktop Agent - menjalankan pekerjaan file lokal di komputer pegawai"
 requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.27",
@@ -19,8 +19,8 @@ dependencies = [
 ]
 
 [project.scripts]
-beresin = "beresin_agent.cli:main"
-beresin-agent = "beresin_agent.cli:main"
+rapiin = "rapiin_agent.cli:main"
+rapiin-agent = "rapiin_agent.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -28,4 +28,4 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["beresin_agent"]
+packages = ["rapiin_agent"]

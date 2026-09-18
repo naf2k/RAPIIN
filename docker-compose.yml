@@ -1,25 +1,25 @@
 services:
-  beresin:
+  rapiin:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: beresin
+    container_name: rapiin
     ports:
       - "8000:8000"
     environment:
-      BERESIN_DB_PATH: /app/server/data/beresin.db
-      BERESIN_DATA_DIR: /app/server/data
-      BERESIN_ENV: production
-      BERESIN_HOST: 0.0.0.0
+      RAPIIN_DB_PATH: /app/server/data/rapiin.db
+      RAPIIN_DATA_DIR: /app/server/data
+      RAPIIN_ENV: production
+      RAPIIN_HOST: 0.0.0.0
       AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:20128/v1}
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-ai-rapiin}
-      BERESIN_SECRET_KEY: ${BERESIN_SECRET_KEY:?Set BERESIN_SECRET_KEY}
-      BERESIN_ALLOWED_ORIGINS: ${BERESIN_ALLOWED_ORIGINS:?Set BERESIN_ALLOWED_ORIGINS to the HTTPS production origin}
-      BERESIN_INIT_SUPERVISOR_EMAIL: ${BERESIN_INIT_SUPERVISOR_EMAIL:?Set supervisor email}
-      BERESIN_INIT_SUPERVISOR_PASSWORD: ${BERESIN_INIT_SUPERVISOR_PASSWORD:?Set a unique supervisor password}
+      RAPIIN_SECRET_KEY: ${RAPIIN_SECRET_KEY:?Set RAPIIN_SECRET_KEY}
+      RAPIIN_ALLOWED_ORIGINS: ${RAPIIN_ALLOWED_ORIGINS:?Set RAPIIN_ALLOWED_ORIGINS to the HTTPS production origin}
+      RAPIIN_INIT_SUPERVISOR_EMAIL: ${RAPIIN_INIT_SUPERVISOR_EMAIL:?Set supervisor email}
+      RAPIIN_INIT_SUPERVISOR_PASSWORD: ${RAPIIN_INIT_SUPERVISOR_PASSWORD:?Set a unique supervisor password}
     volumes:
-      - beresin_data:/app/server/data
+      - rapiin_data:/app/server/data
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -32,4 +32,4 @@ services:
       - "host.docker.internal:host-gateway"
 
 volumes:
-  beresin_data:
+  rapiin_data:

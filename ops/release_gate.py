@@ -32,7 +32,7 @@ def main() -> int:
     } if args.topology == "public" else {}
     checks = dict(CHECKS)
     if args.topology == "local-macos":
-        checks["macos_reboot_probe"] = (["beresin", "startup-probe", "verify"], ROOT)
+        checks["macos_reboot_probe"] = (["rapiin", "startup-probe", "verify"], ROOT)
         checks["local_credentialed_uat"] = (
             [str(ROOT / "server/.venv/bin/python"), str(ROOT / "ops/local_uat.py")],
             ROOT,
@@ -53,17 +53,17 @@ def main() -> int:
         environment = os.environ.copy()
         if name == "backend_tests":
             environment.update({
-                "BERESIN_ENV": "test",
-                "BERESIN_INIT_SUPERVISOR_EMAIL": "supervisor@beresin.example.com",
-                "BERESIN_INIT_SUPERVISOR_PASSWORD": "Supervisor123!",
-                "BERESIN_INIT_SUPERVISOR_PASSWORD_FILE": "",
-                "BERESIN_SECRET_KEY_FILE": "",
-                "BERESIN_MONITORING_TOKEN_FILE": "",
-                "BERESIN_ALLOW_PUBLIC_REGISTRATION": "true",
+                "RAPIIN_ENV": "test",
+                "RAPIIN_INIT_SUPERVISOR_EMAIL": "supervisor@rapiin.example.com",
+                "RAPIIN_INIT_SUPERVISOR_PASSWORD": "Supervisor123!",
+                "RAPIIN_INIT_SUPERVISOR_PASSWORD_FILE": "",
+                "RAPIIN_SECRET_KEY_FILE": "",
+                "RAPIIN_MONITORING_TOKEN_FILE": "",
+                "RAPIIN_ALLOW_PUBLIC_REGISTRATION": "true",
             })
         elif name == "agent_tests":
-            # Agent tests must never read or clear the operator's real ~/.beresin.
-            environment["HOME"] = tempfile.mkdtemp(prefix="beresin-agent-test-home-")
+            # Agent tests must never read or clear the operator's real ~/.rapiin.
+            environment["HOME"] = tempfile.mkdtemp(prefix="rapiin-agent-test-home-")
         result = subprocess.run(
             command,
             cwd=cwd,

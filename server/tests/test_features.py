@@ -12,7 +12,7 @@ def test_task_completion_creates_notifications(client, monkeypatch):
     """A completed task creates a USER notification (and supervisor on failure)."""
     from .test_chat import DummyProvider
 
-    import beresin.ai.provider as provider_mod
+    import rapiin.ai.provider as provider_mod
 
     monkeypatch.setattr(provider_mod, "get_provider", lambda: DummyProvider())
 
@@ -44,7 +44,7 @@ def test_supervisor_search_tasks_and_employees(client, monkeypatch):
     """Supervisor can search tasks/employees with q param."""
     _register_user(client, "andi@example.com")
     _register_user(client, "budi@example.com")
-    sup_token = _login(client, "supervisor@beresin.example.com", "Supervisor123!")
+    sup_token = _login(client, "supervisor@rapiin.example.com", "Supervisor123!")
 
     emps = client.get("/api/supervisor/employees?q=andi", headers={"Authorization": f"Bearer {sup_token}"}).json()
     assert len(emps) >= 1
@@ -55,7 +55,7 @@ def test_supervisor_search_tasks_and_employees(client, monkeypatch):
 
 
 def test_supervisor_profile_and_accounts(client):
-    sup_token = _login(client, "supervisor@beresin.example.com", "Supervisor123!")
+    sup_token = _login(client, "supervisor@rapiin.example.com", "Supervisor123!")
 
     profile = client.get("/api/supervisor/profile", headers={"Authorization": f"Bearer {sup_token}"}).json()
     assert profile["role"] == "SUPERVISOR"
@@ -73,7 +73,7 @@ def test_supervisor_profile_and_accounts(client):
 
 
 def test_supervisor_create_employee(client):
-    sup_token = _login(client, "supervisor@beresin.example.com", "Supervisor123!")
+    sup_token = _login(client, "supervisor@rapiin.example.com", "Supervisor123!")
     resp = client.post(
         "/api/supervisor/employees",
         json={"name": "Karyawan Baru", "email": "baru@example.com", "password": "Password123!"},

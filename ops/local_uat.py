@@ -20,7 +20,7 @@ def main() -> int:
     with httpx.Client(timeout=20) as client:
         admin = client.post(
             BASE_URL + "/api/auth/login",
-            json={"email": "admin@beresin.example.com", "password": admin_password},
+            json={"email": "admin@rapiin.example.com", "password": admin_password},
         )
         admin.raise_for_status()
         user = client.post(
@@ -48,7 +48,7 @@ def main() -> int:
         message = client.post(
             BASE_URL + f"/api/user/conversations/{conversation_id}/messages",
             headers=user_headers,
-            json={"content": "Halo, jawab singkat: BERESIN siap."},
+            json={"content": "Halo, jawab singkat: RAPIIN siap."},
         )
         message.raise_for_status()
         task_id = message.json()["task_id"]

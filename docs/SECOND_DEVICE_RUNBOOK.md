@@ -1,7 +1,7 @@
 # Runbook laptop kedua
 
 Runbook ini mempertahankan arsitektur PRD: satu Core Backend sebagai source of
-truth dan satu BERESIN Agent terminal pada setiap komputer pengguna. File tetap
+truth dan satu RAPIIN Agent terminal pada setiap komputer pengguna. File tetap
 diproses lokal pada perangkat yang dipilih; tidak ada remote shell.
 
 ## 1. Jaringan privat server
@@ -18,8 +18,8 @@ tailscale status
 ```
 
 Catat URL HTTPS yang ditampilkan. Tambahkan origin tersebut secara persis ke
-`BERESIN_ALLOWED_ORIGINS`, lalu restart `com.beresin.server`. Jangan mengubah
-`BERESIN_HOST` menjadi `0.0.0.0`.
+`RAPIIN_ALLOWED_ORIGINS`, lalu restart `com.rapiin.server`. Jangan mengubah
+`RAPIIN_HOST` menjadi `0.0.0.0`.
 
 ## 2. Persiapan laptop kedua
 
@@ -33,9 +33,9 @@ Catat URL HTTPS yang ditampilkan. Tambahkan origin tersebut secara persis ke
 ./ops/install_agent_release.sh https://NAMA-MESIN.TAILNET.ts.net "$HOME/Downloads"
 ```
 
-Installer mengunduh wheel rilis, memverifikasi SHA-256, meminta login BERESIN
+Installer mengunduh wheel rilis, memverifikasi SHA-256, meminta login RAPIIN
 secara interaktif, membuat identity perangkat baru, mengaktifkan autostart, dan
-menjalankan `beresin verify`. Password tidak diberikan sebagai argumen agar
+menjalankan `rapiin verify`. Password tidak diberikan sebagai argumen agar
 tidak masuk shell history.
 
 ## 3. Uji penerimaan dua perangkat
@@ -50,9 +50,9 @@ Gunakan folder disposable pada setiap laptop, bukan dokumen asli.
   dan hasil fisik file. Undo bukan persyaratan PRD V1.
 - Matikan agent laptop kedua saat job read-only berjalan, hidupkan kembali,
   lalu verifikasi reconnect dan lease job pulih tanpa eksekusi ganda.
-- Reboot laptop kedua. Setelah login jalankan `beresin startup-probe verify` dan
-  `beresin verify`.
-- Lepas laptop kedua melalui Settings. `beresin verify` harus gagal. Jalankan
+- Reboot laptop kedua. Setelah login jalankan `rapiin startup-probe verify` dan
+  `rapiin verify`.
+- Lepas laptop kedua melalui Settings. `rapiin verify` harus gagal. Jalankan
   setup kembali dan pastikan device key baru berhasil.
 - Supervisor memeriksa employee, device, task, approval, dan audit tanpa dapat
   membaca isi file di luar metadata yang diizinkan.

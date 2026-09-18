@@ -1,4 +1,4 @@
-# BERESIN Production Runbook
+# RAPIIN Production Runbook
 
 ## Loopback-only macOS deployment
 
@@ -7,22 +7,22 @@ loopback origins. This topology is not reachable from LAN or the internet, so
 public-domain TLS and Windows validation are not applicable. Keep the server,
 agent, health monitor, queue worker, and daily backup as separate user LaunchAgents:
 
-- `com.beresin.server`
-- `com.beresin.agent`
-- `com.beresin.worker`
-- `com.beresin.monitor`
-- `com.beresin.backup`
+- `com.rapiin.server`
+- `com.rapiin.agent`
+- `com.rapiin.worker`
+- `com.rapiin.monitor`
+- `com.rapiin.backup`
 
 The monitor runs `ops/local_health_monitor.py` every minute and emits a macOS
 notification only when readiness changes. The daily backup targets
-`~/BeresinBackups`. Run `server/.venv/bin/python ops/local_uat.py` for a
+`~/RapiinBackups`. Run `server/.venv/bin/python ops/local_uat.py` for a
 credentialed local smoke test. Secret and UAT credential files remain ignored
 under `server/data`, mode `0600`; never commit them.
 
-Before the reboot drill run `beresin startup-probe record`. After logging in
-again, run `beresin startup-probe verify`, require `/ready` to return HTTP 200,
+Before the reboot drill run `rapiin startup-probe record`. After logging in
+again, run `rapiin startup-probe verify`, require `/ready` to return HTTP 200,
 and confirm all five LaunchAgents are present. Run the complete local readiness
-gate with `server/.venv/bin/beresin-ops verify`.
+gate with `server/.venv/bin/rapiin-ops verify`.
 
 ## Supported release topology
 
@@ -32,16 +32,16 @@ single-process fallback. Do not mount SQLite on NFS or scale it horizontally.
 
 ## PostgreSQL migration path
 
-The server selects PostgreSQL with `BERESIN_DATABASE_URL` and Redis with
-`BERESIN_REDIS_URL`; leaving both empty preserves SQLite/inline development
+The server selects PostgreSQL with `RAPIIN_DATABASE_URL` and Redis with
+`RAPIIN_REDIS_URL`; leaving both empty preserves SQLite/inline development
 mode. Start disposable infrastructure with `docker-compose.local-infra.yml`,
 migrate only into a confirmed empty target, and keep SQLite read-only during the
 copy:
 
 ```bash
 docker compose -f docker-compose.local-infra.yml up -d
-server/.venv/bin/python ops/migrate_sqlite_to_postgres.py server/data/beresin.db \
-  --database-url "$BERESIN_DATABASE_URL" --confirm-empty-target
+server/.venv/bin/python ops/migrate_sqlite_to_postgres.py server/data/rapiin.db \
+  --database-url "$RAPIIN_DATABASE_URL" --confirm-empty-target
 ```
 
 The migration copies explicit IDs and advances every PostgreSQL identity sequence. Verify row counts, login, device polling, approval, AI Operations dispatch, and audit integrity before changing the live server connection. Keep the SQLite source and a transactionally consistent backup until the PostgreSQL cutover is signed off.
@@ -50,18 +50,18 @@ Run the Redis worker and readiness gate separately:
 
 ```bash
 server/.venv/bin/python ops/run_queue_worker.py
-server/.venv/bin/beresin-ops verify
+server/.venv/bin/rapiin-ops verify
 ```
 
 ## Deploy
 
 1. Create production secrets outside Git and set every required variable in `docker-compose.yml`.
-2. Terminate TLS at the reverse proxy and set `BERESIN_ALLOWED_ORIGINS` to exact HTTPS origins.
+2. Terminate TLS at the reverse proxy and set `RAPIIN_ALLOWED_ORIGINS` to exact HTTPS origins.
 3. Run `docker compose build --pull` and scan the resulting image.
 4. Run `docker compose up -d`, then require `/health` and `/ready` to return HTTP 200.
 5. Verify login, one read-only device task, approval review, an approved move in a disposable folder, and audit visibility.
 
-The production topology is defined in `docker-compose.production.yml`: the API, a separate queue worker, PostgreSQL, Redis, Caddy TLS, and Prometheus scraping. Create a protected directory containing four files (`beresin_secret_key`, `supervisor_password`, `monitoring_token`, `ai_api_key`), each readable only by the deployment operator. Then set `BERESIN_SECRETS_DIR`, `BERESIN_DOMAIN`, `BERESIN_INIT_SUPERVISOR_EMAIL`, `AI_BASE_URL`, `BERESIN_POSTGRES_PASSWORD`, and `BERESIN_REDIS_PASSWORD`, and run:
+The production topology is defined in `docker-compose.production.yml`: the API, a separate queue worker, PostgreSQL, Redis, Caddy TLS, and Prometheus scraping. Create a protected directory containing four files (`rapiin_secret_key`, `supervisor_password`, `monitoring_token`, `ai_api_key`), each readable only by the deployment operator. Then set `RAPIIN_SECRETS_DIR`, `RAPIIN_DOMAIN`, `RAPIIN_INIT_SUPERVISOR_EMAIL`, `AI_BASE_URL`, `RAPIIN_POSTGRES_PASSWORD`, and `RAPIIN_REDIS_PASSWORD`, and run:
 
 ```bash
 docker compose -f docker-compose.production.yml config
@@ -87,28 +87,28 @@ The container runs as UID 10001, drops Linux capabilities, uses a read-only root
 Create a transactionally consistent backup:
 
 ```bash
-python3 ops/backup_sqlite.py server/data/beresin.db /secure/beresin-backups
+python3 ops/backup_sqlite.py server/data/rapiin.db /secure/rapiin-backups
 ```
 
 Restore drills must target a new path, never overwrite the live database:
 
 ```bash
-python3 ops/restore_sqlite.py /secure/beresin-backups/beresin-TIMESTAMP.db /tmp/beresin-restore.db
-sqlite3 /tmp/beresin-restore.db 'PRAGMA integrity_check;'
+python3 ops/restore_sqlite.py /secure/rapiin-backups/rapiin-TIMESTAMP.db /tmp/rapiin-restore.db
+sqlite3 /tmp/rapiin-restore.db 'PRAGMA integrity_check;'
 ```
 
 Encrypt backups at rest, restrict them to operations staff, retain them according to company policy, and test a restore before every production release.
 
 For PostgreSQL, the current-database wrapper chooses the correct backend and
-creates a SHA-256 sidecar. Restore accepts only a checksum-valid BERESIN archive
+creates a SHA-256 sidecar. Restore accepts only a checksum-valid RAPIIN archive
 and an empty target:
 
 ```bash
 server/.venv/bin/python ops/backup_current.py
-createdb beresin_restore_drill
-server/.venv/bin/python ops/restore_postgres.py ~/BeresinBackups/beresin-postgres-TIMESTAMP.dump \
-  --database-url postgresql:///beresin_restore_drill --confirm-empty-target
-dropdb beresin_restore_drill
+createdb rapiin_restore_drill
+server/.venv/bin/python ops/restore_postgres.py ~/RapiinBackups/rapiin-postgres-TIMESTAMP.dump \
+  --database-url postgresql:///rapiin_restore_drill --confirm-empty-target
+dropdb rapiin_restore_drill
 ```
 
 Run the final wall-clock observation gate with:
@@ -149,17 +149,17 @@ approval remains available only after authenticated Operations Center login.
 ```text
 OPS_TELEGRAM_BOT_TOKEN_FILE=/run/secrets/telegram_bot_token
 OPS_TELEGRAM_CHAT_ID=<owner-chat-id>
-OPS_PUBLIC_BASE_URL=https://beresin.example.com
+OPS_PUBLIC_BASE_URL=https://rapiin.example.com
 ```
 
 For CI/security ingestion, add GitHub Actions secrets
-`BERESIN_OPS_URL` and `BERESIN_MONITORING_TOKEN`. The Operations Center URL
+`RAPIIN_OPS_URL` and `RAPIIN_MONITORING_TOKEN`. The Operations Center URL
 must be reachable from GitHub-hosted runners. If it is local-only, use a
 self-hosted runner or leave ingestion disabled; the workflows safely skip an
 unconfigured endpoint.
 
 GitHub branch protection must still be enabled in repository settings when the
-account plan supports it. BERESIN enforces its own approval gates regardless,
+account plan supports it. RAPIIN enforces its own approval gates regardless,
 but it does not claim unavailable GitHub protection is active.
 
 ## Rollback

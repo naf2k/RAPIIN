@@ -1,4 +1,4 @@
-from beresin.redaction import redact_text, redact_value
+from rapiin.redaction import redact_text, redact_value
 
 
 def test_credentials_are_redacted_before_provider_payload():

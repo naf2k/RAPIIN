@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restore a verified BERESIN dump only into an empty PostgreSQL target."""
+"""Restore a verified RAPIIN dump only into an empty PostgreSQL target."""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +13,7 @@ from pathlib import Path
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("backup", type=Path)
-    parser.add_argument("--database-url", default=os.getenv("BERESIN_DATABASE_URL", ""))
+    parser.add_argument("--database-url", default=os.getenv("RAPIIN_DATABASE_URL", ""))
     parser.add_argument("--confirm-empty-target", action="store_true")
     args = parser.parse_args()
     backup = args.backup.resolve(strict=True)
@@ -34,7 +34,7 @@ def main() -> int:
         raise SystemExit("pg_restore tidak ditemukan.")
     check = subprocess.run([pg_restore, "--list", str(backup)], capture_output=True, text=True)
     if check.returncode or "TABLE public users" not in check.stdout:
-        raise SystemExit("Archive bukan backup BERESIN yang valid.")
+        raise SystemExit("Archive bukan backup RAPIIN yang valid.")
     restored = subprocess.run([pg_restore, "--no-owner", "--no-acl", "--dbname", args.database_url, str(backup)], capture_output=True, text=True)
     if restored.returncode:
         raise SystemExit("pg_restore gagal: " + (restored.stderr or "unknown error")[-500:])

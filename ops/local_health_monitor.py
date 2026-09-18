@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Monitor a loopback BERESIN deployment and notify on status transitions."""
+"""Monitor a loopback RAPIIN deployment and notify on status transitions."""
 from __future__ import annotations
 
 import json
@@ -16,8 +16,8 @@ STATE_PATH = ROOT / "server" / "data" / ".local-health-state"
 
 
 def monitoring_token() -> str:
-    token = os.environ.get("BERESIN_MONITORING_TOKEN", "").strip()
-    token_file = os.environ.get("BERESIN_MONITORING_TOKEN_FILE", "").strip()
+    token = os.environ.get("RAPIIN_MONITORING_TOKEN", "").strip()
+    token_file = os.environ.get("RAPIIN_MONITORING_TOKEN_FILE", "").strip()
     # launchd does not inherit the interactive shell environment. Read only
     # the two monitoring settings from the server's protected local env file.
     env_path = ROOT / "server" / ".env"
@@ -25,10 +25,10 @@ def monitoring_token() -> str:
         try:
             for line in env_path.read_text(encoding="utf-8").splitlines():
                 key, separator, value = line.partition("=")
-                if not separator or key.strip() not in {"BERESIN_MONITORING_TOKEN", "BERESIN_MONITORING_TOKEN_FILE"}:
+                if not separator or key.strip() not in {"RAPIIN_MONITORING_TOKEN", "RAPIIN_MONITORING_TOKEN_FILE"}:
                     continue
                 clean = value.strip().strip('"').strip("'")
-                if key.strip() == "BERESIN_MONITORING_TOKEN":
+                if key.strip() == "RAPIIN_MONITORING_TOKEN":
                     token = clean
                 elif not token_file:
                     token_file = clean
@@ -73,7 +73,7 @@ def infrastructure_checks() -> list[tuple[str, str, str, str, dict]]:
     free_percent = round((usage.free / usage.total) * 100, 1)
     if free_percent < 10:
         findings.append(("Disk space critically low", "CRITICAL", f"Ruang disk tersisa {free_percent}%.", str(ROOT), {"free_percent": free_percent}))
-    backup_dir = Path.home() / "BeresinBackups"
+    backup_dir = Path.home() / "RapiinBackups"
     backups = [p for p in backup_dir.glob("*") if p.is_file()] if backup_dir.exists() else []
     if not backups:
         findings.append(("Backup verification missing", "HIGH", "Belum ada artefak backup lokal yang dapat diverifikasi.", str(backup_dir), {}))
@@ -103,14 +103,14 @@ def current_status() -> tuple[str, str]:
         payload = json.loads(response.read())
         connection.close()
         if response.status == 200 and payload.get("status") == "ready" and payload.get("database") == "ok":
-            return "ready", "Server dan database BERESIN siap."
-        return "degraded", "Respons readiness BERESIN tidak valid."
+            return "ready", "Server dan database RAPIIN siap."
+        return "degraded", "Respons readiness RAPIIN tidak valid."
     except Exception as exc:  # noqa: BLE001
-        return "down", f"BERESIN tidak dapat dijangkau: {type(exc).__name__}"
+        return "down", f"RAPIIN tidak dapat dijangkau: {type(exc).__name__}"
 
 
 def notify(message: str) -> None:
-    script = 'display notification "' + message.replace('"', "'") + '" with title "BERESIN Lokal"'
+    script = 'display notification "' + message.replace('"', "'") + '" with title "RAPIIN Lokal"'
     subprocess.run(["osascript", "-e", script], check=False, capture_output=True)
 
 

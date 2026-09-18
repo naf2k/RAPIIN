@@ -11,8 +11,8 @@ def _device(client, email):
 
 
 def test_two_devices_claim_only_their_own_jobs(client):
-    from beresin.agent_jobs import enqueue_job
-    from beresin.database import db_session
+    from rapiin.agent_jobs import enqueue_job
+    from rapiin.database import db_session
 
     u1, d1, k1 = _device(client, "concurrent-1@example.com")
     u2, d2, k2 = _device(client, "concurrent-2@example.com")
@@ -41,7 +41,7 @@ def test_same_user_can_keep_multiple_devices_online(client):
         headers={"Authorization": f"Bearer {body['token']}"},
     )
     assert second.status_code == 200
-    from beresin.database import db_session
+    from rapiin.database import db_session
     with db_session() as conn:
         rows = conn.execute("SELECT status FROM devices WHERE user_id = ?", (body["user_id"],)).fetchall()
     assert len(rows) == 2
@@ -59,7 +59,7 @@ def test_message_targets_explicit_owned_online_device(client, monkeypatch):
         json={"device_name": "Desktop", "os": "Test", "agent_version": "1.0"},
         headers={"Authorization": f"Bearer {token}"},
     ).json()
-    monkeypatch.setattr("beresin.worker.spawn_conversation_task", lambda **_kwargs: None)
+    monkeypatch.setattr("rapiin.worker.spawn_conversation_task", lambda **_kwargs: None)
     conversation = client.post(
         "/api/user/conversations", json={}, headers={"Authorization": f"Bearer {token}"}
     ).json()
@@ -69,7 +69,7 @@ def test_message_targets_explicit_owned_online_device(client, monkeypatch):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200, response.text
-    from beresin.database import db_session
+    from rapiin.database import db_session
     with db_session() as conn:
         task = conn.execute("SELECT device_id FROM tasks WHERE id = ?", (response.json()["task_id"],)).fetchone()
     assert task["device_id"] == second["device_id"]
@@ -86,7 +86,7 @@ def test_message_requires_selection_when_multiple_devices_are_online(client, mon
         json={"device_name": "Desktop", "os": "Test", "agent_version": "1.0"},
         headers={"Authorization": f"Bearer {token}"},
     )
-    monkeypatch.setattr("beresin.worker.spawn_conversation_task", lambda **_kwargs: None)
+    monkeypatch.setattr("rapiin.worker.spawn_conversation_task", lambda **_kwargs: None)
     conversation = client.post(
         "/api/user/conversations", json={}, headers={"Authorization": f"Bearer {token}"}
     ).json()
@@ -107,12 +107,12 @@ def test_message_rejects_unowned_or_offline_device(client, monkeypatch):
         "email": "other@example.com", "name": "Other", "password": "Password123!",
         "device_name": "Other laptop", "os": "Test", "agent_version": "1.0",
     }).json()
-    monkeypatch.setattr("beresin.worker.spawn_conversation_task", lambda **_kwargs: None)
+    monkeypatch.setattr("rapiin.worker.spawn_conversation_task", lambda **_kwargs: None)
     headers = {"Authorization": f"Bearer {owner['token']}"}
     conversation = client.post("/api/user/conversations", json={}, headers=headers).json()
     endpoint = f"/api/user/conversations/{conversation['conversation_id']}/messages"
     assert client.post(endpoint, json={"content": "x", "device_id": other["device"]["id"]}, headers=headers).status_code == 404
-    from beresin.database import db_session
+    from rapiin.database import db_session
     with db_session() as conn:
         conn.execute("UPDATE devices SET status = 'OFFLINE' WHERE id = ?", (owner["device"]["id"],))
     offline = client.post(endpoint, json={"content": "x", "device_id": owner["device"]["id"]}, headers=headers)
@@ -121,9 +121,9 @@ def test_message_rejects_unowned_or_offline_device(client, monkeypatch):
 
 
 def test_expired_claim_is_requeued_and_claimed_again(client):
-    from beresin.agent_jobs import claim_next_job, enqueue_job
-    from beresin.database import db_session
-    from beresin.devices import _hash_device_key
+    from rapiin.agent_jobs import claim_next_job, enqueue_job
+    from rapiin.database import db_session
+    from rapiin.devices import _hash_device_key
     user_id, device_id, key = _device(client, "lease@example.com")
     with db_session() as conn:
         job_id = enqueue_job(conn, task_id=None, device_id=device_id, user_id=user_id, kind="filesystem_scanner", payload={})
@@ -136,9 +136,9 @@ def test_expired_claim_is_requeued_and_claimed_again(client):
 
 
 def test_claimed_job_lease_can_be_renewed_by_owning_device(client):
-    from beresin.agent_jobs import claim_next_job, enqueue_job
-    from beresin.database import db_session
-    from beresin.devices import _hash_device_key
+    from rapiin.agent_jobs import claim_next_job, enqueue_job
+    from rapiin.database import db_session
+    from rapiin.devices import _hash_device_key
     user_id, device_id, key = _device(client, "renew@example.com")
     with db_session() as conn:
         job_id = enqueue_job(conn, task_id=None, device_id=device_id, user_id=user_id, kind="filesystem_scanner", payload={})
@@ -157,8 +157,8 @@ def test_task_progress_exposes_processed_and_total_counts(client):
         "device_name": "PC", "os": "Test", "agent_version": "1.0",
     }).json()
     token = body["token"]
-    from beresin.database import db_session
-    from beresin.tasks import create_task, update_task
+    from rapiin.database import db_session
+    from rapiin.tasks import create_task, update_task
     with db_session() as conn:
         task_id = create_task(conn, user_id=body["user_id"], device_id=body["device"]["id"], type="scan")
         update_task(conn, task_id, status="RUNNING", progress=78, processed_count=328, total_count=421)
@@ -171,8 +171,8 @@ def test_terminal_task_sse_returns_authenticated_snapshot(client):
         "email": "stream@example.com", "name": "Stream", "password": "Password123!",
         "device_name": "PC", "os": "Test", "agent_version": "1.0",
     }).json()
-    from beresin.database import db_session
-    from beresin.tasks import create_task, update_task
+    from rapiin.database import db_session
+    from rapiin.tasks import create_task, update_task
     with db_session() as conn:
         task_id = create_task(conn, user_id=body["user_id"], device_id=None, type="chat")
         update_task(conn, task_id, status="COMPLETED", progress=100, processed_count=10, total_count=10)
@@ -186,7 +186,7 @@ def test_terminal_task_sse_returns_authenticated_snapshot(client):
 
 
 def test_device_local_path_is_delegated_without_server_path_rewrite(monkeypatch):
-    from beresin.agent.core import HermesCore
+    from rapiin.agent.core import HermesCore
     external_device_path = "/Users/employee/Downloads"
     core = HermesCore(object())
     monkeypatch.setattr(core, "_try_delegate_to_device", lambda *_args: {"status": "OK", "directory": external_device_path})
@@ -198,9 +198,9 @@ def test_device_local_path_is_delegated_without_server_path_rewrite(monkeypatch)
 
 
 def test_ai_wait_does_not_hold_sqlite_write_lock(client):
-    from beresin.agent.core import HermesCore
-    from beresin.database import connect, db_session
-    from beresin.tasks import create_task, update_task
+    from rapiin.agent.core import HermesCore
+    from rapiin.database import connect, db_session
+    from rapiin.tasks import create_task, update_task
 
     body = client.post("/api/auth/register", json={
         "email": "lock-release@example.com", "name": "Lock", "password": "Password123!",
@@ -237,7 +237,7 @@ def test_ai_wait_does_not_hold_sqlite_write_lock(client):
 
 def test_ai_provider_streams_text_and_rebuilds_tool_calls(monkeypatch):
     import json
-    from beresin.ai.provider import OpenAICompatibleProvider
+    from rapiin.ai.provider import OpenAICompatibleProvider
 
     chunks = [
         {"choices": [{"delta": {"content": "Halo "}}]},
@@ -259,7 +259,7 @@ def test_ai_provider_streams_text_and_rebuilds_tool_calls(monkeypatch):
         def __exit__(self, *_args): return False
         def stream(self, *_args, **_kwargs): return FakeResponse()
 
-    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
+    monkeypatch.setattr("rapiin.ai.provider.httpx.Client", FakeClient)
     deltas = []
     result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat_stream([], on_delta=deltas.append)
     assert result["message"]["content"] == "Halo dunia"
@@ -268,7 +268,7 @@ def test_ai_provider_streams_text_and_rebuilds_tool_calls(monkeypatch):
 
 
 def test_ai_provider_stream_retries_transient_status(monkeypatch):
-    from beresin.ai.provider import OpenAICompatibleProvider
+    from rapiin.ai.provider import OpenAICompatibleProvider
 
     attempts = {"count": 0}
 
@@ -288,15 +288,15 @@ def test_ai_provider_stream_retries_transient_status(monkeypatch):
             attempts["count"] += 1
             return FakeResponse(503 if attempts["count"] == 1 else 200)
 
-    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
-    monkeypatch.setattr("beresin.ai.provider.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("rapiin.ai.provider.httpx.Client", FakeClient)
+    monkeypatch.setattr("rapiin.ai.provider.time.sleep", lambda _seconds: None)
     result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat_stream([])
     assert attempts["count"] == 2
     assert result["message"]["content"] == "siap"
 
 
 def test_ai_provider_stream_accepts_non_stream_json_compatibility_response(monkeypatch):
-    from beresin.ai.provider import OpenAICompatibleProvider
+    from rapiin.ai.provider import OpenAICompatibleProvider
 
     class FakeResponse:
         status_code = 200
@@ -312,7 +312,7 @@ def test_ai_provider_stream_accepts_non_stream_json_compatibility_response(monke
         def __exit__(self, *_args): return False
         def stream(self, *_args, **_kwargs): return FakeResponse()
 
-    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
+    monkeypatch.setattr("rapiin.ai.provider.httpx.Client", FakeClient)
     deltas = []
     result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat_stream([], on_delta=deltas.append)
     assert result["message"]["content"] == "siap"
@@ -320,7 +320,7 @@ def test_ai_provider_stream_accepts_non_stream_json_compatibility_response(monke
 
 
 def test_ai_provider_empty_stream_falls_back_to_non_stream(monkeypatch):
-    from beresin.ai.provider import OpenAICompatibleProvider
+    from rapiin.ai.provider import OpenAICompatibleProvider
 
     class StreamResponse:
         status_code = 200
@@ -342,7 +342,7 @@ def test_ai_provider_empty_stream_falls_back_to_non_stream(monkeypatch):
         def stream(self, *_args, **_kwargs): return StreamResponse()
         def post(self, *_args, **_kwargs): return JsonResponse()
 
-    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
+    monkeypatch.setattr("rapiin.ai.provider.httpx.Client", FakeClient)
     deltas = []
     result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat_stream([], on_delta=deltas.append)
     assert result["message"]["content"] == "pulih"
@@ -350,7 +350,7 @@ def test_ai_provider_empty_stream_falls_back_to_non_stream(monkeypatch):
 
 
 def test_ai_provider_retries_invalid_success_payload(monkeypatch):
-    from beresin.ai.provider import OpenAICompatibleProvider
+    from rapiin.ai.provider import OpenAICompatibleProvider
 
     attempts = {"count": 0}
 
@@ -369,15 +369,15 @@ def test_ai_provider_retries_invalid_success_payload(monkeypatch):
         def __exit__(self, *_args): return False
         def post(self, *_args, **_kwargs): return FakeResponse()
 
-    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
-    monkeypatch.setattr("beresin.ai.provider.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("rapiin.ai.provider.httpx.Client", FakeClient)
+    monkeypatch.setattr("rapiin.ai.provider.time.sleep", lambda _seconds: None)
     result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat([])
     assert result["message"]["content"] == "siap"
     assert attempts["count"] == 2
 
 
 def test_ai_provider_retries_error_embedded_in_http_200_stream(monkeypatch):
-    from beresin.ai.provider import OpenAICompatibleProvider
+    from rapiin.ai.provider import OpenAICompatibleProvider
 
     attempts = {"count": 0}
 
@@ -398,8 +398,8 @@ def test_ai_provider_retries_error_embedded_in_http_200_stream(monkeypatch):
         def __exit__(self, *_args): return False
         def stream(self, *_args, **_kwargs): return FakeResponse()
 
-    monkeypatch.setattr("beresin.ai.provider.httpx.Client", FakeClient)
-    monkeypatch.setattr("beresin.ai.provider.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("rapiin.ai.provider.httpx.Client", FakeClient)
+    monkeypatch.setattr("rapiin.ai.provider.time.sleep", lambda _seconds: None)
     result = OpenAICompatibleProvider(base_url="http://provider", api_key="x").chat_stream([])
     assert result["message"]["content"] == "siap"
     assert attempts["count"] == 2
@@ -411,8 +411,8 @@ def test_recommendation_apply_uses_owned_task_snapshot(client):
         "device_name": "PC", "os": "Test", "agent_version": "1.0",
     }).json()
     token = body["token"]
-    from beresin.database import db_session
-    from beresin.tasks import create_task, update_task
+    from rapiin.database import db_session
+    from rapiin.tasks import create_task, update_task
     snapshot = {"tool_events": [{"tool": "folder_organizer", "status": "OK", "result": {
         "directory": "/device/Downloads", "recommendations": [{
             "id": "by-type", "kind": "create_folders_by_type", "apply": {
@@ -442,8 +442,8 @@ def test_recommendation_apply_accepts_device_agent_result_shape(client):
         "email": "device-snapshot@example.com", "name": "Device Snapshot", "password": "Password123!",
         "device_name": "PC", "os": "Test", "agent_version": "1.0",
     }).json()
-    from beresin.database import db_session
-    from beresin.tasks import create_task, update_task
+    from rapiin.database import db_session
+    from rapiin.tasks import create_task, update_task
     snapshot = {"tool_result": {
         "status": "OK", "directory": "/device/Downloads", "recommendations": [{
             "id": "by-year", "kind": "group_by_year", "apply": {
@@ -471,10 +471,10 @@ def test_expired_and_tampered_approval_snapshots_are_rejected(client):
         "email": "approval-snapshot@example.com", "name": "Approval", "password": "Password123!",
         "device_name": "PC", "os": "Test", "agent_version": "1.0",
     }).json()
-    from beresin.approval import create_approval, respond_approval
-    from beresin.database import db_session
+    from rapiin.approval import create_approval, respond_approval
+    from rapiin.database import db_session
     with db_session() as conn:
-        expired = create_approval(conn, task_id=None, user_id=body["user_id"], requested_by="BERESIN",
+        expired = create_approval(conn, task_id=None, user_id=body["user_id"], requested_by="RAPIIN",
                                   kind="USER", action="delete", tool_name="file_delete", tool_args={"paths": ["a"]})
         conn.execute("UPDATE approvals SET expires_at='2000-01-01T00:00:00+00:00' WHERE id=?", (expired,))
         try:
@@ -484,7 +484,7 @@ def test_expired_and_tampered_approval_snapshots_are_rejected(client):
         except ValueError as exc:
             assert "kedaluwarsa" in str(exc)
     with db_session() as conn:
-        tampered = create_approval(conn, task_id=None, user_id=body["user_id"], requested_by="BERESIN",
+        tampered = create_approval(conn, task_id=None, user_id=body["user_id"], requested_by="RAPIIN",
                                    kind="USER", action="delete", tool_name="file_delete", tool_args={"paths": ["a"]})
         conn.execute("UPDATE approvals SET tool_args=? WHERE id=?", (json.dumps({"paths": ["evil"]}), tampered))
         try:
@@ -497,7 +497,7 @@ def test_expired_and_tampered_approval_snapshots_are_rejected(client):
 
 def test_device_wait_budget_supports_large_folder_scans():
     """A healthy leased agent may need over a minute for a large folder."""
-    from beresin.agent_jobs import LEASE_SECONDS, WAIT_BUDGET_SECONDS
+    from rapiin.agent_jobs import LEASE_SECONDS, WAIT_BUDGET_SECONDS
 
     assert WAIT_BUDGET_SECONDS >= 120
     assert WAIT_BUDGET_SECONDS > LEASE_SECONDS

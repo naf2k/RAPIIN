@@ -39,7 +39,7 @@ def test_login_wrong_password(client):
 def test_supervisor_seeded_and_login(client):
     login = client.post(
         "/api/auth/login",
-        json={"email": "supervisor@beresin.example.com", "password": "Supervisor123!"},
+        json={"email": "supervisor@rapiin.example.com", "password": "Supervisor123!"},
     )
     assert login.status_code == 200, login.text
     assert login.json()["role"] == "SUPERVISOR"
@@ -58,7 +58,7 @@ def test_user_cannot_access_supervisor_api(client):
 def test_supervisor_overview(client):
     login = client.post(
         "/api/auth/login",
-        json={"email": "supervisor@beresin.example.com", "password": "Supervisor123!"},
+        json={"email": "supervisor@rapiin.example.com", "password": "Supervisor123!"},
     )
     token = login.json()["token"]
     resp = client.get("/api/supervisor/overview", headers={"Authorization": f"Bearer {token}"})

@@ -10,8 +10,8 @@ AGENT_ROOT = Path(__file__).resolve().parents[2] / "agent"
 if str(AGENT_ROOT) not in sys.path:
     sys.path.insert(0, str(AGENT_ROOT))
 
-from beresin_agent import config as agent_config  # noqa: E402
-from beresin_agent.local_tools import run_tool  # noqa: E402
+from rapiin_agent import config as agent_config  # noqa: E402
+from rapiin_agent.local_tools import run_tool  # noqa: E402
 
 
 def test_recommend_review_approve_execute_verify_end_to_end(client, tmp_path, monkeypatch):
@@ -35,8 +35,8 @@ def test_recommend_review_approve_execute_verify_end_to_end(client, tmp_path, mo
     assert organizer_result["status"] == "OK"
     recommendation = next(item for item in organizer_result["recommendations"] if item["id"] == "by-type")
 
-    from beresin.database import db_session
-    from beresin.tasks import create_task, update_task
+    from rapiin.database import db_session
+    from rapiin.tasks import create_task, update_task
     with db_session() as conn:
         source_task_id = create_task(conn, user_id=registration["user_id"], device_id=paired["device_id"], type="chat")
         update_task(conn, source_task_id, status="COMPLETED", completed=True, result={

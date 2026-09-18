@@ -1,8 +1,8 @@
-from beresin.database import SCHEMA
+from rapiin.database import SCHEMA
 
 
 def test_postgres_schema_removes_sqlite_only_constructs():
-    from beresin.postgres_support import postgres_schema
+    from rapiin.postgres_support import postgres_schema
 
     schema = postgres_schema(SCHEMA)
     assert "PRAGMA" not in schema
@@ -12,7 +12,7 @@ def test_postgres_schema_removes_sqlite_only_constructs():
 
 
 def test_qmark_translation_preserves_string_literals():
-    from beresin.postgres_support import escape_literal_percents, translate_qmarks
+    from rapiin.postgres_support import escape_literal_percents, translate_qmarks
 
     assert translate_qmarks("SELECT * FROM users WHERE id=? AND note='why?' AND email=?") == (
         "SELECT * FROM users WHERE id=%s AND note='why?' AND email=%s"

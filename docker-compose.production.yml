@@ -2,13 +2,13 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: beresin
-      POSTGRES_USER: beresin
-      POSTGRES_PASSWORD: ${BERESIN_POSTGRES_PASSWORD:?Set BERESIN_POSTGRES_PASSWORD}
+      POSTGRES_DB: rapiin
+      POSTGRES_USER: rapiin
+      POSTGRES_PASSWORD: ${RAPIIN_POSTGRES_PASSWORD:?Set RAPIIN_POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U beresin -d beresin"]
+      test: ["CMD-SHELL", "pg_isready -U rapiin -d rapiin"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -20,13 +20,13 @@ services:
 
   redis:
     image: redis:7.4-alpine
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${BERESIN_REDIS_PASSWORD:?Set BERESIN_REDIS_PASSWORD}"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${RAPIIN_REDIS_PASSWORD:?Set RAPIIN_REDIS_PASSWORD}"]
     environment:
-      BERESIN_REDIS_PASSWORD: ${BERESIN_REDIS_PASSWORD:?Set BERESIN_REDIS_PASSWORD}
+      RAPIIN_REDIS_PASSWORD: ${RAPIIN_REDIS_PASSWORD:?Set RAPIIN_REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$$BERESIN_REDIS_PASSWORD\" ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$RAPIIN_REDIS_PASSWORD\" ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -36,28 +36,28 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "5"}
 
-  beresin:
+  rapiin:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
-      BERESIN_DATA_DIR: /app/server/data
-      BERESIN_ENV: production
-      BERESIN_ALLOW_PUBLIC_REGISTRATION: "false"
-      BERESIN_HOST: 0.0.0.0
-      BERESIN_ALLOWED_ORIGINS: https://${BERESIN_DOMAIN:?Set BERESIN_DOMAIN}
-      BERESIN_INIT_SUPERVISOR_EMAIL: ${BERESIN_INIT_SUPERVISOR_EMAIL:?Set supervisor email}
-      BERESIN_SECRET_KEY_FILE: /run/secrets/beresin_secret_key
-      BERESIN_INIT_SUPERVISOR_PASSWORD_FILE: /run/secrets/supervisor_password
-      BERESIN_MONITORING_TOKEN_FILE: /run/secrets/monitoring_token
+      RAPIIN_DATA_DIR: /app/server/data
+      RAPIIN_ENV: production
+      RAPIIN_ALLOW_PUBLIC_REGISTRATION: "false"
+      RAPIIN_HOST: 0.0.0.0
+      RAPIIN_ALLOWED_ORIGINS: https://${RAPIIN_DOMAIN:?Set RAPIIN_DOMAIN}
+      RAPIIN_INIT_SUPERVISOR_EMAIL: ${RAPIIN_INIT_SUPERVISOR_EMAIL:?Set supervisor email}
+      RAPIIN_SECRET_KEY_FILE: /run/secrets/rapiin_secret_key
+      RAPIIN_INIT_SUPERVISOR_PASSWORD_FILE: /run/secrets/supervisor_password
+      RAPIIN_MONITORING_TOKEN_FILE: /run/secrets/monitoring_token
       AI_API_KEY_FILE: /run/secrets/ai_api_key
       AI_BASE_URL: ${AI_BASE_URL:?Set HTTPS or private AI provider URL}
       AI_MODEL: ${AI_MODEL:-ai-rapiin}
       # Same PostgreSQL/Redis topology the local pilot and the test suite were
-      # verified against; BERESIN_DB_PATH stays as the SQLite fallback used
-      # when BERESIN_DATABASE_URL is empty.
-      BERESIN_DATABASE_URL: postgresql://beresin:${BERESIN_POSTGRES_PASSWORD}@postgres:5432/beresin
-      BERESIN_REDIS_URL: redis://:${BERESIN_REDIS_PASSWORD}@redis:6379/0
+      # verified against; RAPIIN_DB_PATH stays as the SQLite fallback used
+      # when RAPIIN_DATABASE_URL is empty.
+      RAPIIN_DATABASE_URL: postgresql://rapiin:${RAPIIN_POSTGRES_PASSWORD}@postgres:5432/rapiin
+      RAPIIN_REDIS_URL: redis://:${RAPIIN_REDIS_PASSWORD}@redis:6379/0
       # AI Operations agents need the pinned official Hermes runtime, which is
       # not part of this image. Leave disabled until Hermes is provisioned and
       # the sandbox question is settled: the Coder refuses to run without an OS
@@ -65,9 +65,9 @@ services:
       OPS_AGENTS_ENABLED: "false"
     expose: ["8000"]
     volumes:
-      - beresin_data:/app/server/data
+      - rapiin_data:/app/server/data
     secrets:
-      - beresin_secret_key
+      - rapiin_secret_key
       - supervisor_password
       - monitoring_token
       - ai_api_key
@@ -90,18 +90,18 @@ services:
       context: .
       dockerfile: Dockerfile
     # Separate queue worker: a long conversation job must not block the API.
-    command: [".venv/bin/python", "-m", "beresin.worker"]
+    command: [".venv/bin/python", "-m", "rapiin.worker"]
     environment:
-      BERESIN_DATA_DIR: /app/server/data
-      BERESIN_ENV: production
-      BERESIN_SECRET_KEY_FILE: /run/secrets/beresin_secret_key
+      RAPIIN_DATA_DIR: /app/server/data
+      RAPIIN_ENV: production
+      RAPIIN_SECRET_KEY_FILE: /run/secrets/rapiin_secret_key
       AI_API_KEY_FILE: /run/secrets/ai_api_key
       AI_BASE_URL: ${AI_BASE_URL:?Set HTTPS or private AI provider URL}
       AI_MODEL: ${AI_MODEL:-ai-rapiin}
-      BERESIN_DATABASE_URL: postgresql://beresin:${BERESIN_POSTGRES_PASSWORD}@postgres:5432/beresin
-      BERESIN_REDIS_URL: redis://:${BERESIN_REDIS_PASSWORD}@redis:6379/0
+      RAPIIN_DATABASE_URL: postgresql://rapiin:${RAPIIN_POSTGRES_PASSWORD}@postgres:5432/rapiin
+      RAPIIN_REDIS_URL: redis://:${RAPIIN_REDIS_PASSWORD}@redis:6379/0
     secrets:
-      - beresin_secret_key
+      - rapiin_secret_key
       - ai_api_key
     depends_on:
       postgres:
@@ -120,13 +120,13 @@ services:
   caddy:
     image: caddy:2.10-alpine
     environment:
-      BERESIN_DOMAIN: ${BERESIN_DOMAIN:?Set BERESIN_DOMAIN}
+      RAPIIN_DOMAIN: ${RAPIIN_DOMAIN:?Set RAPIIN_DOMAIN}
     ports: ["80:80", "443:443"]
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on: [beresin]
+    depends_on: [rapiin]
     restart: unless-stopped
     cap_drop: ["ALL"]
     cap_add: ["NET_BIND_SERVICE"]
@@ -141,21 +141,21 @@ services:
       - prometheus_data:/prometheus
     secrets: [monitoring_token]
     ports: ["127.0.0.1:9090:9090"]
-    depends_on: [beresin]
+    depends_on: [rapiin]
     restart: unless-stopped
 
 secrets:
-  beresin_secret_key:
-    file: ${BERESIN_SECRETS_DIR:?Set protected secrets directory}/beresin_secret_key
+  rapiin_secret_key:
+    file: ${RAPIIN_SECRETS_DIR:?Set protected secrets directory}/rapiin_secret_key
   supervisor_password:
-    file: ${BERESIN_SECRETS_DIR:?Set protected secrets directory}/supervisor_password
+    file: ${RAPIIN_SECRETS_DIR:?Set protected secrets directory}/supervisor_password
   monitoring_token:
-    file: ${BERESIN_SECRETS_DIR:?Set protected secrets directory}/monitoring_token
+    file: ${RAPIIN_SECRETS_DIR:?Set protected secrets directory}/monitoring_token
   ai_api_key:
-    file: ${BERESIN_SECRETS_DIR:?Set protected secrets directory}/ai_api_key
+    file: ${RAPIIN_SECRETS_DIR:?Set protected secrets directory}/ai_api_key
 
 volumes:
-  beresin_data:
+  rapiin_data:
   postgres_data:
   redis_data:
   caddy_data:

@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from beresin.database import connect, utcnow_iso
-from beresin.ops_incidents import create_proposal, ingest_signal, respond_approval, seed_ops
-from beresin.ops_notifications import deliver_pending
-from beresin.ops_runtime import _daily_budget_available, dispatch_incident, read_usage_report, recover_expired_assignments
-from beresin.ops_workflows import REPO_ROOT, _latest_checks_passed, _sandbox_profile, cancel_code_change, cleanup_code_worktree, deploy, provision_worktree, run_checks, run_coder
+from rapiin.database import connect, utcnow_iso
+from rapiin.ops_incidents import create_proposal, ingest_signal, respond_approval, seed_ops
+from rapiin.ops_notifications import deliver_pending
+from rapiin.ops_runtime import _daily_budget_available, dispatch_incident, read_usage_report, recover_expired_assignments
+from rapiin.ops_workflows import REPO_ROOT, _latest_checks_passed, _sandbox_profile, cancel_code_change, cleanup_code_worktree, deploy, provision_worktree, run_checks, run_coder
 
 
 def test_read_usage_report_supports_official_hermes_fields(tmp_path):
@@ -31,8 +31,8 @@ def test_daily_budget_fails_closed_at_estimated_cost_limit(monkeypatch):
         "INSERT INTO ops_agent_usage(agent_id,estimated_cost_usd,status,created_at) VALUES(?,?,'SUCCEEDED',?)",
         (agent["id"], 2.0, utcnow_iso()),
     )
-    monkeypatch.setattr("beresin.ops_runtime.settings.ops_agent_daily_run_limit", 100)
-    monkeypatch.setattr("beresin.ops_runtime.settings.ops_agent_daily_cost_limit_usd", 2.0)
+    monkeypatch.setattr("rapiin.ops_runtime.settings.ops_agent_daily_run_limit", 100)
+    monkeypatch.setattr("rapiin.ops_runtime.settings.ops_agent_daily_cost_limit_usd", 2.0)
     assert not _daily_budget_available(conn)
     conn.close()
 
@@ -44,9 +44,9 @@ def test_monthly_budget_fails_closed(monkeypatch):
         "INSERT INTO ops_agent_usage(agent_id,estimated_cost_usd,status,created_at) VALUES(?,?,'SUCCEEDED',?)",
         (agent["id"], 101.0, utcnow_iso()),
     )
-    monkeypatch.setattr("beresin.ops_runtime.settings.ops_agent_daily_run_limit", 100)
-    monkeypatch.setattr("beresin.ops_runtime.settings.ops_agent_daily_cost_limit_usd", 200.0)
-    monkeypatch.setattr("beresin.ops_runtime.settings.ops_agent_monthly_cost_limit_usd", 100.0)
+    monkeypatch.setattr("rapiin.ops_runtime.settings.ops_agent_daily_run_limit", 100)
+    monkeypatch.setattr("rapiin.ops_runtime.settings.ops_agent_daily_cost_limit_usd", 200.0)
+    monkeypatch.setattr("rapiin.ops_runtime.settings.ops_agent_monthly_cost_limit_usd", 100.0)
     assert not _daily_budget_available(conn)
     conn.close()
 
@@ -57,7 +57,7 @@ def _actor(conn):
 
 def test_operations_repo_root_points_to_checkout():
     assert (REPO_ROOT / ".git").exists()
-    assert (REPO_ROOT / "server" / "beresin").is_dir()
+    assert (REPO_ROOT / "server" / "rapiin").is_dir()
 
 
 def test_coder_sandbox_denies_home_reads_except_assigned_scopes(tmp_path):
@@ -72,7 +72,7 @@ def test_coder_sandbox_denies_home_reads_except_assigned_scopes(tmp_path):
 
 def test_coder_review_marks_new_files_as_intent_to_add(tmp_path, monkeypatch):
     # The exact command is a safety regression: untracked Coder output must be visible in review.
-    source = (REPO_ROOT / "server" / "beresin" / "ops_workflows.py").read_text()
+    source = (REPO_ROOT / "server" / "rapiin" / "ops_workflows.py").read_text()
     assert '_run(["git", "add", "-N", "."], worktree)' in source
 
 
@@ -84,7 +84,7 @@ def test_check_runner_records_launch_failure_instead_of_leaving_running(tmp_path
         "VALUES(?,?,?,?,?,'READY_FOR_REVIEW',?,?)",
         (incident["id"], approval["approval_id"], "ops/test-check", str(tmp_path), "base", now, now),
     ).lastrowid
-    monkeypatch.setattr("beresin.ops_workflows._run", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing")))
+    monkeypatch.setattr("rapiin.ops_workflows._run", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("missing")))
     results = run_checks(conn, change_id)
     assert results[0]["status"] == "FAILED"
     row = conn.execute("SELECT status,finished_at FROM ops_check_runs WHERE code_change_id=?", (change_id,)).fetchone()
@@ -160,8 +160,8 @@ def test_expired_assignment_is_recovered_once_then_cancelled():
 
 
 def test_ops_tick_retries_only_incident_missing_a_completed_role(monkeypatch):
-    from beresin.config import settings
-    from beresin.main import _ops_tick
+    from rapiin.config import settings
+    from rapiin.main import _ops_tick
     conn = connect(); seed_ops(conn)
     incident = ingest_signal(conn, source="runtime", title="Partial role failure", severity="LOW")
     # PostgreSQL integration mode enables Redis. Seed the worker liveness row
@@ -177,13 +177,13 @@ def test_ops_tick_retries_only_incident_missing_a_completed_role(monkeypatch):
     conn.commit(); conn.close()
     dispatched = []
     monkeypatch.setattr(settings, "ops_agents_enabled", True)
-    monkeypatch.setattr("beresin.ops_runtime.dispatch_incident", lambda conn, incident_id: dispatched.append(incident_id) or [])
+    monkeypatch.setattr("rapiin.ops_runtime.dispatch_incident", lambda conn, incident_id: dispatched.append(incident_id) or [])
     _ops_tick()
     assert dispatched == [incident["id"]]
 
 
 def test_telegram_failure_falls_back_to_database(monkeypatch):
-    from beresin.config import settings
+    from rapiin.config import settings
     monkeypatch.setattr(settings, "ops_telegram_bot_token", "fake")
     monkeypatch.setattr(settings, "ops_telegram_chat_id", "123")
     def fail(*args, **kwargs):
@@ -205,7 +205,7 @@ def test_coder_requires_approval_and_stays_in_worktree(tmp_path, monkeypatch):
     subprocess.run(["git", "config", "user.name", "Ops Test"], cwd=repo, check=True)
     (repo / "app.txt").write_text("before\n")
     subprocess.run(["git", "add", "."], cwd=repo, check=True); subprocess.run(["git", "commit", "-m", "base"], cwd=repo, check=True, capture_output=True)
-    from beresin.config import settings
+    from rapiin.config import settings
     monkeypatch.setattr(settings, "ops_worktree_root", str(tmp_path / "worktrees"))
     conn = connect(); incident = ingest_signal(conn, source="code", title="Bug", severity="HIGH")
     try:
@@ -234,7 +234,7 @@ def test_cancelled_clean_worktree_can_be_removed_without_deleting_branch(tmp_pat
     (repo / "app.txt").write_text("before\n")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-m", "base"], cwd=repo, check=True, capture_output=True)
-    from beresin.config import settings
+    from rapiin.config import settings
     monkeypatch.setattr(settings, "ops_worktree_root", str(tmp_path / "worktrees"))
     conn = connect(); incident, approval = _incident_and_approval(conn)
     change = provision_worktree(conn, incident["id"], approval["approval_id"], repo_root=repo)
@@ -279,7 +279,7 @@ def test_dispatch_defers_assignments_when_capacity_is_full():
     "Batas concurrency" and aborted the whole tick; now it must leave the
     incident's assignments PENDING so a later tick can resume them.
     """
-    from beresin.ops_runtime import resume_pending_assignments
+    from rapiin.ops_runtime import resume_pending_assignments
     conn = connect(); seed_ops(conn)
     blocker = ingest_signal(conn, source="runtime", title="Blocker", severity="LOW")
     agent = conn.execute("SELECT id FROM ops_agents WHERE role='LEAD'").fetchone()
@@ -307,15 +307,15 @@ def test_dispatch_defers_assignments_when_capacity_is_full():
 
 
 def test_ops_cli_module_entrypoint_emits_report(monkeypatch, capsys):
-    """`python -m beresin.ops_cli verify` must run, not silently no-op."""
+    """`python -m rapiin.ops_cli verify` must run, not silently no-op."""
     import inspect
-    from beresin import ops_cli
+    from rapiin import ops_cli
     monkeypatch.setattr(ops_cli, "readiness", lambda: {"ready": True, "checks": {}})
-    monkeypatch.setattr("sys.argv", ["beresin-ops", "verify"])
+    monkeypatch.setattr("sys.argv", ["rapiin-ops", "verify"])
     assert ops_cli.main() == 0
     report = json.loads(capsys.readouterr().out)
     assert report["ready"] is True
-    # Regression guard: without this block `python -m beresin.ops_cli` exits
+    # Regression guard: without this block `python -m rapiin.ops_cli` exits
     # silently with code 0 and no report.
     assert 'if __name__ == "__main__":' in inspect.getsource(ops_cli)
 
@@ -327,10 +327,10 @@ def test_coder_refuses_to_run_without_an_os_sandbox(monkeypatch):
     to run with full access to the host instead of being confined to its
     worktree. A missing sandbox must be a hard failure, not a silent downgrade.
     """
-    from beresin.config import settings
-    from beresin.ops_workflows import _sandboxed
+    from rapiin.config import settings
+    from rapiin.ops_workflows import _sandboxed
 
-    monkeypatch.setattr("beresin.ops_workflows.shutil.which", lambda _name: None)
+    monkeypatch.setattr("rapiin.ops_workflows.shutil.which", lambda _name: None)
     monkeypatch.setattr(settings, "ops_coder_allow_unsandboxed", False)
     with pytest.raises(RuntimeError, match="sandbox"):
         _sandboxed(["hermes", "-z", "prompt"], Path("/tmp/worktree"), "hermes")
@@ -340,9 +340,9 @@ def test_coder_refuses_to_run_without_an_os_sandbox(monkeypatch):
 
 
 def test_coder_is_wrapped_by_sandbox_exec_when_available(monkeypatch, tmp_path):
-    from beresin.ops_workflows import _sandboxed
+    from rapiin.ops_workflows import _sandboxed
 
-    monkeypatch.setattr("beresin.ops_workflows.shutil.which", lambda _name: "/usr/bin/sandbox-exec")
+    monkeypatch.setattr("rapiin.ops_workflows.shutil.which", lambda _name: "/usr/bin/sandbox-exec")
     wrapped = _sandboxed(["hermes", "-z", "prompt"], tmp_path, "hermes")
     assert wrapped[0] == "sandbox-exec"
     assert wrapped[1] == "-p"

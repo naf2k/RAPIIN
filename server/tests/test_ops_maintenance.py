@@ -1,9 +1,9 @@
 import json
 
-from beresin.database import connect, utcnow_iso
-from beresin.ops_incidents import create_proposal, ingest_signal, seed_ops
-from beresin.ops_maintenance import apply_ops_retention, queue_approval_reminders
-from beresin.ops_runtime import provider_circuit_open
+from rapiin.database import connect, utcnow_iso
+from rapiin.ops_incidents import create_proposal, ingest_signal, seed_ops
+from rapiin.ops_maintenance import apply_ops_retention, queue_approval_reminders
+from rapiin.ops_runtime import provider_circuit_open
 
 
 def _actor(conn):
@@ -38,7 +38,7 @@ def test_retention_minimizes_payload_but_keeps_hash():
 
 
 def test_provider_circuit_breaker_opens_after_bounded_failures(monkeypatch):
-    from beresin.config import settings
+    from rapiin.config import settings
     conn = connect(); seed_ops(conn)
     agent = conn.execute("SELECT id FROM ops_agents WHERE role='LEAD'").fetchone()
     monkeypatch.setattr(settings, "ops_agent_failure_threshold", 2)

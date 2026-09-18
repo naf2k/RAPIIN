@@ -1,6 +1,6 @@
 import urllib.parse
 
-from beresin.ops_notifications import telegram_message
+from rapiin.ops_notifications import telegram_message
 
 
 def test_telegram_message_is_clear_for_nontechnical_owner():
@@ -12,7 +12,7 @@ def test_telegram_message_is_clear_for_nontechnical_owner():
             "title": "Desktop agent offline",
             "summary": "Satu komputer tidak mengirim kabar ke server.",
         },
-        "https://beresin.example.com/supervisor/operations.html?incident=42",
+        "https://rapiin.example.com/supervisor/operations.html?incident=42",
     )
     for heading in (
         "Apa yang terjadi?",
@@ -30,7 +30,7 @@ def test_telegram_message_is_clear_for_nontechnical_owner():
 def test_approval_notification_explains_owner_choice_and_safety():
     message = telegram_message(
         {"severity": "CRITICAL", "status": "AWAITING_APPROVAL", "title": "Perbaikan tersedia", "summary": "Perlu keputusan owner."},
-        "https://beresin.example.com/review",
+        "https://rapiin.example.com/review",
     )
     assert "pilih Setujui atau Tolak" in message
     assert "tidak akan menjalankan tindakan berisiko tanpa persetujuan" in message
@@ -38,8 +38,8 @@ def test_approval_notification_explains_owner_choice_and_safety():
 
 
 def test_notification_payload_contains_friendly_copy(monkeypatch):
-    from beresin.config import settings
-    from beresin.ops_notifications import notify_owner
+    from rapiin.config import settings
+    from rapiin.ops_notifications import notify_owner
 
     monkeypatch.setattr(settings, "ops_telegram_bot_token", "fake-token")
     monkeypatch.setattr(settings, "ops_telegram_chat_id", "123")
@@ -70,7 +70,7 @@ def test_deliver_pending_closes_transaction_before_network_call(monkeypatch):
     connection and aborted the monitor tick (observed as a 282s tick stall and
     a `FATAL: terminating connection due to idle-in-transaction timeout`).
     """
-    from beresin.ops_notifications import deliver_pending
+    from rapiin.ops_notifications import deliver_pending
 
     events = []
 
@@ -94,7 +94,7 @@ def test_deliver_pending_closes_transaction_before_network_call(monkeypatch):
         events.append("network")
         return {"status": "SENT"}
 
-    monkeypatch.setattr("beresin.ops_notifications.notify_owner", fake_notify)
+    monkeypatch.setattr("rapiin.ops_notifications.notify_owner", fake_notify)
     results = deliver_pending(Conn())
     assert results and results[0]["status"] == "SENT"
     assert events.index("commit") < events.index("network"), "transaction must be closed before the network call"

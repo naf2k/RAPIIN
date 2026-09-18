@@ -14,13 +14,13 @@ from pathlib import Path
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("backup_dir", type=Path)
-    parser.add_argument("--database-url", default=os.getenv("BERESIN_DATABASE_URL", ""))
+    parser.add_argument("--database-url", default=os.getenv("RAPIIN_DATABASE_URL", ""))
     args = parser.parse_args()
     if not args.database_url.startswith(("postgresql://", "postgres://")):
-        raise SystemExit("BERESIN_DATABASE_URL PostgreSQL wajib dikonfigurasi.")
+        raise SystemExit("RAPIIN_DATABASE_URL PostgreSQL wajib dikonfigurasi.")
     args.backup_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    target = args.backup_dir / f"beresin-postgres-{stamp}.dump"
+    target = args.backup_dir / f"rapiin-postgres-{stamp}.dump"
     pg_dump = shutil.which("pg_dump") or next((str(path) for path in (Path("/usr/local/bin/pg_dump"), Path("/opt/homebrew/bin/pg_dump")) if path.is_file()), "")
     if not pg_dump:
         raise SystemExit("pg_dump tidak ditemukan.")

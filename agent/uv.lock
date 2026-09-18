@@ -26,40 +26,6 @@ wheels = [
 ]
 
 [[package]]
-name = "beresin-agent"
-version = "1.0.0"
-source = { editable = "." }
-dependencies = [
-    { name = "cryptography" },
-    { name = "httpx" },
-    { name = "keyring" },
-    { name = "openpyxl" },
-    { name = "pillow" },
-    { name = "pypdf" },
-    { name = "python-docx" },
-    { name = "python-pptx" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cryptography", specifier = ">=42.0" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "keyring", specifier = ">=25.0" },
-    { name = "openpyxl", specifier = ">=3.1" },
-    { name = "pillow", specifier = ">=10.0" },
-    { name = "pypdf", specifier = ">=4.2" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
-    { name = "python-docx", specifier = ">=1.1" },
-    { name = "python-pptx", specifier = ">=0.6.23" },
-]
-provides-extras = ["dev"]
-
-[[package]]
 name = "certifi"
 version = "2026.7.22"
 source = { registry = "https://pypi.org/simple" }
@@ -766,6 +732,40 @@ sdist = { url = "https://files.pythonhosted.org/packages/85/9f/01a1a99704853cb63
 wheels = [
     { url = "https://files.pythonhosted.org/packages/de/3d/8161f7711c017e01ac9f008dfddd9410dff3674334c233bde66e7ba65bbf/pywin32_ctypes-0.2.3-py3-none-any.whl", hash = "sha256:8a1513379d709975552d202d942d9837758905c8d01eb82b8bcc30918929e7b8", size = 30756, upload-time = "2024-08-14T10:15:33.187Z" },
 ]
+
+[[package]]
+name = "rapiin-agent"
+version = "1.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "cryptography" },
+    { name = "httpx" },
+    { name = "keyring" },
+    { name = "openpyxl" },
+    { name = "pillow" },
+    { name = "pypdf" },
+    { name = "python-docx" },
+    { name = "python-pptx" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cryptography", specifier = ">=42.0" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "keyring", specifier = ">=25.0" },
+    { name = "openpyxl", specifier = ">=3.1" },
+    { name = "pillow", specifier = ">=10.0" },
+    { name = "pypdf", specifier = ">=4.2" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
+    { name = "python-docx", specifier = ">=1.1" },
+    { name = "python-pptx", specifier = ">=0.6.23" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "secretstorage"

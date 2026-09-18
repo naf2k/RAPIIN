@@ -16,7 +16,7 @@ def main() -> int:
     source = args.database.resolve(strict=True)
     args.backup_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    target = (args.backup_dir / f"beresin-{stamp}.db").resolve()
+    target = (args.backup_dir / f"rapiin-{stamp}.db").resolve()
     try:
         # WAL databases need a normal connection so SQLite can coordinate the
         # shared-memory file while taking a transactionally consistent backup.

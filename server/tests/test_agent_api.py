@@ -1,7 +1,7 @@
 """Tests for the Desktop Agent job queue API."""
 import json
 
-from beresin.security import hash_token
+from rapiin.security import hash_token
 
 
 def _register_user_with_key(client, email):
@@ -25,8 +25,8 @@ def test_agent_poll_and_result_flow(client):
     """A desktop agent claims and completes a queued job."""
     device_key, device_id = _register_user_with_key(client, "agent1@example.com")
 
-    from beresin.agent_jobs import enqueue_job
-    from beresin.database import db_session
+    from rapiin.agent_jobs import enqueue_job
+    from rapiin.database import db_session
 
     with db_session() as conn:
         user_id = conn.execute("SELECT id FROM users WHERE email = 'agent1@example.com'").fetchone()["id"]
@@ -92,7 +92,7 @@ def test_agent_poll_synchronizes_workspace_root(client):
         },
     )
     assert response.status_code == 200, response.text
-    from beresin.database import db_session
+    from rapiin.database import db_session
     with db_session() as conn:
         stored = conn.execute("SELECT workspace_root FROM devices WHERE id = ?", (device_id,)).fetchone()
     assert stored["workspace_root"] == "/Users/example/Downloads"
@@ -110,7 +110,7 @@ def test_agent_poll_synchronizes_allowed_roots(client):
         },
     )
     assert response.status_code == 200
-    from beresin.database import db_session
+    from rapiin.database import db_session
     with db_session() as conn:
         stored = conn.execute("SELECT allowed_roots FROM devices WHERE id = ?", (device_id,)).fetchone()
     assert json.loads(stored["allowed_roots"]) == ["/Users/example/Downloads", "/Users/example/Documents"]
@@ -120,9 +120,9 @@ def test_agent_result_keeps_conversation_running_until_final_answer(client):
     """A tool result is not terminal until the AI loop stores its answer."""
     device_key, device_id = _register_user_with_key(client, "agent3@example.com")
 
-    from beresin.agent_jobs import enqueue_job
-    from beresin.database import db_session, utcnow_iso
-    from beresin.tasks import create_task, get_task
+    from rapiin.agent_jobs import enqueue_job
+    from rapiin.database import db_session, utcnow_iso
+    from rapiin.tasks import create_task, get_task
 
     with db_session() as conn:
         user_id = conn.execute("SELECT id FROM users WHERE email = 'agent3@example.com'").fetchone()["id"]

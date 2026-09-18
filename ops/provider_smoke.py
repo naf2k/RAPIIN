@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "server"))
 
 
 def main() -> int:
-    from beresin.config import settings
+    from rapiin.config import settings
 
     settings.validate_for_startup()
     parser = argparse.ArgumentParser()
@@ -23,7 +23,7 @@ def main() -> int:
     api_key = settings.ai_api_key
     if not args.base_url or not api_key:
         raise SystemExit("AI_BASE_URL and AI_API_KEY are required")
-    from beresin.ai.provider import OpenAICompatibleProvider
+    from rapiin.ai.provider import OpenAICompatibleProvider
     provider = OpenAICompatibleProvider(base_url=args.base_url, api_key=api_key, model=args.model)
     deltas: list[str] = []
     streamed = provider.chat_stream(

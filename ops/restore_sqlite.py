@@ -26,7 +26,7 @@ def main() -> int:
         required = {"users", "devices", "tasks", "audit_log"}
         if not required.issubset(tables):
             raise SystemExit(
-                "backup is not a BERESIN database; missing tables: "
+                "backup is not a RAPIIN database; missing tables: "
                 + ", ".join(sorted(required - tables))
             )
         with sqlite3.connect(destination) as dst:

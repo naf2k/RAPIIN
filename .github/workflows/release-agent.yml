@@ -3,7 +3,7 @@ name: Release Terminal Agent
 on:
   workflow_dispatch:
   push:
-    tags: ["agent-v*"]
+    tags: ["rapiin-v*"]
 
 permissions:
   contents: write
@@ -18,13 +18,13 @@ jobs:
           python-version: "3.13"
       - run: cd agent && uv build
       - run: |
-          python -m venv /tmp/beresin-release-test
-          /tmp/beresin-release-test/bin/pip install agent/dist/*.whl
-          /tmp/beresin-release-test/bin/beresin --help
+          python -m venv /tmp/rapiin-release-test
+          /tmp/rapiin-release-test/bin/pip install agent/dist/*.whl
+          /tmp/rapiin-release-test/bin/rapiin --help
       - run: python3 ops/checksums.py agent/dist --output agent/dist/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: beresin-agent-python
+          name: rapiin-agent-python
           path: |
             agent/dist/*.whl
             agent/dist/*.tar.gz
@@ -43,17 +43,17 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: cd agent && uv build
-      - run: uv tool install agent/dist/*.whl && beresin --help
+      - run: uv tool install agent/dist/*.whl && rapiin --help
         shell: bash
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/agent-v')
+    if: startsWith(github.ref, 'refs/tags/rapiin-v')
     needs: install-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: beresin-agent-python
+          name: rapiin-agent-python
           path: release
       - uses: softprops/action-gh-release@v2
         with:
