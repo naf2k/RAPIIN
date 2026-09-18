@@ -1,9 +1,9 @@
-# PRD — BERESIN
+# PRD — RAPIIN
 
 ## AI Work Assistant &amp; Intelligent Desktop Agent
 
 **Status:** Draft V1  
-**Product:** BERESIN  
+**Product:** RAPIIN  
 **AI Engine:** Hermes Agent (internal implementation)  
 **V1 AI Provider:** Configurable OpenAI-compatible AI provider  
 **Future AI Provider:** Self-hosted Local AI  
@@ -13,17 +13,17 @@
 
 ## 1. Product Overview
 
-BERESIN adalah AI work assistant yang memungkinkan pegawai mengelola pekerjaan digital melalui bahasa natural.
+RAPIIN adalah AI work assistant yang memungkinkan pegawai mengelola pekerjaan digital melalui bahasa natural.
 
 Prinsip utama:
 
-> **User cukup ngomong apa yang ingin dikerjakan. BERESIN memahami, merencanakan, meminta approval bila diperlukan, menjalankan pekerjaan, memverifikasi hasil, lalu menjelaskan hasil secara natural.**
+> **User cukup ngomong apa yang ingin dikerjakan. RAPIIN memahami, merencanakan, meminta approval bila diperlukan, menjalankan pekerjaan, memverifikasi hasil, lalu menjelaskan hasil secara natural.**
 
 Contoh:
 
-> “Beresin folder Downloads gue.”
+> “Rapiin folder Downloads gue.”
 
-BERESIN:
+RAPIIN:
 
 1. Scan folder.
 2. Membaca metadata dan isi file yang relevan.
@@ -35,15 +35,15 @@ BERESIN:
 8. Memverifikasi hasil.
 9. Melaporkan hasil.
 
-BERESIN bukan sekadar chatbot; ia adalah agent yang dapat memahami konteks, memilih tools, melakukan pekerjaan, dan memverifikasi hasil.
+RAPIIN bukan sekadar chatbot; ia adalah agent yang dapat memahami konteks, memilih tools, melakukan pekerjaan, dan memverifikasi hasil.
 
 ---
 
 ## 2. Product Vision
 
-> **Buka BERESIN → ngomong → BERESIN mengerjakan.**
+> **Buka RAPIIN → ngomong → RAPIIN mengerjakan.**
 
-BERESIN harus terasa natural, sederhana, aman, dan tidak membutuhkan user memahami teknologi AI.
+RAPIIN harus terasa natural, sederhana, aman, dan tidak membutuhkan user memahami teknologi AI.
 
 ---
 
@@ -51,7 +51,7 @@ BERESIN harus terasa natural, sederhana, aman, dan tidak membutuhkan user memaha
 
 ### Employee / User
 
-Pegawai yang menggunakan BERESIN untuk:
+Pegawai yang menggunakan RAPIIN untuk:
 
 - mengelola file;
 - mencari dokumen;
@@ -76,7 +76,7 @@ Supervisor dapat:
 - menangani approval tertentu;
 - melihat audit/activity;
 - melihat error;
-- berinteraksi dengan BERESIN melalui Supervisor Chat.
+- berinteraksi dengan RAPIIN melalui Supervisor Chat.
 
 ---
 
@@ -120,7 +120,7 @@ Contoh:
 # 5. System Architecture
 
 ```
-                         BERESIN
+                         RAPIIN
                     Product Interface
                            │
              ┌─────────────┴─────────────┐
@@ -160,7 +160,7 @@ Contoh:
 ### Prinsip arsitektur
 
 1. Hermes adalah engine di belakang layar.
-2. Produk yang dikenal user adalah BERESIN.
+2. Produk yang dikenal user adalah RAPIIN.
 3. Hermes Core harus provider-agnostic.
 4. User dan Supervisor memiliki interface/API domain berbeda.
 5. Core backend tetap menjadi sumber kebenaran bersama.
@@ -177,7 +177,7 @@ Contoh:
 
 ## 6.1 General Design Philosophy
 
-BERESIN harus memiliki interface yang **simple, clean, modern, dark, dan mudah dipahami oleh pengguna non-teknis**.
+RAPIIN harus memiliki interface yang **simple, clean, modern, dark, dan mudah dipahami oleh pengguna non-teknis**.
 
 Prioritas utama UI:
 
@@ -205,7 +205,7 @@ User tidak perlu memahami:
 
 User hanya perlu memahami:
 
-> **"Saya bicara dengan BERESIN, lalu BERESIN mengerjakan."**
+> **"Saya bicara dengan RAPIIN, lalu RAPIIN mengerjakan."**
 
 ---
 
@@ -221,7 +221,7 @@ Gunakan visual direction berikut:
 - Text utama menggunakan warna off-white.
 - Text sekunder menggunakan muted gray.
 - Border sangat subtle.
-- Gunakan satu accent color utama untuk identitas BERESIN.
+- Gunakan satu accent color utama untuk identitas RAPIIN.
 - Warna merah hanya untuk error/danger.
 - Warna kuning/oranye hanya untuk warning/attention.
 - Warna hijau hanya untuk success/healthy.
@@ -320,7 +320,7 @@ Jika sebuah informasi tidak penting untuk keputusan user/supervisor, jangan tamp
 
 User interface harus bersifat **chat-first**.
 
-User membuka BERESIN dan langsung melihat conversation interface.
+User membuka RAPIIN dan langsung melihat conversation interface.
 
 Tidak boleh membuat dashboard sebagai halaman utama user.
 
@@ -328,7 +328,7 @@ Tidak boleh membuat dashboard sebagai halaman utama user.
 
 ```text
 ┌──────────────────────────────────────────────────────┐
-│ BERESIN                                  ● Online    │
+│ RAPIIN                                  ● Online    │
 ├──────────────┬───────────────────────────────────────┤
 │              │                                       │
 │  + New Chat  │                                       │
@@ -344,7 +344,7 @@ Tidak boleh membuat dashboard sebagai halaman utama user.
 │              │                                       │
 │              │                                       │
 │              │ ┌───────────────────────────────────┐ │
-│              │ │ Ask BERESIN...                 ↑ │ │
+│              │ │ Ask RAPIIN...                 ↑ │ │
 │              │ └───────────────────────────────────┘ │
 │              │                                       │
 │ Settings     │                                       │
@@ -359,7 +359,7 @@ Sidebar harus minimal.
 Isi:
 
 ```text
-BERESIN
+RAPIIN
 
 + New Chat
 
@@ -394,12 +394,12 @@ User tidak boleh melihat navigation supervisor.
 Saat belum ada conversation:
 
 ```text
-              BERESIN
+              RAPIIN
 
        What can I help you with?
 
    ┌─────────────────────────────────┐
-   │ Ask BERESIN to do something... │
+   │ Ask RAPIIN to do something... │
    └─────────────────────────────────┘
 
 ```
@@ -430,7 +430,7 @@ Rapihin folder Downloads gue.
 
 ```
 
-BERESIN:
+RAPIIN:
 
 ```text
 Bisa. Gue cek dulu isi folder Downloads
@@ -470,7 +470,7 @@ Hal tersebut adalah internal information.
 
 # 6.7 Agent Working State
 
-Ketika BERESIN sedang bekerja, user harus mendapatkan feedback bahwa agent masih aktif.
+Ketika RAPIIN sedang bekerja, user harus mendapatkan feedback bahwa agent masih aktif.
 
 Contoh:
 
@@ -499,7 +499,7 @@ User harus tetap dapat melihat conversation.
 
 # 6.8 File Recommendation UI
 
-Ketika BERESIN menemukan rekomendasi, tampilkan dalam bentuk yang mudah dipahami.
+Ketika RAPIIN menemukan rekomendasi, tampilkan dalam bentuk yang mudah dipahami.
 
 Contoh:
 
@@ -624,7 +624,7 @@ PC-ANDI-01
 
 Startup
 ────────────────
-☑ Start BERESIN automatically
+☑ Start RAPIIN automatically
   when my computer starts
 
 Notifications
@@ -634,7 +634,7 @@ Notifications
 
 About
 ────────────────
-BERESIN version
+RAPIIN version
 
 ```
 
@@ -660,7 +660,7 @@ Tujuannya agar supervisor dapat memahami kondisi sistem dengan cepat.
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ BERESIN                                    Supervisor   👤  │
+│ RAPIIN                                    Supervisor   👤  │
 ├──────────────┬──────────────────────────────────────────────┤
 │              │                                              │
 │ Overview     │  Overview                                    │
@@ -692,7 +692,7 @@ Tujuannya agar supervisor dapat memahami kondisi sistem dengan cepat.
 Sidebar maksimal V1:
 
 ```text
-BERESIN
+RAPIIN
 
 Overview
 
@@ -944,13 +944,13 @@ Detail audit dapat dibuka ketika diperlukan.
 
 # 6.22 Supervisor Chat
 
-Supervisor memiliki access ke BERESIN melalui chat kecil/command interface.
+Supervisor memiliki access ke RAPIIN melalui chat kecil/command interface.
 
 Contoh:
 
 ```text
 ┌─────────────────────────────────────────┐
-│ Ask BERESIN...                       ↑ │
+│ Ask RAPIIN...                       ↑ │
 └─────────────────────────────────────────┘
 
 ```
@@ -965,7 +965,7 @@ Supervisor dapat bertanya:
 
 > "Kenapa task Dimas gagal?"
 
-BERESIN menggunakan data monitoring yang authorized.
+RAPIIN menggunakan data monitoring yang authorized.
 
 Supervisor Chat tidak boleh menjadi bypass permission.
 
@@ -1103,7 +1103,7 @@ Implementasi dianggap tidak sesuai apabila menghasilkan:
 
 ### Final Rule
 
-> **BERESIN harus terlihat sederhana ketika digunakan, walaupun sistem di belakangnya sangat kompleks.**
+> **RAPIIN harus terlihat sederhana ketika digunakan, walaupun sistem di belakangnya sangat kompleks.**
 
 Jika terdapat konflik antara menampilkan lebih banyak informasi dan menjaga kesederhanaan UI, prioritaskan **kesederhanaan dan readability**, lalu pindahkan informasi tambahan ke detail view.
 
@@ -1181,13 +1181,13 @@ Instalasi dilakukan melalui terminal.
 Contoh target:
 
 ```
-npm install -g beresin
+npm install -g rapiin
 ```
 
 Kemudian:
 
 ```
-beresin
+rapiin
 ```
 
 First-run:
@@ -1195,7 +1195,7 @@ First-run:
 ```
 Install
   ↓
-Run BERESIN
+Run RAPIIN
   ↓
 Login
   ↓
@@ -1216,7 +1216,7 @@ Feedback CLI:
 ✓ Account authenticated
 ✓ Device registered
 ✓ Secure connection established
-✓ BERESIN Agent ready
+✓ RAPIIN Agent ready
 ```
 
 ---
@@ -1228,7 +1228,7 @@ Feedback CLI:
 User menjalankan:
 
 ```
-beresin
+rapiin
 ```
 
 Agent aktif secara manual dan tidak otomatis berjalan saat PC boot.
@@ -1237,7 +1237,7 @@ Agent aktif secara manual dan tidak otomatis berjalan saat PC boot.
 
 User memilih:
 
-> Start BERESIN automatically when my computer starts
+> Start RAPIIN automatically when my computer starts
 
 Agent didaftarkan sebagai background service/startup mechanism sesuai OS.
 
@@ -1248,7 +1248,7 @@ PC ON
  ↓
 OS starts
  ↓
-BERESIN Agent starts
+RAPIIN Agent starts
  ↓
 Secure reconnect
  ↓
@@ -1332,7 +1332,7 @@ Natural Reply      Planning
 
 # 13. File Intelligence
 
-BERESIN harus memahami file lebih dari filename.
+RAPIIN harus memahami file lebih dari filename.
 
 Data:
 
@@ -1396,7 +1396,7 @@ Verify
 Report
 ```
 
-BERESIN tidak boleh melakukan destructive batch operation hanya karena user mengatakan “rapihin” tanpa memahami scope dan policy.
+RAPIIN tidak boleh melakukan destructive batch operation hanya karena user mengatakan “rapihin” tanpa memahami scope dan policy.
 
 ---
 
@@ -1518,7 +1518,7 @@ Approval dapat berasal dari:
 Contoh:
 
 ```
-BERESIN found 183 exact duplicate files.
+RAPIIN found 183 exact duplicate files.
 
 Recommended:
 Delete duplicates and keep newest versions.
@@ -1617,7 +1617,7 @@ Supervisor dapat bertanya secara natural:
 
 > “Kenapa task Dimas gagal?”
 
-BERESIN mengambil data yang authorized dan menjawab natural.
+RAPIIN mengambil data yang authorized dan menjawab natural.
 
 Supervisor Chat tidak boleh menjadi permission bypass.
 
@@ -1693,7 +1693,7 @@ CANCELLED
 
 # 24. AI Provider Abstraction
 
-BERESIN tidak boleh hardcode ke satu provider.
+RAPIIN tidak boleh hardcode ke satu provider.
 
 ```
 AIProvider
@@ -1816,7 +1816,7 @@ Jangan menampilkan stack trace teknis kepada user biasa.
 
 # 29. Verification
 
-BERESIN tidak boleh menganggap task sukses hanya karena tool mengembalikan success.
+RAPIIN tidak boleh menganggap task sukses hanya karena tool mengembalikan success.
 
 Contoh move:
 
@@ -2053,19 +2053,19 @@ Login
  ↓
 Choose startup mode
  ↓
-Open BERESIN
+Open RAPIIN
  ↓
 “Rapihin folder Downloads gue.”
  ↓
-BERESIN analyzes
+RAPIIN analyzes
  ↓
 Recommendation
  ↓
 User approves
  ↓
-BERESIN executes
+RAPIIN executes
  ↓
-BERESIN verifies
+RAPIIN verifies
  ↓
 “Udah beres. 328 file berhasil diorganisir.”
 ```
@@ -2085,7 +2085,7 @@ Open task/user/device
  ↓
 Review / approve if needed
  ↓
-Ask BERESIN for explanation
+Ask RAPIIN for explanation
  ↓
 Monitor result
 ```
@@ -2100,7 +2100,7 @@ User tidak perlu mengetahui Hermes, tool calling, agent loop, task orchestration
 
 User cukup tahu:
 
-> **“Gue ngomong → BERESIN yang ngurus.”**
+> **“Gue ngomong → RAPIIN yang ngurus.”**
 
 Supervisor cukup tahu:
 

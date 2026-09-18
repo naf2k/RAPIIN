@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const DEFAULT_TEXT =
-  "Aku menemukan beberapa file yang bisa dirapikan. BERESIN akan membaca metadata, mengelompokkan dokumen berdasarkan tipe dan tahun, lalu memeriksa duplikat sebelum menampilkan rekomendasi yang aman.";
+  "Aku menemukan beberapa file yang bisa dirapikan. RAPIIN akan membaca metadata, mengelompokkan dokumen berdasarkan tipe dan tahun, lalu memeriksa duplikat sebelum menampilkan rekomendasi yang aman.";
 
 const SOURCE_IMAGES = {
   scoop:
@@ -34,20 +34,20 @@ export interface StreamingSource {
 
 export const DEFAULT_STREAMING_SOURCES: StreamingSource[] = [
   {
-    name: "BERESIN Product Guide",
-    domain: "product.beresin",
+    name: "RAPIIN Product Guide",
+    domain: "product.rapiin",
     href: "#product-guide",
     image: SOURCE_IMAGES.scoop,
   },
   {
     name: "File Intelligence",
-    domain: "beresin.local/files",
+    domain: "rapiin.local/files",
     href: "#file-intelligence",
     image: SOURCE_IMAGES.trends,
   },
   {
     name: "Permission Model",
-    domain: "beresin.local/policy",
+    domain: "rapiin.local/policy",
     href: "#permission-model",
     image: SOURCE_IMAGES.market,
   },

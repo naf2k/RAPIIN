@@ -10,7 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { BeresinLogo } from "@/components/ui/beresin-logo";
+import { RapiinLogo } from "@/components/ui/rapiin-logo";
 import { ApiError, apiGet, apiPost } from "@/lib/api";
 import { setSession } from "@/lib/session";
 import type { Device, LoginResponse } from "@/lib/types";
@@ -32,7 +32,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "Login | BERESIN";
+    document.title = "Login | RAPIIN";
     return () => {
       document.title = previousTitle;
       timersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -155,7 +155,7 @@ export default function LoginPage() {
             <ShieldCheck className="h-3.5 w-3.5" /> Akses supervisor
           </div>
           <h2 className="mt-7 text-3xl font-semibold tracking-[-0.03em] text-neutral-100 sm:text-4xl">
-            Masuk ke BERESIN
+            Masuk ke RAPIIN
           </h2>
           <p className="mt-3 text-sm leading-6 text-neutral-500">
             Gunakan akun organisasi Anda. Role dan izin ditentukan setelah autentikasi.
@@ -257,7 +257,7 @@ export default function LoginPage() {
           <div className="mt-8 border-t border-neutral-800 pt-5">
             <p className="flex items-start gap-2 text-xs leading-5 text-neutral-600">
               <ShieldCheck className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-violet-300" />
-              Kredensial Anda diverifikasi langsung oleh server BERESIN.
+              Kredensial Anda diverifikasi langsung oleh server RAPIIN.
             </p>
           </div>
         </motion.div>
@@ -269,9 +269,9 @@ export default function LoginPage() {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <BeresinLogo className="text-neutral-100" />
+      <RapiinLogo className="text-neutral-100" />
       <div>
-        <p className="text-sm font-medium tracking-tight text-neutral-100">BERESIN</p>
+        <p className="text-sm font-medium tracking-tight text-neutral-100">RAPIIN</p>
         <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-500">Asisten kerja</p>
       </div>
     </div>

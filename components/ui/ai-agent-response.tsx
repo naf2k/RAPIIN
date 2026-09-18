@@ -881,7 +881,7 @@ export const ThinkingState = React.forwardRef<HTMLDivElement, ThinkingStateProps
       autoPlay = true,
       running,
       defaultExpanded,
-      workingLabel = "BERESIN sedang bekerja...",
+      workingLabel = "RAPIIN sedang bekerja...",
       reducedMotion = false,
       onSettled,
       className,
@@ -1055,7 +1055,7 @@ export interface AgentWorkflowProps extends React.HTMLAttributes<HTMLDivElement>
 export function AgentWorkflow({
   phases = [],
   tools,
-  workingLabel = "BERESIN sedang bekerja...",
+  workingLabel = "RAPIIN sedang bekerja...",
   reducedMotion = false,
   onComplete,
   className,

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 import { ThinkingState, type TraceNode } from "@/components/ui/ai-agent-response";
-import { FileListCard, parseFileListing } from "@/components/ui/beresin-file-list";
+import { FileListCard, parseFileListing } from "@/components/ui/rapiin-file-list";
 import {
   EMPTY_APPROVAL,
   TaskFlow,
@@ -30,7 +30,7 @@ import {
   statusStep,
   taskTypeLabel,
   type TaskFlowState,
-} from "@/components/ui/beresin-task-flow";
+} from "@/components/ui/rapiin-task-flow";
 import { Button } from "@/components/ui/button";
 import { StreamingText, MarkdownInline } from "@/components/ui/streaming-text";
 import { Textarea } from "@/components/ui/textarea";
@@ -100,7 +100,7 @@ const quickActionPrompts: Record<string, string> = {
   "Pindahkan File": "Pindahkan file yang sudah aku setujui",
   "Rename File": "Rename dokumen supaya lebih rapi",
   "Pahami Dokumen": "Pahami isi dokumen ini",
-  "Periksa Device": "Cek status device BERESIN",
+  "Periksa Device": "Cek status device RAPIIN",
 };
 
 const primaryQuickActions = [
@@ -249,7 +249,7 @@ function narrationSentences(text: string): string[] {
 function liveIndicatorLabel(turn: ChatTurn): string {
   const lines = turn.thinkingLive.split("\n").filter((line) => line.trim());
   const last = lines.length > 0 ? lines[lines.length - 1].trim() : "";
-  if (!last) return "BERESIN sedang bekerja...";
+  if (!last) return "RAPIIN sedang bekerja...";
   return last.length > 140 ? `${last.slice(0, 140)}…` : last;
 }
 
@@ -685,7 +685,7 @@ export default function RuixenMoonChat({
       } catch (cause) {
         updateTurn(turnId, {
           status: "complete",
-          error: messageOf(cause, "BERESIN belum bisa memproses permintaan ini."),
+          error: messageOf(cause, "RAPIIN belum bisa memproses permintaan ini."),
         });
         onTurnSettled?.();
         return;
@@ -900,8 +900,8 @@ export default function RuixenMoonChat({
             adjustHeight();
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Minta BERESIN mengerjakan sesuatu..."
-          aria-label="Pesan untuk BERESIN"
+          placeholder="Minta RAPIIN mengerjakan sesuatu..."
+          aria-label="Pesan untuk RAPIIN"
           className={cn(
             "w-full resize-none border-none px-4 py-3",
             "bg-transparent text-sm text-white",
@@ -1077,10 +1077,10 @@ export default function RuixenMoonChat({
                 className="text-center"
               >
                 <h1 className="text-4xl font-semibold text-white drop-shadow-sm">
-                  BERESIN
+                  RAPIIN
                 </h1>
                 <p className="mt-2 text-neutral-200">
-                  Bilang apa yang ingin dikerjakan. BERESIN yang mengerjakan.
+                  Bilang apa yang ingin dikerjakan. RAPIIN yang mengerjakan.
                 </p>
               </motion.div>
             </div>
@@ -1094,7 +1094,7 @@ export default function RuixenMoonChat({
             <div
               className="min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:py-12"
               aria-busy={isBusy}
-              aria-label="Percakapan BERESIN"
+              aria-label="Percakapan RAPIIN"
             >
               <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
                 {turns.map((turn) => {

@@ -7,7 +7,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { BeresinLogo } from "@/components/ui/beresin-logo";
+import { RapiinLogo } from "@/components/ui/rapiin-logo";
 import RuixenMoonChat from "@/components/ui/ruixen-moon-chat";
 import {
   Sidebar,
@@ -399,10 +399,10 @@ function Logo({ onNavigateHome }: { onNavigateHome: () => void }) {
         event.preventDefault();
         onNavigateHome();
       }}
-      aria-label="BERESIN"
+      aria-label="RAPIIN"
       className="font-normal flex space-x-2 items-center text-sm text-white py-1 relative z-20"
     >
-      <BeresinLogo className="text-neutral-100" />
+      <RapiinLogo className="text-neutral-100" />
       <span
         aria-hidden={animate && !open}
         className={cn(
@@ -412,7 +412,7 @@ function Logo({ onNavigateHome }: { onNavigateHome: () => void }) {
             : "pointer-events-none -translate-x-1.5 opacity-0 delay-0 duration-100",
         )}
       >
-        BERESIN
+        RAPIIN
       </span>
     </a>
   );

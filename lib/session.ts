@@ -9,8 +9,8 @@ export interface SessionUser {
   email?: string;
 }
 
-const TOKEN_KEY = "beresin_token";
-const USER_KEY = "beresin_user";
+const TOKEN_KEY = "rapiin_token";
+const USER_KEY = "rapiin_user";
 
 interface SessionState {
   token: string;

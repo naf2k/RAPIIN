@@ -19,8 +19,8 @@ import {
   X,
 } from "lucide-react";
 
-import { BeresinLogo } from "@/components/ui/beresin-logo";
-import { NotificationBell, useNotifications } from "@/components/ui/beresin-notifications";
+import { RapiinLogo } from "@/components/ui/rapiin-logo";
+import { NotificationBell, useNotifications } from "@/components/ui/rapiin-notifications";
 import { Button } from "@/components/ui/button";
 import { ApiError, apiPost } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -277,7 +277,7 @@ function SupervisorWorkspace() {
               className="h-9 border-neutral-700 bg-neutral-950 px-3 text-neutral-200 hover:bg-neutral-800 hover:text-white active:scale-[0.98]"
             >
               <MessageSquareText className="mr-2 h-4 w-4 text-violet-300" />
-              <span className="hidden sm:inline">Tanya BERESIN</span>
+              <span className="hidden sm:inline">Tanya RAPIIN</span>
               <span className="sm:hidden">Tanya</span>
             </Button>
           </div>
@@ -496,9 +496,9 @@ function MobileNavigation({
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <BeresinLogo className="text-neutral-100" />
+      <RapiinLogo className="text-neutral-100" />
       <div className={cn("min-w-0", compact && "hidden lg:block")}>
-        <p className="truncate text-sm font-medium tracking-tight text-neutral-100">BERESIN</p>
+        <p className="truncate text-sm font-medium tracking-tight text-neutral-100">RAPIIN</p>
         <p className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-600">Supervisor</p>
       </div>
     </div>
@@ -603,7 +603,7 @@ function SupervisorChat({
                   <Sparkles className="h-4 w-4" />
                 </div>
                 <div>
-                  <h2 id="supervisor-chat-title" className="text-sm font-medium text-neutral-100">Tanya BERESIN</h2>
+                  <h2 id="supervisor-chat-title" className="text-sm font-medium text-neutral-100">Tanya RAPIIN</h2>
                   <p className="mt-0.5 text-xs text-neutral-600">Hanya data monitoring resmi</p>
                 </div>
               </div>
@@ -659,7 +659,7 @@ function SupervisorChat({
             )}
 
             <form onSubmit={handleSubmit} className="border-t border-neutral-800 p-4">
-              <label htmlFor="supervisor-chat-input" className="sr-only">Pertanyaan untuk BERESIN</label>
+              <label htmlFor="supervisor-chat-input" className="sr-only">Pertanyaan untuk RAPIIN</label>
               <div className="flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 p-2 focus-within:border-violet-400/50 focus-within:ring-2 focus-within:ring-violet-400/10">
                 <textarea
                   id="supervisor-chat-input"
@@ -672,7 +672,7 @@ function SupervisorChat({
                       event.currentTarget.form?.requestSubmit();
                     }
                   }}
-                  placeholder="Tanya BERESIN..."
+                  placeholder="Tanya RAPIIN..."
                   className="max-h-28 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-6 text-neutral-100 outline-none placeholder:text-neutral-600"
                 />
                 <button

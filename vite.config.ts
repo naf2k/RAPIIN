@@ -2,7 +2,7 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const apiTarget = process.env.BERESIN_API_URL ?? "http://127.0.0.1:8000";
+const apiTarget = process.env.RAPIIN_API_URL ?? "http://127.0.0.1:8000";
 
 export default defineConfig({
   plugins: [react()],

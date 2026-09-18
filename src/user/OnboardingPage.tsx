@@ -14,7 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import { BeresinLogo } from "@/components/ui/beresin-logo";
+import { RapiinLogo } from "@/components/ui/rapiin-logo";
 import { ApiError, apiPost, apiPut } from "@/lib/api";
 import { useSessionUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ const STEPS: Array<{ id: StepId; label: string }> = [
   { id: "done", label: "Selesai" },
 ];
 
-const DEVICE_NAME_KEY = "beresin.device.name";
+const DEVICE_NAME_KEY = "rapiin.device.name";
 
 function detectOs(): string {
   const ua = navigator.userAgent;
@@ -81,7 +81,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "Setup | BERESIN";
+    document.title = "Setup | RAPIIN";
     return () => {
       document.title = previousTitle;
     };
@@ -159,8 +159,8 @@ export default function OnboardingPage() {
       <div className="mx-auto flex min-h-[100dvh] w-full max-w-2xl flex-col px-4 py-6 sm:px-6 sm:py-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <BeresinLogo className="text-neutral-100" />
-            <p className="text-sm font-medium tracking-tight text-neutral-100">BERESIN</p>
+            <RapiinLogo className="text-neutral-100" />
+            <p className="text-sm font-medium tracking-tight text-neutral-100">RAPIIN</p>
           </div>
           <p className="text-xs text-neutral-600">Setup awal</p>
         </div>
@@ -176,13 +176,13 @@ export default function OnboardingPage() {
                 tabIndex={-1}
                 className="text-2xl font-semibold tracking-[-0.025em] text-neutral-100 outline-none sm:text-3xl"
               >
-                Selamat datang di BERESIN.
+                Selamat datang di RAPIIN.
               </h1>
               <p className="mt-3 text-sm leading-6 text-neutral-500 sm:text-base">
-                Bilang apa yang ingin dikerjakan, BERESIN yang mengerjakan. Siapkan dulu dalam tiga langkah cepat.
+                Bilang apa yang ingin dikerjakan, RAPIIN yang mengerjakan. Siapkan dulu dalam tiga langkah cepat.
               </p>
               <ul className="mt-6 space-y-3">
-                <WelcomeRow icon={<UserRound className="h-4 w-4" />} title="Masuk dengan akun" detail={user?.email ?? "Akun BERESIN Anda"} />
+                <WelcomeRow icon={<UserRound className="h-4 w-4" />} title="Masuk dengan akun" detail={user?.email ?? "Akun RAPIIN Anda"} />
                 <WelcomeRow icon={<Laptop className="h-4 w-4" />} title="Daftarkan device" detail={`${device.name} · ${device.os}`} />
                 <WelcomeRow icon={<Zap className="h-4 w-4" />} title="Pilih mode startup" detail="Manual atau otomatis saat komputer menyala." />
               </ul>
@@ -212,13 +212,13 @@ export default function OnboardingPage() {
                   {initials || "—"}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-neutral-100">{user?.name ?? "Pengguna BERESIN"}</p>
+                  <p className="truncate text-sm font-medium text-neutral-100">{user?.name ?? "Pengguna RAPIIN"}</p>
                   <p className="mt-0.5 truncate text-sm text-neutral-500">{user?.email ?? "Sesi aktif"}</p>
                 </div>
               </div>
               <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-neutral-600">
                 <ShieldCheck className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-violet-300" />
-                Sesi ini terautentikasi oleh server BERESIN. Memory dan file Anda terisolasi dari user lain.
+                Sesi ini terautentikasi oleh server RAPIIN. Memory dan file Anda terisolasi dari user lain.
               </p>
               <StepNav onBack={() => go(stepIndex - 1)} onNext={() => go(stepIndex + 1)} nextLabel="Lanjutkan" />
             </section>
@@ -245,9 +245,9 @@ export default function OnboardingPage() {
               </dl>
               <p className="mt-4 flex items-start gap-2 rounded-lg border border-neutral-800 bg-neutral-950 px-4 py-3 text-xs leading-5 text-neutral-500">
                 <ShieldCheck className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-violet-300" />
-                Browser ini baru terdaftar sebagai identitas. Supaya BERESIN bisa mengerjakan file di PC
-                Windows, pasang juga Agent-nya (Git Bash): uv tool install wheel rilis, lalu beresin setup
-                --server https://NAMA-SERVER.ts.net --autostart, lalu beresin verify. Panduan lengkap ada
+                Browser ini baru terdaftar sebagai identitas. Supaya RAPIIN bisa mengerjakan file di PC
+                Windows, pasang juga Agent-nya (Git Bash): uv tool install wheel rilis, lalu rapiin setup
+                --server https://NAMA-SERVER.ts.net --autostart, lalu rapiin verify. Panduan lengkap ada
                 di halaman Pengaturan → Perangkat.
               </p>
               <StepNav onBack={() => go(stepIndex - 1)} onNext={() => go(stepIndex + 1)} nextLabel="Daftarkan device" />
@@ -305,7 +305,7 @@ export default function OnboardingPage() {
                   onSelect={() => setStartupMode("manual")}
                   icon={<Play className="h-4 w-4" />}
                   title="Manual"
-                  detail="Jalankan beresin saat dibutuhkan. Tidak otomatis berjalan saat komputer menyala."
+                  detail="Jalankan rapiin saat dibutuhkan. Tidak otomatis berjalan saat komputer menyala."
                 />
                 <StartupOption
                   selected={startupMode === "auto"}
@@ -330,10 +330,10 @@ export default function OnboardingPage() {
                 tabIndex={-1}
                 className="mt-5 text-2xl font-semibold tracking-[-0.025em] text-neutral-100 outline-none"
               >
-                BERESIN Agent ready.
+                RAPIIN Agent ready.
               </h1>
               <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-neutral-500">
-                Akun terautentikasi, device terdaftar, koneksi aman. Mulai ngomong, BERESIN yang mengerjakan.
+                Akun terautentikasi, device terdaftar, koneksi aman. Mulai ngomong, RAPIIN yang mengerjakan.
               </p>
               <dl className="mx-auto mt-6 max-w-md divide-y divide-neutral-800 rounded-xl border border-neutral-800 bg-neutral-950 px-4 text-left">
                 <DefinitionRow label="Account" value={user?.email ?? "Sesi aktif"} />
@@ -350,7 +350,7 @@ export default function OnboardingPage() {
         </div>
 
         <p className="mt-6 text-center text-xs leading-5 text-neutral-700">
-          Device ini akan dipakai BERESIN untuk menjalankan pekerjaan file Anda.
+          Device ini akan dipakai RAPIIN untuk menjalankan pekerjaan file Anda.
         </p>
       </div>
     </main>

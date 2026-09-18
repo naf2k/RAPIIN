@@ -1237,7 +1237,7 @@ export function OperationsPage() {
     <PageFrame>
       <PageIntro
         title="Operasi"
-        description="Kesehatan layanan BERESIN: insiden, keputusan, dan batas tindakan AI di satu tempat."
+        description="Kesehatan layanan RAPIIN: insiden, keputusan, dan batas tindakan AI di satu tempat."
         aside={<DemoLabel />}
       />
 
@@ -1900,9 +1900,9 @@ export function SettingsPage() {
       <section className={cn(surfaceClass, "p-5 sm:p-6")} aria-labelledby="about-heading">
         <h2 id="about-heading" className="text-base font-medium text-neutral-100">Tentang</h2>
         <dl className="mt-5 divide-y divide-neutral-800">
-          <DefinitionRow label="Versi BERESIN" value="1.0.0" mono />
+          <DefinitionRow label="Versi RAPIIN" value="1.0.0" mono />
           <DefinitionRow label="Antarmuka" value="Konsol Supervisor" />
-          <DefinitionRow label="Lingkungan" value="Server BERESIN" />
+          <DefinitionRow label="Lingkungan" value="Server RAPIIN" />
         </dl>
       </section>
 

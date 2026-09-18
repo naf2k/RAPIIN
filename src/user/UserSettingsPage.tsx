@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { NotificationRows, useNotifications } from "@/components/ui/beresin-notifications";
+import { NotificationRows, useNotifications } from "@/components/ui/rapiin-notifications";
 import { ApiError, apiGet, apiPost, apiPut } from "@/lib/api";
 import { clearSession, useSessionUser } from "@/lib/session";
 import type { Device, Profile, UserSettings } from "@/lib/types";
@@ -129,7 +129,7 @@ export function UserSettingsPage() {
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
         <PageIntro
           title="Pengaturan"
-          description="Pengaturan BERESIN yang penting. Tidak ada konfigurasi teknis di sini."
+          description="Pengaturan RAPIIN yang penting. Tidak ada konfigurasi teknis di sini."
           aside={<DemoLabel />}
         />
 
@@ -199,7 +199,7 @@ export function UserSettingsPage() {
           <div className="mt-5 rounded-lg border border-neutral-800 bg-neutral-950 p-4">
             <p className="text-sm font-medium text-neutral-200">Pasang Agent di PC Windows</p>
             <p className="mt-1 text-[13px] leading-5 text-neutral-500">
-              Chat di sini lewat browser. Supaya BERESIN bisa mengerjakan file di PC, pasang Agent-nya
+              Chat di sini lewat browser. Supaya RAPIIN bisa mengerjakan file di PC, pasang Agent-nya
               (butuh Python 3.12+, <span className="font-mono text-xs text-neutral-400">uv</span>, dan Tailscale
               satu tailnet dengan server). Buka Git Bash lalu:
             </p>
@@ -207,19 +207,19 @@ export function UserSettingsPage() {
               <li>
                 <span className="text-neutral-500">1. Pasang wheel rilis (cek checksum dulu):</span>
                 <code className="mt-1 block overflow-x-auto rounded-md bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300">
-                  uv tool install beresin_agent-1.0.0-py3-none-any.whl
+                  uv tool install rapiin_agent-1.0.0-py3-none-any.whl
                 </code>
               </li>
               <li>
                 <span className="text-neutral-500">2. Daftarkan device ini (pilih auto supaya hidup sendiri tiap PC nyala):</span>
                 <code className="mt-1 block overflow-x-auto rounded-md bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300">
-                  beresin setup --server https://NAMA-SERVER.ts.net --autostart
+                  rapiin setup --server https://NAMA-SERVER.ts.net --autostart
                 </code>
               </li>
               <li>
                 <span className="text-neutral-500">3. Verifikasi:</span>
                 <code className="mt-1 block overflow-x-auto rounded-md bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300">
-                  beresin verify
+                  rapiin verify
                 </code>
               </li>
             </ol>
@@ -235,7 +235,7 @@ export function UserSettingsPage() {
             <p className="mt-1 text-sm text-neutral-500">Mode berjalan: {autoStart ? "Otomatis" : "Manual"}.</p>
           </div>
           <ToggleRow
-            label="Jalankan BERESIN otomatis saat komputer menyala"
+            label="Jalankan RAPIIN otomatis saat komputer menyala"
             description="Agent berjalan sebagai background service dan reconnect aman tanpa membuka terminal."
             checked={autoStart}
             onChange={toggleAutoStart}
@@ -259,7 +259,7 @@ export function UserSettingsPage() {
             />
             <ToggleRow
               label="Error penting"
-              description="Saat BERESIN tidak bisa menyelesaikan pekerjaan."
+              description="Saat RAPIIN tidak bisa menyelesaikan pekerjaan."
               checked={notifications.errors}
               onChange={() => toggleNotification("errors")}
             />
@@ -286,9 +286,9 @@ export function UserSettingsPage() {
             <h2 id="user-about-heading" className="text-base font-medium text-neutral-100">Tentang</h2>
           </div>
           <dl className="mt-5 divide-y divide-neutral-800">
-            <DefinitionRow label="Versi BERESIN" value="1.0.0" mono />
+            <DefinitionRow label="Versi RAPIIN" value="1.0.0" mono />
             <DefinitionRow label="Antarmuka" value="Chat Pengguna" />
-            <DefinitionRow label="Lingkungan" value="Server BERESIN" />
+            <DefinitionRow label="Lingkungan" value="Server RAPIIN" />
           </dl>
         </section>
 
@@ -348,7 +348,7 @@ export function UserAccountPage() {
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-7 px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
         <PageIntro
           title="Akun"
-          description="Identitas dan sesi Anda di BERESIN."
+          description="Identitas dan sesi Anda di RAPIIN."
           aside={<DemoLabel />}
         />
 

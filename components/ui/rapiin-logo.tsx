@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export function BeresinLogo({ className }: { className?: string }) {
+export function RapiinLogo({ className }: { className?: string }) {
   return (
     <span
       aria-hidden="true"
