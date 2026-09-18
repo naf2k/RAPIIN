@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  ArrowLeft,
   ArrowRight,
   CheckCircle2,
   Eye,
@@ -142,14 +141,8 @@ export default function LoginPage() {
       </section>
 
       <section className="relative flex min-h-[100dvh] flex-col bg-[#080808] px-5 py-6 sm:px-10 sm:py-8 lg:justify-center lg:px-14 xl:px-20">
-        <div className="mb-12 flex items-center justify-between lg:hidden">
+        <div className="mb-12 flex items-center lg:hidden">
           <Brand />
-          <a
-            href="/"
-            className="inline-flex h-10 items-center gap-2 rounded-lg px-2 text-sm text-neutral-500 transition-colors hover:text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50"
-          >
-            <ArrowLeft className="h-4 w-4" /> Kembali
-          </a>
         </div>
 
         <motion.div
@@ -268,13 +261,6 @@ export default function LoginPage() {
             </p>
           </div>
         </motion.div>
-
-        <a
-          href="/"
-          className="absolute left-14 top-8 hidden items-center gap-2 rounded-lg px-2 py-2 text-sm text-neutral-600 transition-colors hover:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50 lg:inline-flex xl:left-20"
-        >
-          <ArrowLeft className="h-4 w-4" /> Kembali ke chat
-        </a>
       </section>
     </main>
   );
