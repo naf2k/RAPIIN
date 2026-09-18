@@ -131,8 +131,8 @@ def supervisor_task_detail(task_id: int, conn=Depends(get_db), user=Depends(requ
 
 
 @router.get("/approvals")
-def supervisor_approvals(conn=Depends(get_db), user=Depends(require_supervisor)):
-    return all_pending_approvals(conn)
+def supervisor_approvals(include_decided: bool = False, conn=Depends(get_db), user=Depends(require_supervisor)):
+    return all_pending_approvals(conn, include_decided=include_decided)
 
 
 @router.post("/approvals/{approval_id}/respond")
@@ -249,19 +249,19 @@ def supervisor_accounts(conn=Depends(get_db), user=Depends(require_supervisor)):
 
 @router.get("/notifications")
 def supervisor_notifications(conn=Depends(get_db), user=Depends(require_supervisor)):
-    from ..notifications import list_for_user, unread_count
+    from ..notifications import list_for_supervisors, unread_count_for_supervisors
 
     return {
-        "items": list_for_user(conn, user["id"], "SUPERVISOR"),
-        "unread": unread_count(conn, user["id"], "SUPERVISOR"),
+        "items": list_for_supervisors(conn),
+        "unread": unread_count_for_supervisors(conn),
     }
 
 
 @router.post("/notifications/{notification_id}/read")
 def supervisor_notification_read(notification_id: int, conn=Depends(get_db), user=Depends(require_supervisor)):
-    from ..notifications import mark_read
+    from ..notifications import mark_read_for_supervisor
 
-    if not mark_read(conn, notification_id, user["id"]):
+    if not mark_read_for_supervisor(conn, notification_id):
         raise HTTPException(status_code=404, detail="Notifikasi tidak ditemukan.")
     return {"status": "ok"}
 

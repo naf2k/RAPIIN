@@ -43,6 +43,9 @@ TOOL_IMPLEMENTATIONS = {
     "file_copy": fs_tool.copy_files,
     "file_rename": fs_tool.rename_files,
     "file_delete": fs_tool.delete_files,
+    "file_mkdir": fs_tool.create_directory,
+    "file_write": fs_tool.write_file,
+    "file_edit": fs_tool.edit_file,
     "batch_executor": fs_tool.execute_batch,
     "bulk_delete": fs_tool.delete_files,
     "verification": _verification_tool,
@@ -170,6 +173,59 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
+            "name": "file_mkdir",
+            "description": "Membuat folder baru (termasuk folder induk). Berjalan otomatis di dalam sandbox.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Folder yang akan dibuat."},
+                },
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "file_write",
+            "description": "Membuat file BARU dengan isi yang diberikan (teks UTF-8 atau base64 untuk biner). Tidak menimpa file yang sudah ada. Membutuhkan persetujuan pengguna.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path file baru yang akan dibuat."},
+                    "content": {"type": "string", "description": "Isi file."},
+                    "encoding": {"type": "string", "enum": ["utf-8", "base64"], "description": "Encoding konten; pakai base64 untuk file biner."},
+                },
+                "required": ["path", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "file_edit",
+            "description": "Mengubah file yang SUDAH ADA (teks: replace/insert/append; XLSX: tulis cell). Selalu menyimpan backup .bak. PDF/DOCX/PPTX tidak didukung dan akan ditolak. Membutuhkan persetujuan pengguna.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File yang akan diubah."},
+                    "operation": {"type": "string", "enum": ["replace", "insert", "append"], "description": "Jenis edit teks (diabaikan untuk XLSX)."},
+                    "old": {"type": "string", "description": "Teks yang diganti (replace)."},
+                    "new": {"type": "string", "description": "Teks pengganti (replace)."},
+                    "count": {"type": "integer", "description": "Jumlah kemunculan yang diganti (replace)."},
+                    "line": {"type": "integer", "description": "Nomor baris 1-based untuk insert."},
+                    "text": {"type": "string", "description": "Teks untuk insert/append."},
+                    "sheet": {"type": "string", "description": "Nama sheet (XLSX)."},
+                    "cell": {"type": "string", "description": "Alamat cell seperti B4 (XLSX)."},
+                    "value": {"description": "Nilai cell (XLSX)."},
+                },
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "document_parser",
             "description": "Membaca isi satu dokumen (PDF, DOCX, XLSX, PPTX, TXT, CSV) dan mengembalikan ringkasan teksnya.",
             "parameters": {
@@ -264,7 +320,7 @@ def execute_tool(conn, *, user_id: int, task_id: int | None, device_id: int | No
         raise ValueError(f"Tool tidak dikenal: {name}")
 
     # Path safety is checked on every mutation tool against the sandbox root.
-    if name in {"file_move", "file_copy", "file_rename", "file_delete", "batch_executor", "bulk_delete"}:
+    if name in {"file_move", "file_copy", "file_rename", "file_delete", "file_mkdir", "file_write", "file_edit", "batch_executor", "bulk_delete"}:
         _validate_sandbox(arguments)
 
     result = impl(conn, user_id=user_id, arguments=arguments)

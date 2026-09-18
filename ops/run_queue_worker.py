@@ -14,6 +14,11 @@ from beresin.worker import run_queue_worker
 if not settings.beresin_redis_url:
     raise SystemExit("BERESIN_REDIS_URL wajib dikonfigurasi untuk worker terpisah.")
 
+# Resolve the secret from its file the same way the API does. Approval snapshot
+# hashes are keyed by this secret, so a worker on a different key would create
+# approvals that no one can ever decide.
+settings.validate_for_startup()
+
 try:
     run_queue_worker()
 except KeyboardInterrupt:

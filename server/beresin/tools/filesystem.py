@@ -1,7 +1,11 @@
 """Filesystem tools - scanning, metadata, search and mutation within a sandbox."""
 from __future__ import annotations
 
+import base64
+import binascii
 import shutil
+import zipfile
+from io import BytesIO
 from pathlib import Path
 
 from ..permissions import check_path_allowed, resolve_path, sandbox_root
@@ -367,4 +371,240 @@ def _run_move_copy(raw_paths: list[str], destination: str | None, operation: str
         "failed_count": len(errors),
         "errors": errors,
         "summary": results,
+    }
+
+
+MAX_WRITE_BYTES = 1024 * 1024  # 1 MB per created/edited file.
+
+# Extensions handled as plain text for creation and editing.
+TEXT_EDITABLE_EXTENSIONS = {
+    ".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl",
+    ".log", ".yml", ".yaml", ".xml", ".html", ".htm", ".css",
+    ".js", ".ts", ".tsx", ".jsx", ".py", ".sh", ".sql", ".ini",
+    ".cfg", ".toml", ".rtf",
+}
+
+# Magic numbers enforced when creating binary files (extension -> prefix).
+BINARY_MAGIC = {
+    ".pdf": (b"%PDF",),
+    ".png": (b"\x89PNG\r\n\x1a\n",),
+    ".jpg": (b"\xff\xd8\xff",),
+    ".jpeg": (b"\xff\xd8\xff",),
+    ".gif": (b"GIF87a", b"GIF89a"),
+    ".zip": (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"),
+    ".docx": (b"PK\x03\x04",),
+    ".xlsx": (b"PK\x03\x04",),
+    ".pptx": (b"PK\x03\x04",),
+}
+
+# Binary formats the editor refuses honestly instead of corrupting.
+READ_ONLY_BINARY_EXTENSIONS = {".pdf", ".doc", ".docx", ".ppt", ".pptx"}
+
+
+def create_directory(conn, *, user_id: int, arguments: dict) -> dict:
+    """Create a folder (including parents). Never touches existing files."""
+    raw = arguments.get("path")
+    if not raw:
+        raise ValueError("Parameter path wajib diisi.")
+    path = _resolve(raw)
+    _protected_guard(path)
+    if path.exists() and not path.is_dir():
+        raise FileExistsError(f"Sudah ada file dengan nama itu: {path}")
+    created = not path.exists()
+    path.mkdir(parents=True, exist_ok=True)
+    verified = path.is_dir()
+    return {
+        "executed_count": 1,
+        "verified_count": 1 if verified else 0,
+        "failed_count": 0 if verified else 1,
+        "errors": [] if verified else [f"Folder tidak terbentuk: {path}"],
+        "summary": [{"path": str(path), "created": created, "status": "VERIFIED" if verified else "UNVERIFIED"}],
+        "path": str(path),
+        "created": created,
+    }
+
+
+def _decode_write_content(arguments: dict) -> bytes:
+    if "content" not in arguments:
+        raise ValueError("Parameter content wajib diisi.")
+    content = arguments.get("content") or ""
+    encoding = (arguments.get("encoding") or "utf-8").lower()
+    if encoding == "base64":
+        try:
+            data = base64.b64decode(content, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError(f"Konten base64 tidak valid: {exc}") from exc
+    elif encoding in {"utf-8", "utf8", "text"}:
+        data = content.encode("utf-8")
+    else:
+        raise ValueError("Encoding harus 'utf-8' atau 'base64'.")
+    if len(data) > MAX_WRITE_BYTES:
+        raise ValueError(f"Konten melebihi batas {MAX_WRITE_BYTES // 1024} KB.")
+    return data
+
+
+def _check_binary_magic(suffix: str, data: bytes) -> str | None:
+    """Return a warning when a binary file's magic number looks wrong."""
+    prefixes = BINARY_MAGIC.get(suffix)
+    if not prefixes:
+        return f"Tipe {suffix or 'tanpa ekstensi'} tidak dikenali; isi ditulis apa adanya."
+    if not data.startswith(prefixes):
+        return f"Isi tidak cocok dengan format {suffix}; file ditulis tapi belum tervalidasi."
+    return None
+
+
+def write_file(conn, *, user_id: int, arguments: dict) -> dict:
+    """Create a brand-new file. Refuses to overwrite anything."""
+    raw = arguments.get("path")
+    if not raw:
+        raise ValueError("Parameter path wajib diisi.")
+    path = _resolve(raw)
+    _protected_guard(path)
+    if path.exists():
+        raise FileExistsError(f"Sudah ada; file tidak ditimpa: {path}")
+    data = _decode_write_content(arguments)
+    suffix = path.suffix.lower()
+    warning = None
+    if suffix not in TEXT_EDITABLE_EXTENSIONS and suffix != "":
+        warning = _check_binary_magic(suffix, data)
+        if warning is None and suffix == ".zip" and not zipfile.is_zipfile(BytesIO(data)):
+            warning = "Isi bukan arsip ZIP yang valid; file ditulis tapi belum tervalidasi."
+    if path.parent != path:
+        _protected_guard(path.parent)
+        path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    verified = path.exists() and path.stat().st_size == len(data)
+    errors = []
+    if warning:
+        errors.append(warning)
+    if not verified:
+        errors.append(f"File tidak terbentuk sempurna: {path}")
+    return {
+        "executed_count": 1,
+        "verified_count": 1 if verified else 0,
+        "failed_count": 0 if verified else 1,
+        "errors": errors,
+        "summary": [{"path": str(path), "size": len(data), "status": "VERIFIED" if verified else "UNVERIFIED"}],
+        "path": str(path),
+        "size": len(data),
+    }
+
+
+def _backup_once(path: Path) -> str | None:
+    """Keep one `.bak` copy before the first edit; never overwrite a backup."""
+    backup = path.with_name(path.name + ".bak")
+    if backup.exists():
+        return str(backup)
+    shutil.copy2(str(path), str(backup))
+    return str(backup)
+
+
+def _edit_text(path: Path, arguments: dict) -> dict:
+    try:
+        original = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError) as exc:
+        raise ValueError(f"File bukan teks UTF-8 yang bisa diubah: {exc}") from exc
+    operation = arguments.get("operation") or "replace"
+    if operation == "replace":
+        old = arguments.get("old")
+        new = arguments.get("new", "")
+        if old is None or old == "":
+            raise ValueError("Parameter old wajib diisi untuk replace.")
+        count = arguments.get("count", 1)
+        try:
+            limit = int(count)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Parameter count harus angka.") from exc
+        occurrences = original.count(old)
+        if occurrences == 0:
+            raise ValueError("Teks old tidak ditemukan di file.")
+        updated = original.replace(old, new, limit if limit > 0 else occurrences)
+        changed = min(occurrences, limit) if limit > 0 else occurrences
+    elif operation == "append":
+        addition = arguments.get("text", "")
+        separator = "" if original.endswith("\n") or original == "" else "\n"
+        updated = original + separator + addition
+        changed = 1
+    elif operation == "insert":
+        try:
+            line_no = int(arguments.get("line", 1))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Parameter line harus nomor baris.") from exc
+        lines = original.splitlines(keepends=True)
+        index = max(0, min(line_no - 1, len(lines)))
+        addition = arguments.get("text", "")
+        if addition and not addition.endswith("\n"):
+            addition += "\n"
+        lines.insert(index, addition)
+        updated = "".join(lines)
+        changed = 1
+    else:
+        raise ValueError("Operasi edit harus replace, insert, atau append.")
+    if len(updated.encode("utf-8")) > MAX_WRITE_BYTES:
+        raise ValueError(f"Hasil edit melebihi batas {MAX_WRITE_BYTES // 1024} KB.")
+    path.write_text(updated, encoding="utf-8")
+    reread = path.read_text(encoding="utf-8")
+    return {"changed": changed, "verified": reread == updated}
+
+
+def _edit_spreadsheet(path: Path, arguments: dict) -> dict:
+    try:
+        import openpyxl
+    except ImportError as exc:
+        raise ValueError("Dukungan XLSX belum terpasang di server.") from exc
+    sheet_name = arguments.get("sheet")
+    cell = arguments.get("cell")
+    if not sheet_name or not cell:
+        raise ValueError("Parameter sheet dan cell wajib diisi untuk XLSX.")
+    if "value" not in arguments:
+        raise ValueError("Parameter value wajib diisi untuk XLSX.")
+    workbook = openpyxl.load_workbook(str(path))
+    if sheet_name not in workbook.sheetnames:
+        raise ValueError(f"Sheet tidak ditemukan: {sheet_name}")
+    workbook[sheet_name][cell] = arguments.get("value")
+    workbook.save(str(path))
+    check = openpyxl.load_workbook(str(path), read_only=True, data_only=True)
+    stored = check[sheet_name][cell].value
+    check.close()
+    return {"changed": 1, "verified": stored == arguments.get("value")}
+
+
+def edit_file(conn, *, user_id: int, arguments: dict) -> dict:
+    """Edit an existing file. Always keeps one backup; refuses risky formats."""
+    raw = arguments.get("path")
+    if not raw:
+        raise ValueError("Parameter path wajib diisi.")
+    path = _resolve(raw)
+    _protected_guard(path)
+    if not path.exists() or not path.is_file():
+        raise FileNotFoundError(f"File tidak ditemukan: {path}")
+    suffix = path.suffix.lower()
+    if suffix in READ_ONLY_BINARY_EXTENSIONS:
+        raise ValueError(
+            f"Format {suffix} hanya bisa dibaca, belum bisa diubah dengan aman. "
+            "Gunakan aplikasi aslinya lalu minta BERESIN memverifikasi hasilnya."
+        )
+    backup = _backup_once(path)
+    if suffix == ".xlsx":
+        outcome = _edit_spreadsheet(path, arguments)
+    else:
+        outcome = _edit_text(path, arguments)
+    if not outcome["verified"]:
+        errors = ["Hasil edit tidak terverifikasi; backup tersimpan di " + str(backup)]
+        verified_count, failed_count = 0, 1
+    else:
+        errors, verified_count, failed_count = [], 1, 0
+    return {
+        "executed_count": 1,
+        "verified_count": verified_count,
+        "failed_count": failed_count,
+        "errors": errors,
+        "summary": [{
+            "path": str(path),
+            "backup": str(backup),
+            "changed": outcome["changed"],
+            "status": "VERIFIED" if outcome["verified"] else "UNVERIFIED",
+        }],
+        "path": str(path),
+        "backup": str(backup),
     }

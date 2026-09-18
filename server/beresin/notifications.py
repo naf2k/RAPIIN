@@ -29,28 +29,44 @@ def notify(
     return cur.lastrowid
 
 
+def _user_preference(conn, user_id: int, key: str, *, default: bool = True) -> bool:
+    """Read a per-user toggle from user_settings. An unset key means the default."""
+    row = conn.execute(
+        "SELECT value FROM user_settings WHERE user_id = ? AND key = ?", (user_id, key)
+    ).fetchone()
+    if not row:
+        return default
+    return str(row["value"]).strip() != "0"
+
+
 def notify_task_outcome(conn, *, user_id: int, task_type: str, status: str, task_id: int, error: str | None = None) -> None:
-    """Create the user + supervisor notification for a finished task."""
+    """Create the user + supervisor notification for a finished task.
+
+    The user's own Settings toggles decide whether they are notified; supervisor
+    alerts are operational and are not gated by a user preference.
+    """
     if status == "COMPLETED":
-        notify(
-            conn,
-            user_id=user_id,
-            role="USER",
-            title="Tugas selesai",
-            body=f"Task {task_type} berhasil diselesaikan.",
-            type="success",
-            task_id=task_id,
-        )
+        if _user_preference(conn, user_id, "notifications.task_completed"):
+            notify(
+                conn,
+                user_id=user_id,
+                role="USER",
+                title="Tugas selesai",
+                body=f"Task {task_type} berhasil diselesaikan.",
+                type="success",
+                task_id=task_id,
+            )
     elif status == "FAILED":
-        notify(
-            conn,
-            user_id=user_id,
-            role="USER",
-            title="Tugas gagal",
-            body=error or f"Task {task_type} tidak dapat diselesaikan.",
-            type="error",
-            task_id=task_id,
-        )
+        if _user_preference(conn, user_id, "notifications.important_errors"):
+            notify(
+                conn,
+                user_id=user_id,
+                role="USER",
+                title="Tugas gagal",
+                body=error or f"Task {task_type} tidak dapat diselesaikan.",
+                type="error",
+                task_id=task_id,
+            )
         notify(
             conn,
             user_id=user_id,
@@ -100,3 +116,35 @@ def unread_count(conn, user_id: int, role: str) -> int:
         (user_id, role),
     ).fetchone()
     return row["n"]
+
+
+def list_for_supervisors(conn, limit: int = 30) -> list[dict]:
+    """Operational alerts shared by every supervisor account.
+
+    Supervisor alerts carry the employee's user_id because they describe that
+    employee's work, so the supervisor feed is selected by role instead.
+    """
+    rows = conn.execute(
+        """
+        SELECT id, title, body, type, is_read, created_at, task_id FROM notifications
+        WHERE role = 'SUPERVISOR'
+        ORDER BY id DESC LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def unread_count_for_supervisors(conn) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM notifications WHERE role = 'SUPERVISOR' AND is_read = 0"
+    ).fetchone()
+    return row["n"]
+
+
+def mark_read_for_supervisor(conn, notification_id: int) -> bool:
+    cur = conn.execute(
+        "UPDATE notifications SET is_read = 1 WHERE id = ? AND role = 'SUPERVISOR'",
+        (notification_id,),
+    )
+    return cur.rowcount > 0

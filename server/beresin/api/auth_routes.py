@@ -216,7 +216,13 @@ def revoke_device(body: DeviceRevokeRequest, user=Depends(require_user), conn=De
     ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Perangkat tidak ditemukan.")
+    # Every table with a foreign key to devices must be cleared first, otherwise
+    # PostgreSQL refuses the delete and the device can never be revoked.
     conn.execute("DELETE FROM agent_jobs WHERE device_id = ?", (body.device_id,))
+    conn.execute("DELETE FROM conversation_jobs WHERE device_id = ?", (body.device_id,))
+    conn.execute("DELETE FROM agent_files WHERE device_id = ?", (body.device_id,))
+    # Task history is kept for audit; it simply stops pointing at the device.
+    conn.execute("UPDATE tasks SET device_id = NULL WHERE device_id = ?", (body.device_id,))
     conn.execute("DELETE FROM devices WHERE id = ?", (body.device_id,))
     record_audit(
         conn,

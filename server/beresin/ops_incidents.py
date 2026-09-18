@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import shutil
 from datetime import datetime, timedelta, timezone
 
 from .audit import record_audit
@@ -17,6 +18,8 @@ ACTIVE_STATUSES = (
     "VERIFYING", "AWAITING_DEPLOY_APPROVAL", "DEPLOYING",
 )
 SEVERITIES = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+# Mirrors the free-space threshold in ops/local_health_monitor.py.
+DISK_ALERT_FREE_PERCENT = 10.0
 ROLE_POLICIES = {
     "LEAD": {"read_only": True, "may_change_code": False, "may_deploy": False, "purpose": "triage_and_coordinate"},
     "SECURITY": {"read_only": True, "may_change_code": False, "may_deploy": False, "purpose": "security_review"},
@@ -77,10 +80,15 @@ def ingest_signal(conn, *, source: str, title: str, severity: str, summary: str 
     now = utcnow_iso()
     if row:
         incident_id = row["id"]
-        conn.execute(
-            "UPDATE ops_incidents SET occurrence_count=occurrence_count+1,last_seen_at=?,updated_at=?,severity=? WHERE id=?",
-            (now, now, severity, incident_id),
-        )
+        # A repeated signal often carries a fresh measurement, so the stored
+        # summary is refreshed instead of freezing on the first value seen.
+        sets = ["occurrence_count=occurrence_count+1", "last_seen_at=?", "updated_at=?", "severity=?"]
+        values: list = [now, now, severity]
+        if summary and summary != (row["summary"] or ""):
+            sets.insert(0, "summary=?")
+            values.insert(0, summary)
+        values.append(incident_id)
+        conn.execute(f"UPDATE ops_incidents SET {', '.join(sets)} WHERE id=?", values)  # nosec B608 -- fragments are fixed constants
         _event(conn, incident_id, "SIGNAL_REPEATED", "system", "SYSTEM", {"evidence_hash": content_hash(details)})
         created = False
     else:
@@ -320,6 +328,21 @@ def collect_runtime_signals(conn) -> list[dict]:
         else:
             auto_resolve(conn, source="operations-meta-monitor", resource="queue-worker", note="Redis worker heartbeat kembali normal.")
             auto_resolve(conn, source="local-health-monitor", resource="operations-runtime", note="Operations runtime dan queue worker kembali sehat.")
+    # The laptop monitor reports disk pressure. A healthy disk simply stops
+    # producing signals, so the incident is cleared here explicitly; otherwise
+    # it would stay open forever with a frozen measurement.
+    try:
+        usage = shutil.disk_usage(settings.data_dir)
+        free_percent = round((usage.free / usage.total) * 100, 1)
+    except OSError:
+        free_percent = None
+    if free_percent is not None and free_percent >= DISK_ALERT_FREE_PERCENT:
+        auto_resolve(
+            conn,
+            source="local-health-monitor",
+            title="Disk space critically low",
+            note=f"Ruang disk kembali normal ({free_percent}% tersisa).",
+        )
     auto_resolve(conn, source="local-health-monitor", title="Server recovered after readiness failure", note="Recovery berhasil diverifikasi oleh readiness monitor.")
     return created
 

@@ -8,10 +8,16 @@ from __future__ import annotations
 import json
 import hashlib
 import hmac
+import threading
 from datetime import datetime, timedelta, timezone
 
 from .audit import record_audit
 from .database import utcnow_iso
+
+# Serializes the lookup-then-insert in create_approval within one process.
+# A partial UNIQUE index (see database.py) is the backstop for cross-process
+# races: on conflict we re-select the winner instead of failing.
+_CREATE_LOCK = threading.Lock()
 
 
 def _snapshot_digest(tool_name: str | None, serialized_args: str) -> str:
@@ -21,6 +27,42 @@ def _snapshot_digest(tool_name: str | None, serialized_args: str) -> str:
         f"{tool_name or ''}\n{serialized_args}".encode(),
         hashlib.sha256,
     ).hexdigest()
+
+
+def find_reusable_approval(
+    conn,
+    *,
+    user_id: int,
+    kind: str,
+    tool_name: str | None,
+    tool_args: dict | None,
+    task_id: int | None = None,
+    any_task: bool = False,
+) -> int | None:
+    """Return the id of an identical PENDING approval, if one exists.
+
+    With ``any_task=False`` (default) the task must match too — this covers
+    the agent loop emitting the same tool twice for one task. With
+    ``any_task=True`` the task is ignored, which covers double-submits from
+    the UI where each click mints its own task row. COALESCE keeps the lookup
+    portable across SQLite/PostgreSQL.
+    """
+    serialized_args = json.dumps(tool_args or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    snapshot_hash = _snapshot_digest(tool_name, serialized_args)
+    now = utcnow_iso()
+    query = (
+        "SELECT id FROM approvals WHERE user_id = ? AND kind = ? AND status = 'PENDING' "
+        "AND COALESCE(tool_name, '') = COALESCE(?, '') "
+        "AND COALESCE(snapshot_hash, '') = ? "
+        "AND (expires_at IS NULL OR expires_at > ?) "
+    )
+    params: list = [user_id, kind, tool_name or "", snapshot_hash, now]
+    if not any_task:
+        query += "AND COALESCE(task_id, -1) = COALESCE(?, -1) "
+        params.append(task_id if task_id is not None else -1)
+    query += "ORDER BY id ASC LIMIT 1"
+    row = conn.execute(query, params).fetchone()
+    return row["id"] if row else None
 
 
 def create_approval(
@@ -38,16 +80,73 @@ def create_approval(
 ) -> int:
     serialized_args = json.dumps(tool_args or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     snapshot_hash = _snapshot_digest(tool_name, serialized_args)
-    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
-    cur = conn.execute(
-        """
-        INSERT INTO approvals (task_id, user_id, requested_by, kind, action, scope, risk,
-                               tool_name, tool_args, snapshot_hash, expires_at, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
-        """,
-        (task_id, user_id, requested_by, kind, action, scope, risk,
-         tool_name, serialized_args, snapshot_hash, expires_at, utcnow_iso()),
-    )
+    # Reuse an identical pending approval instead of showing a duplicate card.
+    # A second card for the same operation is misleading: approving both fails
+    # the second execution, and rejecting one cancels a task that may already
+    # have run.
+    approval_id: int | None = None
+    with _CREATE_LOCK:
+        existing_id = find_reusable_approval(
+            conn, user_id=user_id, kind=kind, tool_name=tool_name, tool_args=tool_args, task_id=task_id,
+        )
+        if existing_id is None:
+            expires_at = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
+            try:
+                cur = conn.execute(
+                    """
+                    INSERT INTO approvals (task_id, user_id, requested_by, kind, action, scope, risk,
+                                           tool_name, tool_args, snapshot_hash, expires_at, status, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+                    """,
+                    (task_id, user_id, requested_by, kind, action, scope, risk,
+                     tool_name, serialized_args, snapshot_hash, expires_at, utcnow_iso()),
+                )
+                approval_id = cur.lastrowid
+            except Exception:
+                # Lost a race with an identical request, or an expired twin is
+                # blocking the unique index: sweep expired twins for this
+                # identity (mirroring the auto-reject of expired approvals)
+                # and retry the insert once.
+                existing_id = find_reusable_approval(
+                    conn, user_id=user_id, kind=kind, tool_name=tool_name,
+                    tool_args=tool_args, task_id=task_id,
+                )
+                if existing_id is None:
+                    conn.execute(
+                        "UPDATE approvals SET status='REJECTED', decided_at=? "
+                        "WHERE user_id=? AND kind=? AND status='PENDING' "
+                        "AND COALESCE(task_id,-1)=COALESCE(?,-1) "
+                        "AND COALESCE(tool_name,'')=COALESCE(?,'') "
+                        "AND COALESCE(snapshot_hash,'')=? "
+                        "AND expires_at IS NOT NULL AND expires_at <= ?",
+                        (utcnow_iso(), user_id, kind,
+                         task_id if task_id is not None else -1,
+                         tool_name or "", snapshot_hash, utcnow_iso()),
+                    )
+                    cur = conn.execute(
+                        """
+                        INSERT INTO approvals (task_id, user_id, requested_by, kind, action, scope, risk,
+                                               tool_name, tool_args, snapshot_hash, expires_at, status, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+                        """,
+                        (task_id, user_id, requested_by, kind, action, scope, risk,
+                         tool_name, serialized_args, snapshot_hash, expires_at, utcnow_iso()),
+                    )
+                    approval_id = cur.lastrowid
+        if existing_id is not None:
+            record_audit(
+                conn,
+                actor=requested_by,
+                actor_role="SYSTEM",
+                user_id=user_id,
+                action="approval_reused",
+                resource=f"approval:{existing_id}",
+                result="PENDING",
+                approval_id=existing_id,
+                task_id=task_id,
+            )
+            return existing_id
+    assert approval_id is not None
     conn.execute("UPDATE tasks SET status = 'WAITING_APPROVAL', approval_status = 'PENDING' WHERE id = ?", (task_id,))
     approval_id = cur.lastrowid
     record_audit(
@@ -217,12 +316,23 @@ def pending_approvals_for_user(conn, user_id: int) -> list[dict]:
     return [dict(row) for row in rows]
 
 
-def all_pending_approvals(conn) -> list[dict]:
+def all_pending_approvals(conn, *, include_decided: bool = False, limit: int = 200) -> list[dict]:
+    """Pending approvals, optionally together with the decision history.
+
+    The supervisor console has a "done" view, so the same sweep that expires
+    stale requests can also return what has already been decided.
+    """
     conn.execute(
         "UPDATE approvals SET status='REJECTED', decided_at=? WHERE status='PENDING' AND expires_at IS NOT NULL AND expires_at < ?",
         (utcnow_iso(), utcnow_iso()),
     )
-    rows = conn.execute(
-        "SELECT * FROM approvals WHERE status = 'PENDING' ORDER BY id DESC"
-    ).fetchall()
+    if include_decided:
+        rows = conn.execute(
+            "SELECT * FROM approvals ORDER BY CASE status WHEN 'PENDING' THEN 0 ELSE 1 END, id DESC LIMIT ?",
+            (max(1, min(limit, 1000)),),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM approvals WHERE status = 'PENDING' ORDER BY id DESC"
+        ).fetchall()
     return [dict(row) for row in rows]

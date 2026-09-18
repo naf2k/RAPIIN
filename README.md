@@ -21,6 +21,7 @@ Desktop Agent ── filesystem user (workspace terbatas)
 - Backend: `server/beresin/`; memisahkan `/api/auth`, `/api/user`, `/api/supervisor`, dan `/api/agent`.
 - Worker: task conversation berjalan di background thread dan mengirim progress/token melalui SSE.
 - Desktop Agent: `agent/beresin_agent/`; hanya menjalankan tool terdaftar dalam folder yang diizinkan user.
+- Frontend (React): lives di repo terpisah `workspaces/test/hafgufa/` dan bicara ke backend murni via `/api` (same-origin; saat dev, Vite proxy `/api` ke backend).
 - Secret device disimpan di credential vault OS melalui `keyring`, dengan fallback Fernet terikat mesin. File konfigurasi dibatasi ke mode `0600` pada OS POSIX.
 
 ## Menjalankan lokal
@@ -34,7 +35,9 @@ uv sync --extra dev
 uv run python run.py
 ```
 
-Buka `http://127.0.0.1:8000`. Frontend disajikan oleh server yang sama sehingga origin API dan UI konsisten.
+Buka `http://127.0.0.1:8000`. Service ini API-only; frontend React dijalankan
+terpisah dari `workspaces/test/hafgufa` (`npm run dev`, proxy `/api` ke backend)
+sehingga origin API dan UI konsisten.
 
 Di terminal kedua:
 

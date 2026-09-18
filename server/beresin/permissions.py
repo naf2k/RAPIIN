@@ -27,15 +27,16 @@ CAP_BULK_OPERATION = "BULK_OPERATION"
 
 AUTO_CAPABILITIES = {CAP_READ_FILES, CAP_SCAN_FILES, CAP_SEARCH_FILES}
 
-# Actions that never require approval (read / analysis / search)
+# Actions that never require approval (read / analysis / search, plus
+# creating empty folders inside the sandbox)
 AUTO_ACTIONS = {
     "filesystem_scanner", "metadata_extractor", "file_search", "duplicate_detector",
     "document_parser", "pdf_parser", "spreadsheet_parser", "verification",
-    "file_classifier", "semantic_indexer", "semantic_search",
+    "file_classifier", "semantic_indexer", "semantic_search", "file_mkdir",
 }
 
 # Actions that require user approval
-USER_APPROVAL_ACTIONS = {"file_move", "file_rename", "file_copy"}
+USER_APPROVAL_ACTIONS = {"file_move", "file_rename", "file_copy", "file_write", "file_edit"}
 
 # Destructive / bulk actions require stronger (supervisor) approval
 SUPERVISOR_APPROVAL_ACTIONS = {"file_delete", "batch_executor", "bulk_delete"}

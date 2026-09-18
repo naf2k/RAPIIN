@@ -401,6 +401,7 @@ CREATE INDEX IF NOT EXISTS idx_ops_events_incident ON ops_incident_events(incide
 CREATE INDEX IF NOT EXISTS idx_ops_approvals_status ON ops_approvals(status, requested_at);
 CREATE INDEX IF NOT EXISTS idx_ops_assignments_status ON ops_agent_assignments(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_ops_code_changes_incident ON ops_code_changes(incident_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_approvals_pending_dedupe ON approvals(user_id, kind, status, COALESCE(task_id, -1), COALESCE(tool_name, ''), COALESCE(snapshot_hash, '')) WHERE status = 'PENDING';
 """
 
 
@@ -478,6 +479,8 @@ MIGRATIONS = [
     "ALTER TABLE audit_log ADD COLUMN previous_hash TEXT",
     "ALTER TABLE audit_log ADD COLUMN event_hash TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_approvals_idempotency ON ops_approvals(idempotency_key) WHERE idempotency_key IS NOT NULL",
+    "DROP INDEX IF EXISTS idx_approvals_pending_lookup",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_approvals_pending_dedupe ON approvals(user_id, kind, status, COALESCE(task_id, -1), COALESCE(tool_name, ''), COALESCE(snapshot_hash, '')) WHERE status = 'PENDING'",
 ]
 
 

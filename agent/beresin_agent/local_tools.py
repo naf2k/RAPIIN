@@ -14,6 +14,8 @@ import re
 import shutil
 import time
 import zipfile
+from base64 import b64decode
+from binascii import Error as BinasciiError
 from pathlib import Path
 
 MAX_FILES = 5000
@@ -26,7 +28,25 @@ PROTECTED_PACKAGE_SUFFIXES = {
     ".localized",
 }
 PROTECTED_PACKAGE_NAMES = {"photo booth library"}
-PROTECTED_DIRECTORY_NAMES = {"library", "applications"}
+# Skipped while scanning, so a folder walk stays quiet and readable.
+PROTECTED_DIRECTORY_NAMES = {"library"}
+# Top-level directories that keep macOS bootable. Checked at the root only, so a
+# project's own bin/ or var/ folder is unaffected.
+SYSTEM_CRITICAL_PATHS = {"system", "usr", "bin", "sbin", "dev"}
+# macOS keeps /etc, system databases, and root's home under /private. Naming them
+# explicitly matters: blocking all of /private would also lock out the per-user
+# temp directories that /var/folders resolves to.
+PRIVATE_SYSTEM_PATHS = (
+    Path("/private/etc"),
+    Path("/private/var/db"),
+    Path("/private/var/audit"),
+    Path("/private/var/root"),
+)
+# Key material that must never reach a model context, wherever it appears.
+KEY_MATERIAL_NAMES = {
+    ".ssh", ".aws", ".gnupg", ".kube", ".docker", ".beresin",
+    "keychains", "credentials", "secrets",
+}
 NON_USER_DUPLICATE_SUFFIXES = {
     ".db-shm",
     ".db-wal",
@@ -261,6 +281,14 @@ def run_tool(kind: str, arguments: dict) -> dict:
         return _mutate(arguments, "rename")
     if kind == "file_delete":
         return _mutate(arguments, "delete")
+    if kind == "bulk_delete":
+        return _mutate(arguments, "delete")
+    if kind == "file_mkdir":
+        return _mkdir(arguments)
+    if kind == "file_write":
+        return _write_file(arguments)
+    if kind == "file_edit":
+        return _edit_file(arguments)
     if kind == "batch_executor":
         return _mutate(arguments, "batch")
     if kind == "verification":
@@ -287,7 +315,13 @@ def _verify(arguments: dict) -> dict:
 
 
 def _guard_mutation(path: Path, destination: bool = False) -> None:
-    """Refuse filesystem access outside allowed roots and sensitive paths."""
+    """Refuse filesystem access outside allowed roots and protected paths.
+
+    Access is intentionally wide: the assistant is expected to work across this
+    laptop. Two groups stay closed because a mistake there is not recoverable by
+    the assistant: paths that keep macOS bootable, and the stores that hold key
+    material or app-private data.
+    """
     from .config import allowed_roots
 
     candidate = path.expanduser().resolve()
@@ -295,26 +329,20 @@ def _guard_mutation(path: Path, destination: bool = False) -> None:
     if not any(_is_relative_to(candidate, root) for root in roots):
         shown = ", ".join(str(root) for root in roots)
         raise PermissionError(f"Path di luar workspace/folder yang diizinkan ({shown}): {path}")
+
+    parts = [part.casefold() for part in candidate.parts]
+    top_level = parts[1] if len(parts) > 1 else ""
+    if top_level in SYSTEM_CRITICAL_PATHS:
+        raise PermissionError(f"Folder sistem tidak dapat diakses BERESIN: {path}")
+    if any(_is_relative_to(candidate, private) for private in PRIVATE_SYSTEM_PATHS):
+        raise PermissionError(f"Folder sistem tidak dapat diakses BERESIN: {path}")
+    if KEY_MATERIAL_NAMES.intersection(parts):
+        raise PermissionError(f"Path sensitif tidak dapat diakses BERESIN: {path}")
+
+    # ~/Library and /Library carry keychains, cookies, and app-private data.
     home = Path.home().resolve()
-    if _is_relative_to(candidate, home):
-        relative_parts = [part.casefold() for part in candidate.relative_to(home).parts]
-        protected = {
-            ".ssh", ".aws", ".gnupg", ".kube", ".docker", ".beresin",
-            ".git", "keychains", "credentials", "secrets",
-        }
-        if any(part in protected for part in relative_parts):
-            raise PermissionError(f"Path sensitif tidak dapat diakses BERESIN: {path}")
-        if relative_parts and relative_parts[0] in PROTECTED_DIRECTORY_NAMES:
-            raise PermissionError(f"Folder sistem tidak dapat diakses BERESIN: {path}")
-        cursor = candidate if candidate.is_dir() else candidate.parent
-        while _is_relative_to(cursor, home):
-            if (cursor / ".git").exists():
-                raise PermissionError(f"Source project tidak dapat diakses BERESIN: {path}")
-            if cursor == home:
-                break
-            cursor = cursor.parent
-    if candidate.name.casefold() in {".env", ".env.local", ".env.production"}:
-        raise PermissionError(f"File kredensial tidak dapat diakses BERESIN: {path}")
+    if _is_relative_to(candidate, home / "Library") or _is_relative_to(candidate, Path("/Library")):
+        raise PermissionError(f"Folder sistem tidak dapat diakses BERESIN: {path}")
 
 
 def _is_relative_to(candidate: Path, root: Path) -> bool:
@@ -343,6 +371,161 @@ def _collect_mutation_paths(arguments: dict) -> list[str]:
     if raw:
         return [str(raw)]
     return []
+
+
+MAX_WRITE_BYTES = 1024 * 1024  # 1 MB per created/edited file.
+
+_AGENT_TEXT_EXTENSIONS = {
+    ".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl",
+    ".log", ".yml", ".yaml", ".xml", ".html", ".htm", ".css",
+    ".js", ".ts", ".tsx", ".jsx", ".py", ".sh", ".sql", ".ini",
+    ".cfg", ".toml", ".rtf",
+}
+
+_AGENT_READ_ONLY_BINARY = {".pdf", ".doc", ".docx", ".ppt", ".pptx"}
+
+
+def _mkdir(arguments: dict) -> dict:
+    raw = arguments.get("path")
+    if not raw:
+        return {"status": "ERROR", "message": "Parameter path wajib diisi."}
+    target = Path(str(raw)).expanduser()
+    try:
+        _guard_mutation(target)
+        if target.exists() and not target.is_dir():
+            return {"status": "ERROR", "message": f"Sudah ada file dengan nama itu: {target}"}
+        created = not target.exists()
+        target.mkdir(parents=True, exist_ok=True)
+        if not target.is_dir():
+            return {"status": "ERROR", "message": f"Folder tidak terbentuk: {target}"}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "ERROR", "message": str(exc)}
+    return {"status": "OK", "path": str(target), "created": created, "executed_count": 1, "verified_count": 1}
+
+
+def _write_file(arguments: dict) -> dict:
+    raw = arguments.get("path")
+    if not raw:
+        return {"status": "ERROR", "message": "Parameter path wajib diisi."}
+    if "content" not in arguments:
+        return {"status": "ERROR", "message": "Parameter content wajib diisi."}
+    target = Path(str(raw)).expanduser()
+    try:
+        _guard_mutation(target)
+        if target.exists():
+            return {"status": "ERROR", "message": f"Sudah ada; file tidak ditimpa: {target}"}
+        content = arguments.get("content") or ""
+        encoding = str(arguments.get("encoding") or "utf-8").lower()
+        if encoding == "base64":
+            try:
+                data = b64decode(content, validate=True)
+            except (BinasciiError, ValueError) as exc:
+                return {"status": "ERROR", "message": f"Konten base64 tidak valid: {exc}"}
+        elif encoding in {"utf-8", "utf8", "text"}:
+            data = content.encode("utf-8")
+        else:
+            return {"status": "ERROR", "message": "Encoding harus 'utf-8' atau 'base64'."}
+        if len(data) > MAX_WRITE_BYTES:
+            return {"status": "ERROR", "message": "Konten melebihi batas 1024 KB."}
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        if not (target.exists() and target.stat().st_size == len(data)):
+            return {"status": "ERROR", "message": f"File tidak terbentuk sempurna: {target}"}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "ERROR", "message": str(exc)}
+    return {"status": "OK", "path": str(target), "size": len(data), "executed_count": 1, "verified_count": 1}
+
+
+def _edit_file(arguments: dict) -> dict:
+    raw = arguments.get("path")
+    if not raw:
+        return {"status": "ERROR", "message": "Parameter path wajib diisi."}
+    target = Path(str(raw)).expanduser()
+    try:
+        _guard_mutation(target)
+        if not target.exists() or not target.is_file():
+            return {"status": "ERROR", "message": f"File tidak ditemukan: {target}"}
+        suffix = target.suffix.lower()
+        if suffix in _AGENT_READ_ONLY_BINARY:
+            return {"status": "ERROR", "message": f"Format {suffix} hanya bisa dibaca, belum bisa diubah dengan aman."}
+        backup = target.with_name(target.name + ".bak")
+        if not backup.exists():
+            shutil.copy2(str(target), str(backup))
+        if suffix == ".xlsx":
+            outcome = _edit_xlsx(target, arguments)
+        else:
+            outcome = _edit_text_file(target, arguments)
+        if not outcome["verified"]:
+            return {"status": "ERROR", "message": "Hasil edit tidak terverifikasi; backup tersimpan di " + str(backup)}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "ERROR", "message": str(exc)}
+    return {"status": "OK", "path": str(target), "backup": str(backup), "changed": outcome["changed"], "executed_count": 1, "verified_count": 1}
+
+
+def _edit_text_file(target: Path, arguments: dict) -> dict:
+    try:
+        original = target.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError) as exc:
+        raise ValueError(f"File bukan teks UTF-8 yang bisa diubah: {exc}") from exc
+    operation = arguments.get("operation") or "replace"
+    if operation == "replace":
+        old = arguments.get("old")
+        new = arguments.get("new", "")
+        if old is None or old == "":
+            raise ValueError("Parameter old wajib diisi untuk replace.")
+        try:
+            limit = int(arguments.get("count", 1))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Parameter count harus angka.") from exc
+        occurrences = original.count(old)
+        if occurrences == 0:
+            raise ValueError("Teks old tidak ditemukan di file.")
+        updated = original.replace(old, new, limit if limit > 0 else occurrences)
+        changed = min(occurrences, limit) if limit > 0 else occurrences
+    elif operation == "append":
+        addition = arguments.get("text", "")
+        separator = "" if original.endswith("\n") or original == "" else "\n"
+        updated = original + separator + addition
+        changed = 1
+    elif operation == "insert":
+        try:
+            line_no = int(arguments.get("line", 1))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Parameter line harus nomor baris.") from exc
+        lines = original.splitlines(keepends=True)
+        index = max(0, min(line_no - 1, len(lines)))
+        addition = arguments.get("text", "")
+        if addition and not addition.endswith("\n"):
+            addition += "\n"
+        lines.insert(index, addition)
+        updated = "".join(lines)
+        changed = 1
+    else:
+        raise ValueError("Operasi edit harus replace, insert, atau append.")
+    if len(updated.encode("utf-8")) > MAX_WRITE_BYTES:
+        raise ValueError("Hasil edit melebihi batas 1024 KB.")
+    target.write_text(updated, encoding="utf-8")
+    return {"changed": changed, "verified": target.read_text(encoding="utf-8") == updated}
+
+
+def _edit_xlsx(target: Path, arguments: dict) -> dict:
+    import openpyxl
+
+    sheet_name = arguments.get("sheet")
+    cell = arguments.get("cell")
+    if not sheet_name or not cell:
+        raise ValueError("Parameter sheet dan cell wajib diisi untuk XLSX.")
+    if "value" not in arguments:
+        raise ValueError("Parameter value wajib diisi untuk XLSX.")
+    workbook = openpyxl.load_workbook(str(target))
+    if sheet_name not in workbook.sheetnames:
+        raise ValueError(f"Sheet tidak ditemukan: {sheet_name}")
+    workbook[sheet_name][cell] = arguments.get("value")
+    workbook.save(str(target))
+    check = openpyxl.load_workbook(str(target), read_only=True, data_only=True)
+    stored = check[sheet_name][cell].value
+    check.close()
+    return {"changed": 1, "verified": stored == arguments.get("value")}
 
 
 def _mutate(arguments: dict, operation: str) -> dict:

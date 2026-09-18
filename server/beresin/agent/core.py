@@ -187,15 +187,16 @@ class HermesCore:
 
     # ----------------------------------------------------------------- tools
 
-    # Tools that read files on the employee computer. When a registered
-    # device agent is online these run locally on that computer (PRD section
-    # 8). They never fall back to the server filesystem: that could mutate or
-    # inspect the wrong machine while pretending success to the user.
+    # Tools that read files on the employee computer, plus folder creation.
+    # When a registered device agent is online these run locally on that
+    # computer (PRD section 8). They never fall back to the server filesystem:
+    # that could mutate or inspect the wrong machine while pretending success
+    # to the user.
     DEVICE_DELEGATED_TOOLS = {
         "filesystem_scanner", "metadata_extractor", "file_search",
         "duplicate_detector", "document_parser", "pdf_parser", "spreadsheet_parser",
         "verification", "file_classifier", "semantic_indexer", "semantic_search",
-        "folder_organizer",
+        "folder_organizer", "file_mkdir",
     }
 
     def _execute_tool(self, conn, user_id, task_id, device_id, name, arguments, permissions):
@@ -356,23 +357,86 @@ def _pending_supervisor_approval(conn, user_id, task_id, name, arguments) -> dic
     return {"tool": name, "status": "WAITING_SUPERVISOR_APPROVAL", "approval_id": approval_id}
 
 
+def _target_paths(arguments: dict) -> list[str]:
+    """Collect the actual file paths an action will touch, most specific first.
+
+    `paths`/`files`/`moves` name the real files; a lone `source`/`path` may be
+    a parent folder, so it is only a fallback.
+    """
+    for key in ("paths", "files"):
+        value = arguments.get(key)
+        if isinstance(value, list) and value:
+            return [str(item) for item in value]
+    moves = arguments.get("moves")
+    if isinstance(moves, list) and moves:
+        collected = []
+        for move in moves:
+            if isinstance(move, dict) and move.get("source"):
+                collected.append(str(move["source"]))
+            elif isinstance(move, str):
+                collected.append(move)
+        if collected:
+            return collected
+    for key in ("source", "path"):
+        value = arguments.get(key)
+        if value and isinstance(value, str):
+            return [value]
+    return []
+
+
+def _short_path(path: str, keep: int = 2) -> str:
+    """Shorten a path to its last segments so approval cards stay readable."""
+    text = str(path)
+    parts = [part for part in text.replace("\\", "/").split("/") if part]
+    if len(parts) <= keep + 1:
+        return text
+    return "…/" + "/".join(parts[-keep:])
+
+
 def _describe_action(name: str, arguments: dict) -> str:
     summary = {
         "file_move": "Memindahkan file",
         "file_copy": "Menyalin file",
         "file_rename": "Mengubah nama file",
         "file_delete": "Menghapus file",
+        "file_mkdir": "Membuat folder",
+        "file_write": "Membuat file",
+        "file_edit": "Mengubah file",
         "batch_executor": "Operasi massal pada banyak file",
         "bulk_delete": "Menghapus banyak file sekaligus",
     }
-    target = arguments.get("source") or arguments.get("path") or arguments.get("paths") or ""
-    if isinstance(target, list):
-        target = ", ".join(str(p) for p in target[:5])
-    return f"{summary.get(name, name)} ({target})"
+    label = summary.get(name, name)
+    targets = _target_paths(arguments)
+    if not targets:
+        return label
+    destination = arguments.get("destination")
+    show_destination = (
+        isinstance(destination, str) and bool(destination)
+        and name in {"file_move", "file_copy", "batch_executor"}
+    )
+    # Destructive actions always name the files: a count alone would hide
+    # what is about to be permanently removed.
+    if name in {"file_delete", "bulk_delete"}:
+        shown = ", ".join(_short_path(path) for path in targets[:5])
+        if len(targets) > 5:
+            shown += f" +{len(targets) - 5} lainnya"
+        return f"{label} ({shown})"
+    if len(targets) == 1:
+        text = f"{label} ({_short_path(targets[0])}"
+        if show_destination:
+            text += f" → {_short_path(destination)}"
+        return text + ")"
+    text = f"{label} ({len(targets)} file"
+    if show_destination:
+        text += f" → {_short_path(destination)}"
+    return text + ")"
 
 
 def _scope_of(arguments: dict) -> str | None:
-    for key in ("source", "path", "directory", "destination"):
+    targets = _target_paths(arguments)
+    if targets:
+        return ", ".join(targets[:10])
+    for key in ("directory", "destination"):
         value = arguments.get(key)
         if value:
             if isinstance(value, list):
@@ -393,8 +457,8 @@ def tool_include_for_task(text: str, prior_user_text: str = "") -> bool:
     signals = (
         "file", "folder", "dokumen", "pdf", "spreadsheet", "excel", "arsip",
         "duplikat", "download", "desktop", "scan", "cari", "pindah", "salin",
-        "rename", "ubah nama", "hapus", "rapikan", "bereskan", "kelompokkan",
-        "indeks", "drive", "berkas",
+        "rename", "ubah nama", "ubah isi", "hapus", "rapikan", "bereskan", "kelompokkan",
+        "indeks", "drive", "berkas", "edit", "mkdir", "file baru", "folder baru",
     )
     if any(signal in normalized for signal in signals):
         return True

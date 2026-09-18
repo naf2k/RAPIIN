@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..approval import get_approval, pending_approvals_for_user, respond_approval
+from ..approval import find_reusable_approval, get_approval, pending_approvals_for_user, respond_approval
 from ..audit import record_audit
 from ..database import utcnow_iso
 from ..memory import add_message, get_conversation_messages, get_memory, set_memory
@@ -97,6 +97,36 @@ def list_conversations(user=Depends(require_user), conn=Depends(get_db)):
         (user["id"],),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+@router.delete("/conversations/{conversation_id}")
+def delete_conversation_route(conversation_id: int, user=Depends(require_user), conn=Depends(get_db)):
+    # Raises 404 when the conversation is missing or belongs to someone else.
+    _get_user_conversation(conn, user["id"], conversation_id)
+
+    running = conn.execute(
+        "SELECT id FROM conversation_jobs WHERE conversation_id = ? AND status IN ('PENDING','CLAIMED')",
+        (conversation_id,),
+    ).fetchone()
+    if running:
+        raise HTTPException(
+            status_code=409,
+            detail="Percakapan masih diproses. Tunggu sampai tugasnya selesai.",
+        )
+
+    # messages and conversation_jobs hold foreign keys, so they go first.
+    conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
+    conn.execute("DELETE FROM conversation_jobs WHERE conversation_id = ?", (conversation_id,))
+    conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+    record_audit(
+        conn,
+        actor=user["name"],
+        actor_role="USER",
+        user_id=user["id"],
+        action="conversation_deleted",
+        resource=f"conversation:{conversation_id}",
+    )
+    return {"status": "ok", "conversation_id": conversation_id}
 
 
 @router.get("/conversations/{conversation_id}/messages")
@@ -396,8 +426,14 @@ def apply_recommendation(body: RecommendationApply, user=Depends(require_user), 
     apply = recommendation.get("apply") or {}
     tool_name = apply.get("tool_name")
     tool_args = apply.get("tool_args")
-    if tool_name not in {"file_delete", "batch_executor"} or not isinstance(tool_args, dict):
-        raise HTTPException(status_code=422, detail="Rencana rekomendasi tidak valid.")
+    if tool_name not in {"file_delete", "bulk_delete", "batch_executor"} or not isinstance(tool_args, dict):
+        # Organizer snapshots don't embed apply payloads; rebuild them here
+        # from the live folder state instead of rejecting the request.
+        from ..tools.organizer import build_apply_payload
+        try:
+            tool_name, tool_args = build_apply_payload(recommendation, directory, conn, user["id"])
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="Rencana rekomendasi tidak valid.") from exc
 
     kind = recommendation.get("kind", "")
     title = {
@@ -412,6 +448,32 @@ def apply_recommendation(body: RecommendationApply, user=Depends(require_user), 
     if device_id is None:
         raise HTTPException(status_code=409, detail="Snapshot tidak memiliki perangkat sumber.")
     _resolve_online_device(conn, user["id"], device_id)
+
+    # A double-click must not mint a second card: reuse the identical pending
+    # approval (across tasks) before creating a new task row.
+    reusable_id = find_reusable_approval(
+        conn, user_id=user["id"], kind="USER", tool_name=tool_name, tool_args=tool_args, any_task=True,
+    )
+    if reusable_id is not None:
+        existing = get_approval(conn, reusable_id)
+        record_audit(
+            conn,
+            actor=user["name"],
+            actor_role="USER",
+            user_id=user["id"],
+            device_id=device_id,
+            action="recommendation_apply_requested",
+            resource=f"recommendation:{kind}",
+            task_id=existing["task_id"],
+        )
+        return {
+            "approval_id": reusable_id,
+            "task_id": existing["task_id"],
+            "status": "WAITING_APPROVAL",
+            "action": title,
+            "tool": tool_name,
+            "file_count": len(tool_args.get("paths") or tool_args.get("moves") or []),
+        }
 
     task_id = create_task(conn, user_id=user["id"], device_id=device_id, type="organize")
     approval_id = create_approval(

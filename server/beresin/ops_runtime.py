@@ -61,7 +61,14 @@ def _record_usage(conn, row, duration: int, prompt: str, output: str, status: st
 
 
 def hermes_process_environment(profile: str = "shared") -> dict:
-    """Create a private profile without persisting the provider credential."""
+    """Create a private profile that authenticates Hermes against the AI router.
+
+    Hermes resolves the credential for the ``custom`` provider from its model
+    config, not from ``OPENAI_API_KEY``, so the key is written into the profile
+    config. Both the directory (0700) and the file (0600) stay owner-only, and
+    the credential is still injected into the process environment for any
+    provider that reads it from there.
+    """
     safe_profile = profile.strip().lower()
     if safe_profile not in {"lead", "security", "diagnostic", "coder", "shared"}:
         raise ValueError("Profile Operations Hermes tidak valid.")
@@ -73,11 +80,12 @@ def hermes_process_environment(profile: str = "shared") -> dict:
         f"  default: {settings.ai_model}\n"
         "  provider: custom\n"
         f"  base_url: {settings.ai_base_url}\n"
+        f"  api_key: {settings.ai_api_key}\n"
         "terminal:\n  backend: local\n",
         encoding="utf-8",
     )
-    # Older pilot builds wrote a plaintext provider key here. Remove that
-    # compatibility artifact and inject the credential into this process only.
+    # Older pilot builds wrote a plaintext provider key here. Remove the
+    # compatibility artifact; the credential lives in the config above.
     env_file = home / ".env"
     env_file.unlink(missing_ok=True)
     config.chmod(0o600)
