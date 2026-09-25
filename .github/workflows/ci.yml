@@ -78,6 +78,41 @@ jobs:
           image-ref: rapiin:test
           severity: CRITICAL,HIGH
           exit-code: "1"
+      # The UI is a separate image. Build it here too so a broken
+      # Dockerfile.frontend fails CI instead of surfacing at deploy time.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.frontend
+          push: false
+          tags: rapiin-frontend:test
+          provenance: false
+          cache-from: type=gha,scope=rapiin-frontend
+          cache-to: type=gha,mode=max,scope=rapiin-frontend
+      # Run the image, not just build it: proves the unprivileged nginx user can
+      # render the template and serve the SPA with a read-only root filesystem.
+      - name: Smoke test the frontend image
+        run: |
+          docker run -d --name rapiin-frontend-smoke -p 8080:8080 \
+            --read-only \
+            --tmpfs /var/cache/nginx:size=32m,mode=1777 \
+            --tmpfs /var/run:size=8m,mode=1777 \
+            --tmpfs /etc/nginx/conf.d:size=1m,mode=1777 \
+            -e RAPIIN_API_UPSTREAM=127.0.0.1:8000 \
+            rapiin-frontend:test
+          ok=""
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/healthz >/dev/null 2>&1; then ok=1; break; fi
+            sleep 1
+          done
+          if [ -z "$ok" ]; then
+            echo "frontend image never became healthy"; docker logs rapiin-frontend-smoke; exit 1
+          fi
+          echo "healthz: $(curl -fsS http://127.0.0.1:8080/healthz)"
+          curl -fsS http://127.0.0.1:8080/ | grep -q 'id="root"'
+          echo "running as: $(docker exec rapiin-frontend-smoke id -un)"
+          docker exec rapiin-frontend-smoke id -un | grep -qx nginx
+          echo "frontend image serves the SPA as non-root"
 
   notify-operations:
     if: always()

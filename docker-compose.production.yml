@@ -128,7 +128,10 @@ services:
     depends_on: [rapiin]
     restart: unless-stopped
     read_only: true
-    tmpfs: ["/var/cache/nginx:size=32m", "/var/run:size=8m"]
+    # The nginx user must create its pid, proxy temp files and the rendered
+    # config, so every tmpfs mounted over a normally-root-owned path is given
+    # mode=1777. The rest of the filesystem stays read-only.
+    tmpfs: ["/var/cache/nginx:size=32m,mode=1777", "/var/run:size=8m,mode=1777", "/etc/nginx/conf.d:size=1m,mode=1777"]
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
     logging:

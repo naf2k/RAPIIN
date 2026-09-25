@@ -14,10 +14,20 @@ RUN npm run build
 FROM nginx:1.27-alpine
 
 # Runtime config (proxy target, SPA fallback) comes from the mounted template.
+# The image entrypoint renders it into /etc/nginx/conf.d, which is a tmpfs when
+# the root filesystem is mounted read-only.
 COPY deploy/nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /web/dist /usr/share/nginx/html
 
 EXPOSE 8080
+
+# nginx:alpine ships an unprivileged `nginx` user (uid 101). Port 8080 is above
+# 1024, so serving the UI never requires root; run the whole container as that
+# user so a compromise cannot start from uid 0.
+RUN chown -R nginx:nginx /etc/nginx/conf.d /var/cache/nginx \
+    && touch /var/run/nginx.pid \
+    && chown nginx:nginx /var/run/nginx.pid
+USER nginx
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
