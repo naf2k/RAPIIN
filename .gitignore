@@ -39,3 +39,7 @@ agent/*.spec
 
 # Local editor/agent metadata
 .commandcode/
+.kilo/
+
+# Vite local env
+*.local
