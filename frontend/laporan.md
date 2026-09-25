@@ -172,14 +172,16 @@ bukti Windows 18 Sep 2026, lihat §6). Acceptance diulang penuh di commit rilis 
 
 ---
 
-## 5. Struktur repo (3 lokasi)
+## 5. Struktur repo (monorepo RAPIIN)
 
 ```text
-~/orca/projects/RAPIIN/          ← KANONIS: server/ + agent/ + ops/ + deploy/ + docs/
-~/orca/workspaces/test/hafgufa/   ← Frontend React aktif (repo ini)
-~/orca/workspaces/RAPIIN/ui/     ← Legacy: UI vanilla dibekukan + arsip backend 17 Sep 2026
+~/orca/projects/rapiin/          ← KANONIS (satu repo): server/ + agent/ + frontend/ + ops/ + deploy/ + docs/
+~/orca/workspaces/BERESIN/ui/    ← Legacy: UI vanilla dibekukan + arsip backend 17 Sep 2026
 ~/Documents/rapiin-windows-test/ ← Paket tes Windows (script+wheel+SHA256SUMS+petunjuk)
 ```
+
+Frontend React (`frontend/`, dulu repo terpisah `hafgufa`) digabung ke monorepo
+dengan riwayat commit dipertahankan.
 
 Commit penting: backend `060129a` (port fixes + filter `.git`), hafgufa `e883397` (React full)
 

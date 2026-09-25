@@ -5,7 +5,7 @@ Pilot/testing saja: untuk produksi gunakan image Docker yang menyajikan
 frontend + API dari satu origin. Stdlib only, tanpa dependensi baru.
 
 Contoh:
-    python3 ops/serve_dashboard.py --dist /path/ke/hafgufa/dist --port 5175
+    python3 ops/serve_dashboard.py --dist frontend/dist --port 5175
     tailscale serve --https=8443 --bg http://localhost:5175
 """
 from __future__ import annotations

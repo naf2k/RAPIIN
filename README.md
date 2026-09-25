@@ -21,7 +21,7 @@ Desktop Agent ── filesystem user (workspace terbatas)
 - Backend: `server/rapiin/`; memisahkan `/api/auth`, `/api/user`, `/api/supervisor`, dan `/api/agent`.
 - Worker: task conversation berjalan di background thread dan mengirim progress/token melalui SSE.
 - Desktop Agent: `agent/rapiin_agent/`; hanya menjalankan tool terdaftar dalam folder yang diizinkan user.
-- Frontend (React): lives di repo terpisah `workspaces/test/hafgufa/` dan bicara ke backend murni via `/api` (same-origin; saat dev, Vite proxy `/api` ke backend).
+- Frontend (React): `frontend/` dalam repo ini (monorepo) dan bicara ke backend murni via `/api` (same-origin; saat dev, Vite proxy `/api` ke backend).
 - Secret device disimpan di credential vault OS melalui `keyring`, dengan fallback Fernet terikat mesin. File konfigurasi dibatasi ke mode `0600` pada OS POSIX.
 
 ## Menjalankan lokal
@@ -36,7 +36,7 @@ uv run python run.py
 ```
 
 Buka `http://127.0.0.1:8000`. Service ini API-only; frontend React dijalankan
-terpisah dari `workspaces/test/hafgufa` (`npm run dev`, proxy `/api` ke backend)
+dari `frontend/` (`npm run dev`, proxy `/api` ke backend)
 sehingga origin API dan UI konsisten.
 
 Di terminal kedua:
@@ -62,6 +62,7 @@ rapiin-agent autostart
 ```bash
 cd server && uv run pytest -q
 cd ../agent && uv run --with pytest pytest -q
+cd ../frontend && npm run build
 ```
 
 Suite mencakup RBAC, approval/resume, isolasi user, queue agent, 1.000+ file, file terkunci, reconnect, toggle autostart, progress count, dan concurrent device.
