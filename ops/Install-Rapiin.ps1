@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Pasang BERESIN Desktop Agent di PC Windows dalam 1 klik.
+  Pasang RAPIIN Desktop Agent di PC Windows dalam 1 klik.
 
 .DESCRIPTION
   Karyawan cukup klik kanan file ini -> "Run with PowerShell" (atau jalankan
@@ -10,8 +10,8 @@
   checksum wheel, pasang agent, daftar device, aktifkan autostart, verifikasi.
 
   Cara jalanin (pilih salah satu):
-    powershell -ExecutionPolicy Bypass -File .\Install-Beresin.ps1
-    powershell -ExecutionPolicy Bypass -File .\Install-Beresin.ps1 -ServerUrl https://NAMA-SERVER.ts.net
+    powershell -ExecutionPolicy Bypass -File .\Install-Rapiin.ps1
+    powershell -ExecutionPolicy Bypass -File .\Install-Rapiin.ps1 -ServerUrl https://NAMA-SERVER.ts.net
 
   Syarat yang TIDAK bisa otomatis: login Tailscale (jendela login muncul sekali)
   dan klik "Yes" saat Windows minta izin admin untuk pemasangan.
@@ -19,7 +19,7 @@
 [CmdletBinding()]
 param(
   [string]$ServerUrl = 'https://haimacs-macbook-pro-84.tail9cf4bc.ts.net',
-  [string]$Workspace = "$HOME\Downloads\beresin-test",
+  [string]$Workspace = "$HOME\Downloads",
   [string]$WheelDir = ''
 )
 
@@ -65,11 +65,11 @@ function Test-PythonOk {
 }
 
 Write-Host "==========================================="
-Write-Host "  PASANG BERESIN - tinggal jawab 3 hal"
+Write-Host "  PASANG RAPIIN - tinggal jawab 3 hal"
 Write-Host "==========================================="
 
 # --- 1. Tanya 3 hal dulu (biar sisanya jalan tanpa henti) ---
-$Email = Read-Host -Prompt '[1/3] Email BERESIN kamu'
+$Email = Read-Host -Prompt '[1/3] Email RAPIIN kamu'
 $ServerInput = Read-Host -Prompt "[2/3] Alamat server (Enter = $ServerUrl)"
 if ($ServerInput.Trim() -ne '') { $ServerUrl = $ServerInput.Trim() }
 Write-Host '[3/3] Kata sandi diminta nanti oleh program (aman, tidak tercatat di script ini).'
@@ -137,9 +137,9 @@ Write-Ok 'Server bisa dihubungi.'
 
 # --- 6. Cari wheel + cek checksum ---
 Write-Step 'Cari file agent...'
-$wheel = Get-ChildItem -Path $WheelDir -Filter 'beresin_agent-*.whl' | Sort-Object Name -Descending | Select-Object -First 1
+$wheel = Get-ChildItem -Path $WheelDir -Filter 'rapiin_agent-*.whl' | Sort-Object Name -Descending | Select-Object -First 1
 if (-not $wheel) {
-  Write-Fail "File beresin_agent-*.whl tidak ketemu di $WheelDir. Taruh wheel di folder yang sama dengan script ini."
+  Write-Fail "File rapiin_agent-*.whl tidak ketemu di $WheelDir. Taruh wheel di folder yang sama dengan script ini."
   exit 1
 }
 $sumFile = Join-Path $WheelDir 'SHA256SUMS'
@@ -163,25 +163,25 @@ Write-Step 'Pasang agent...'
 $alreadyInstalled = $false
 try {
   $toolList = uv tool list 2>$null | Out-String
-  if ($toolList -match 'beresin-agent') { $alreadyInstalled = $true }
+  if ($toolList -match 'rapiin-agent') { $alreadyInstalled = $true }
 } catch { }
 if ($alreadyInstalled) {
   uv tool install --force $wheel.FullName
 } else {
   uv tool install $wheel.FullName
 }
-$beresinExe = Join-Path $HOME '.local\bin\beresin.exe'
-if (-not (Test-Path $beresinExe)) {
-  Write-Fail 'beresin.exe tidak ketemu setelah install. Ulangi script ini di jendela baru.'
+$rapiinExe = Join-Path $HOME '.local\bin\rapiin.exe'
+if (-not (Test-Path $rapiinExe)) {
+  Write-Fail 'rapiin.exe tidak ketemu setelah install. Ulangi script ini di jendela baru.'
   exit 1
 }
 Write-Ok 'Agent terpasang.'
-# Pastikan jendela PowerShell baru mengenal perintah beresin tanpa path lengkap.
-$binDir = Split-Path -Parent $beresinExe
+# Pastikan jendela PowerShell baru mengenal perintah rapiin tanpa path lengkap.
+$binDir = Split-Path -Parent $rapiinExe
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if ($userPath -notlike "*$binDir*") {
   [Environment]::SetEnvironmentVariable('Path', "$binDir;$userPath", 'User')
-  Write-Ok 'Perintah beresin didaftarkan ke PATH (berlaku untuk jendela baru).'
+  Write-Ok 'Perintah rapiin didaftarkan ke PATH (berlaku untuk jendela baru).'
 }
 $env:Path = "$binDir;$env:Path"
 
@@ -190,20 +190,20 @@ Write-Step 'Daftarkan device ini...'
 if (-not (Test-Path $Workspace)) {
   New-Item -ItemType Directory -Path $Workspace -Force | Out-Null
 }
-& $beresinExe setup --server $ServerUrl --workspace $Workspace --autostart --email $Email
+& $rapiinExe setup --server $ServerUrl --workspace $Workspace --autostart --email $Email
 if ($LASTEXITCODE -ne 0) {
-  Write-Fail 'Setup gagal. Periksa email/password, lalu ulangi: beresin setup'
+  Write-Fail 'Setup gagal. Periksa email/password, lalu ulangi: rapiin setup'
   exit 1
 }
 
 # --- 9. Verifikasi ---
 Write-Step 'Verifikasi...'
-& $beresinExe verify
+& $rapiinExe verify
 if ($LASTEXITCODE -ne 0) {
-  Write-Fail 'Verifikasi gagal. Jalankan "beresin verify" manual dan kirim hasilnya ke IT.'
+  Write-Fail 'Verifikasi gagal. Jalankan "rapiin verify" manual dan kirim hasilnya ke IT.'
   exit 1
 }
 
 Write-Host ""
-Write-Host "SELESAI. BERESIN hidup dan ikut nyala tiap PC dinyalakan." -ForegroundColor Green
-Write-Host "Kerja lewat browser seperti biasa. Perintah berguna: beresin status | beresin verify"
+Write-Host "SELESAI. RAPIIN hidup dan ikut nyala tiap PC dinyalakan." -ForegroundColor Green
+Write-Host "Kerja lewat browser seperti biasa. Perintah berguna: rapiin status | rapiin verify"
