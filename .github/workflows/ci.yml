@@ -86,6 +86,7 @@ jobs:
           file: Dockerfile.frontend
           push: false
           tags: rapiin-frontend:test
+          load: true
           provenance: false
           cache-from: type=gha,scope=rapiin-frontend
           cache-to: type=gha,mode=max,scope=rapiin-frontend
