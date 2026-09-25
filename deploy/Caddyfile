@@ -3,8 +3,10 @@
     header {
         -Server
     }
-    reverse_proxy rapiin:8000 {
-        health_uri /ready
+    # The frontend owns the public surface: it serves the SPA and proxies /api
+    # to the API service. Caddy only terminates TLS and forwards.
+    reverse_proxy frontend:8080 {
+        health_uri /healthz
         health_interval 15s
     }
 }

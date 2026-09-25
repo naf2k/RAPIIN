@@ -18,8 +18,7 @@ import { cn } from "@/lib/utils";
 
 type LoginStatus = "idle" | "loading" | "success";
 
-const moonImage =
-  "https://cdn.21st.dev/assets/mirror/c3/c333918af688a4a8a3d004652e6c0ee219457a9d84d380eeb31f513d4b59a09f.png";
+const moonImage = "/moon.png";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");

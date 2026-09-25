@@ -37,5 +37,12 @@ rapiin-ops = "rapiin.ops_cli:main"
 pythonpath = ["."]
 testpaths = ["tests"]
 
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+# NOTE: no `lint.select` yet. A first pass found 492 findings across this
+# package, so gating CI on lint would fail the build today. Narrow the rule set
+# and clean the codebase first, then add a blocking lint job.
+
 [tool.setuptools.packages.find]
 include = ["rapiin*"]

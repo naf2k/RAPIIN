@@ -117,6 +117,24 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "5"}
 
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    environment:
+      # nginx proxies /api here; same-origin for the browser.
+      RAPIIN_API_UPSTREAM: rapiin:8000
+    expose: ["8080"]
+    depends_on: [rapiin]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/var/cache/nginx:size=32m", "/var/run:size=8m"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "5"}
+
   caddy:
     image: caddy:2.10-alpine
     environment:
@@ -126,7 +144,7 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on: [rapiin]
+    depends_on: [frontend]
     restart: unless-stopped
     cap_drop: ["ALL"]
     cap_add: ["NET_BIND_SERVICE"]

@@ -1015,8 +1015,7 @@ export default function RuixenMoonChat({
               className="absolute -inset-[2%] bg-cover bg-center"
               style={{
                 backgroundColor: "#050505",
-                backgroundImage:
-                  "url('https://cdn.21st.dev/assets/mirror/c3/c333918af688a4a8a3d004652e6c0ee219457a9d84d380eeb31f513d4b59a09f.png')",
+                backgroundImage: "url('/moon.png')",
                 transformOrigin: "50% 82%",
               }}
               animate={

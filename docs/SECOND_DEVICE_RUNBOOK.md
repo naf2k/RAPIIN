@@ -30,7 +30,7 @@ Catat URL HTTPS yang ditampilkan. Tambahkan origin tersebut secara persis ke
 3. Jalankan installer rilis dari checkout repository:
 
 ```bash
-./ops/install_agent_release.sh https://NAMA-MESIN.TAILNET.ts.net "$HOME/Downloads"
+./ops/install_rapiin_release.sh https://NAMA-MESIN.TAILNET.ts.net "$HOME/Downloads"
 ```
 
 Installer mengunduh wheel rilis, memverifikasi SHA-256, meminta login RAPIIN

@@ -28,7 +28,23 @@ ROLE_POLICIES = {
 }
 
 
+POLICY_KEYS = (
+    "operations.freeze",
+    "approvals.code_fix",
+    "approvals.deployment",
+    "execution.coder",
+)
+
+
 def seed_ops(conn) -> None:
+    # Fast path: this runs on every dispatch/reconcile tick, so once the rows
+    # exist the seed must not re-issue upserts. Concurrent INSERT ... ON CONFLICT
+    # from the startup path and the dispatch path otherwise deadlock on row
+    # locks (psycopg.errors.LockNotAvailable).
+    agent_roles = {row["role"] for row in conn.execute("SELECT role FROM ops_agents").fetchall()}
+    policy_keys = {row["key"] for row in conn.execute("SELECT key FROM ops_policies").fetchall()}
+    if set(ROLE_POLICIES).issubset(agent_roles) and set(POLICY_KEYS).issubset(policy_keys):
+        return
     now = utcnow_iso()
     for role, policy in ROLE_POLICIES.items():
         conn.execute(
@@ -43,6 +59,8 @@ def seed_ops(conn) -> None:
         "approvals.deployment": {"required": True, "approver_role": "SUPERVISOR", "separate_from_code_fix": True},
         "execution.coder": {"requires_fix_approval": True, "isolated_worktree": True, "direct_production_access": False},
     }
+    # POLICY_KEYS mirrors this mapping; keep the two in sync.
+    assert set(defaults) == set(POLICY_KEYS), "POLICY_KEYS out of sync with defaults"
     for key, value in defaults.items():
         conn.execute(
             "INSERT INTO ops_policies(key,value_json,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO NOTHING",

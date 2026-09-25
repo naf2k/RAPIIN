@@ -110,4 +110,4 @@ folder sistem dan kredensial tidak dibuka kepada AI.
 
 Untuk memasang agent pada laptop kedua melalui jaringan privat, ikuti
 [runbook laptop kedua](docs/SECOND_DEVICE_RUNBOOK.md). Installer rilis yang
-memverifikasi checksum tersedia di `ops/install_agent_release.sh`.
+memverifikasi checksum tersedia di `ops/install_rapiin_release.sh`.

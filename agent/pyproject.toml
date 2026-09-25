@@ -29,3 +29,8 @@ dev = [
 
 [tool.setuptools]
 packages = ["rapiin_agent"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+# NOTE: no `lint.select` yet; see server/pyproject.toml for the same rationale.
