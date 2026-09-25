@@ -336,3 +336,69 @@ def test_batch_moves_multiple_files_into_same_new_directory(tmp_path, monkeypatc
     assert (destination / first.name).is_file()
     assert (destination / second.name).is_file()
     assert not (destination / second.name).is_dir()
+
+
+def test_scan_always_returns_recommendations_for_messy_folder(tmp_path, monkeypatch):
+    """Scan is never a dead end: a messy folder must come back with advice."""
+    monkeypatch.setattr(config, "workspace_root", lambda: tmp_path)
+    for ext in ("pdf", "pdf", "docx", "txt", "txt", "xlsx", "xlsx", "png", "png", "png"):
+        (tmp_path / f"berkas-{len(list(tmp_path.iterdir()))}.{ext}").write_text("isi")
+    result = local_tools.run_tool("filesystem_scanner", {"path": str(tmp_path)})
+    assert result["status"] == "OK"
+    assert result["recommendations"], "scan harus selalu memberi rekomendasi"
+    kinds = {item["kind"] for item in result["recommendations"]}
+    assert "create_folders_by_type" in kinds
+
+
+def test_scan_recommendation_survives_tidy_folder(tmp_path, monkeypatch):
+    """Even a tidy folder gets an explicit answer instead of an empty list."""
+    monkeypatch.setattr(config, "workspace_root", lambda: tmp_path)
+    for name in ("a.pdf", "b.txt", "c.png"):
+        (tmp_path / name).write_text("isi")
+    result = local_tools.run_tool("filesystem_scanner", {"path": str(tmp_path)})
+    assert result["recommendations"]
+    assert result["recommendations"][0]["kind"] == "already_tidy"
+
+
+def test_scan_does_not_hash_files(tmp_path, monkeypatch):
+    """Scanning must stay cheap; deep duplicate work belongs to folder_organizer."""
+    monkeypatch.setattr(config, "workspace_root", lambda: tmp_path)
+    (tmp_path / "satu.txt").write_text("sama")
+    (tmp_path / "dua.txt").write_text("sama")
+    local_tools._FILE_LIST_CACHE.clear()
+    local_tools._HASH_CACHE.clear()
+    hashes = 0
+    original_hash = local_tools._hash
+
+    def counted_hash(path):
+        nonlocal hashes
+        hashes += 1
+        return original_hash(path)
+
+    monkeypatch.setattr(local_tools, "_hash", counted_hash)
+    monkeypatch.setattr(local_tools, "_cached_hash", lambda p: counted_hash(p) and original_hash(p))
+    local_tools.run_tool("filesystem_scanner", {"path": str(tmp_path)})
+    assert hashes == 0
+
+
+def test_organizer_still_detects_duplicates(tmp_path, monkeypatch):
+    """The deep-analysis path keeps duplicate detection."""
+    monkeypatch.setattr(config, "workspace_root", lambda: tmp_path)
+    (tmp_path / "asli.txt").write_text("identik")
+    (tmp_path / "salinan.txt").write_text("identik")
+    result = local_tools.run_tool("folder_organizer", {"path": str(tmp_path)})
+    kinds = {item["kind"] for item in result["recommendations"]}
+    assert "delete_duplicates" in kinds
+
+
+def test_scan_recommendation_apply_payload_is_executable(tmp_path, monkeypatch):
+    """Advice must be actionable: its apply payload runs through batch_executor."""
+    monkeypatch.setattr(config, "workspace_root", lambda: tmp_path)
+    for index in range(6):
+        (tmp_path / f"foto-{index}.png").write_bytes(b"png")
+    scan = local_tools.run_tool("filesystem_scanner", {"path": str(tmp_path)})
+    rec = next(item for item in scan["recommendations"] if item["kind"] == "create_folders_by_type")
+    execution = local_tools.run_tool(rec["apply"]["tool_name"], rec["apply"]["tool_args"])
+    assert execution["status"] == "OK"
+    assert (tmp_path / "Gambar").is_dir()
+    assert len(list((tmp_path / "Gambar").iterdir())) == 6

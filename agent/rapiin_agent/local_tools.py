@@ -696,13 +696,32 @@ def _scan(arguments: dict) -> dict:
     _guard_mutation(root)
     if not root.is_dir():
         return {"status": "ERROR", "message": f"Folder tidak ditemukan: {root}"}
+    root = root.resolve()
     files = _files_under(root)
+    # A scan is never a dead end: it always carries recommendations so the
+    # user can act on the result instead of just reading a file list. Scanning
+    # stays cheap on purpose (no content hashing), so duplicate detection is
+    # left to `folder_organizer`, which is the deep-analysis entry point.
+    top_level = [f for f in files if f.parent == root]
+    recs = _build_recommendations(root, top_level, detect_duplicates=False)
+    if not recs and files:
+        # Files exist but only inside subfolders: nothing to regroup at this
+        # level, so point the user at the folders that do have content.
+        subfolders = sorted({p.parent.name for p in files})[:5]
+        recs.append({
+            "id": "in-subfolders", "kind": "already_tidy",
+            "title": "Folder sudah tertata",
+            "description": "File berada di dalam subfolder. Pindai subfolder tertentu untuk rekomendasi lebih rinci.",
+            "file_count": len(files), "action": "none",
+            "detail": {"jumlah_file": len(files), "subfolder": subfolders},
+        })
     return {
         "status": "OK",
-        "directory": str(root.resolve()),
+        "directory": str(root),
         "file_count": len(files),
         "files": [_metadata(f) for f in files[:200]],
         "truncated": len(files) > 200,
+        "recommendations": recs,
     }
 
 
@@ -808,14 +827,18 @@ CATEGORY_NAMES = {
 }
 
 
-def _organize(arguments: dict) -> dict:
-    """Create an actionable, immutable-on-server recommendation snapshot locally."""
-    root = Path(arguments.get("path") or ".").expanduser()
-    _guard_mutation(root)
-    if not root.is_dir():
-        return {"status": "ERROR", "message": f"Folder tidak ditemukan: {root}"}
-    root = root.resolve()
-    files = [p for p in _files_under(root) if p.parent == root]
+def _build_recommendations(root: Path, files: list[Path], *, detect_duplicates: bool = True) -> list[dict]:
+    """Build structured, actionable recommendations for a folder.
+
+    Shared by `folder_organizer` and `filesystem_scanner` so a plain scan
+    always ends with a concrete next step for the user (PRD 6.8 / 14). Never
+    returns nothing for a non-empty folder: when no grouping or duplicate
+    work stands out, an advisory entry still reports what was found.
+
+    ``detect_duplicates`` is off for scans: hashing every file is the only
+    expensive step here, and the scan is expected to stay cheap. The deep
+    duplicate pass runs through `folder_organizer` instead.
+    """
     recs: list[dict] = []
     by_category: dict[str, list[Path]] = {}
     by_year: dict[str, list[Path]] = {}
@@ -826,7 +849,8 @@ def _organize(arguments: dict) -> dict:
             match = YEAR_RE.search(path.name)
             if match:
                 by_year.setdefault(match.group(0), []).append(path)
-            by_hash.setdefault(_cached_hash(path), []).append(path)
+            if detect_duplicates:
+                by_hash.setdefault(_cached_hash(path), []).append(path)
         except OSError:
             continue
 
@@ -856,6 +880,30 @@ def _organize(arguments: dict) -> dict:
                      "detail": {"files_saved": len(duplicates)},
                      "apply": {"tool_name": "file_delete", "tool_args": {"paths": [str(p) for p in duplicates],
                                "expected_files": [_fingerprint(p) for p in duplicates]}}})
+
+    if not recs and files:
+        # Nothing worth reorganising: say so and summarise what is there, so a
+        # scan never comes back without guidance.
+        by_cat = {CATEGORY_NAMES.get(key, key): len(paths) for key, paths in by_category.items() if paths}
+        recs.append({
+            "id": "already-tidy", "kind": "already_tidy",
+            "title": "Folder sudah rapi",
+            "description": "Tidak ada pengelompokan mendesak. Isi folder sudah cukup tertata.",
+            "file_count": len(files), "action": "none",
+            "detail": by_cat,
+        })
+    return recs
+
+
+def _organize(arguments: dict) -> dict:
+    """Create an actionable, immutable-on-server recommendation snapshot locally."""
+    root = Path(arguments.get("path") or ".").expanduser()
+    _guard_mutation(root)
+    if not root.is_dir():
+        return {"status": "ERROR", "message": f"Folder tidak ditemukan: {root}"}
+    root = root.resolve()
+    files = [p for p in _files_under(root) if p.parent == root]
+    recs = _build_recommendations(root, files)
     return {"status": "OK", "directory": str(root), "file_count": len(files), "recommendations": recs}
 
 
