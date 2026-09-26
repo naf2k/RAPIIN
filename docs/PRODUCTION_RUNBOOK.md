@@ -12,6 +12,25 @@ agent, health monitor, queue worker, and daily backup as separate user LaunchAge
 - `com.rapiin.worker`
 - `com.rapiin.monitor`
 - `com.rapiin.backup`
+- `com.rapiin.dashboard` (menyajikan UI hasil build `frontend/dist`)
+
+The dashboard agent runs `ops/serve_dashboard.py` on port 5175 and proxies
+`/api` to the API on `127.0.0.1:8000`, so the browser sees one origin. Without
+it the UI only exists while someone keeps a terminal open, and employees see a
+blank page after a reboot. Install it with:
+
+```sh
+sed "s#__REPO__#$PWD#g" ops/com.rapiin.dashboard.plist \
+  > ~/Library/LaunchAgents/com.rapiin.dashboard.plist
+launchctl load ~/Library/LaunchAgents/com.rapiin.dashboard.plist
+```
+
+Expose it to the tailnet with `tailscale serve --https=8443 --bg http://localhost:5175`.
+For a permanent employee-facing address, the supported topology is the Docker
+frontend image behind Caddy (`docker-compose.production.yml`); it serves the SPA
+and proxies `/api` from one origin, and CI smoke-tests it as a non-root user.
+The runbook's loopback deployment is the single-user pilot, not the employee
+destination.
 
 The monitor runs `ops/local_health_monitor.py` every minute and emits a macOS
 notification only when readiness changes. The daily backup targets
@@ -21,7 +40,7 @@ under `server/data`, mode `0600`; never commit them.
 
 Before the reboot drill run `rapiin startup-probe record`. After logging in
 again, run `rapiin startup-probe verify`, require `/ready` to return HTTP 200,
-and confirm all five LaunchAgents are present. Run the complete local readiness
+and confirm all six LaunchAgents are present. Run the complete local readiness
 gate with `server/.venv/bin/rapiin-ops verify`.
 
 ## Supported release topology

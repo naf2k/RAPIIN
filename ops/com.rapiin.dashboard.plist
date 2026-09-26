@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Menjaga UI RAPIIN tetap hidup tanpa jendela terminal.
+
+  Tanpa ini, dashboard hanya jalan selama seseorang menjalankan
+  `python3 ops/serve_dashboard.py` secara manual, dan mati begitu terminal
+  ditutup atau mesin dinyalakan ulang — karyawan lalu melihat halaman kosong.
+
+  Pasang (ganti __REPO__ dengan path checkout):
+    sed "s#__REPO__#$PWD#g" ops/com.rapiin.dashboard.plist \
+      > ~/Library/LaunchAgents/com.rapiin.dashboard.plist
+    launchctl load ~/Library/LaunchAgents/com.rapiin.dashboard.plist
+
+  Catatan: plist.com.rapiin.server/worker/agent sudah ada dan TIDAK diubah.
+  Ini layanan tambahan untuk menyajikan frontend hasil build.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.rapiin.dashboard</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__REPO__/server/.venv/bin/python</string>
+    <string>__REPO__/ops/serve_dashboard.py</string>
+    <string>--dist</string>
+    <string>__REPO__/frontend/dist</string>
+    <string>--backend</string>
+    <string>http://127.0.0.1:8000</string>
+    <string>--port</string>
+    <string>5175</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__REPO__</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>__REPO__/server/data/dashboard.log</string>
+  <key>StandardErrorPath</key>
+  <string>__REPO__/server/data/dashboard.error.log</string>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+</dict>
+</plist>

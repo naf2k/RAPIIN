@@ -115,9 +115,53 @@ jobs:
           docker exec rapiin-frontend-smoke id -un | grep -qx nginx
           echo "frontend image serves the SPA as non-root"
 
+  installers:
+    # Installer karyawan pernah rusak tanpa terdeteksi: bug tag rilis yang
+    # tidak ada, dan syarat `gh` yang belum tentu terpasang di laptop. Job ini
+    # hanya memeriksa sintaks, bukan menjalankan instalasi (butuh server hidup).
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check shell installer
+        if: runner.os != 'Windows'
+        run: sh -n ops/install_rapiin_release.sh
+      - name: Syntax check PowerShell installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "ops/Install-Rapiin.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { $errors | Format-List; exit 1 }
+          echo "Install-Rapiin.ps1: syntax OK"
+      - name: PowerShell installer must not require GitHub CLI
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Unduhan memakai HTTPS biasa agar repo publik tak butuh `gh`.
+          if (Select-String -Path ops/Install-Rapiin.ps1 -Pattern 'gh release' -Quiet) {
+            Write-Error 'Installer kembali bergantung pada GitHub CLI.'; exit 1
+          }
+          echo "installer tidak butuh gh"
+
+  release-assets:
+    # Konvensi nama aset mengikat installer ke tag rilis: tag rapiin-v1.1.1
+    # harus memuat rapiin_agent-1.1.1-py3-none-any.whl. Nama yang menyimpang
+    # membuat unduhan karyawan 404, dan itu pernah terjadi.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify latest release assets match installer convention
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 ops/check_release_assets.py
+
   notify-operations:
     if: always()
-    needs: [server, agent, frontend, docker]
+    needs: [server, agent, frontend, docker, installers, release-assets]
     runs-on: ubuntu-latest
     steps:
       - name: Report failed CI to RAPIIN Operations Center

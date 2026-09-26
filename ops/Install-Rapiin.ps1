@@ -6,8 +6,12 @@
 .DESCRIPTION
   Karyawan cukup klik kanan file ini -> "Run with PowerShell" (atau jalankan
   perintah di bawah), jawab 3 pertanyaan, sisanya otomatis:
-  cek/pasang Python, cek/pasang uv, cek Tailscale, cek server, verifikasi
-  checksum wheel, pasang agent, daftar device, aktifkan autostart, verifikasi.
+  cek/pasang Python, cek/pasang uv, cek Tailscale, cek server, unduh rilis resmi,
+  verifikasi checksum, pasang agent, daftar device, aktifkan autostart, verifikasi.
+
+  Script mengunduh wheel resmi dari GitHub Releases (repositori publik, tanpa
+  perlu login/gh). Bila ada wheel di folder yang sama, wheel itu yang dipakai
+  (berguna untuk pemasangan offline).
 
   Cara jalanin (pilih salah satu):
     powershell -ExecutionPolicy Bypass -File .\Install-Rapiin.ps1
@@ -20,18 +24,18 @@
 param(
   [string]$ServerUrl = 'https://haimacs-macbook-pro-84.tail9cf4bc.ts.net',
   [string]$Workspace = "$HOME\Downloads",
-  [string]$WheelDir = ''
+  # Folder berisi wheel untuk pemasangan offline. Kosong = unduh dari rilis.
+  [string]$WheelDir = '',
+  # Rilis tertentu, mis. 'rapiin-v1.1.1'. Kosong = rilis terbaru.
+  [string]$Tag = '',
+  [string]$Repository = 'naf2k/RAPIIN'
 )
 
 $ErrorActionPreference = 'Stop'
 
-# $PSScriptRoot tidak selalu terisi saat script dipanggil dari shell lain,
-# jadi tentukan folder script di badan script dengan beberapa cadangan.
-if ([string]::IsNullOrWhiteSpace($WheelDir)) {
-  if ($PSScriptRoot) { $WheelDir = $PSScriptRoot }
-  elseif ($PSCommandPath) { $WheelDir = Split-Path -Parent $PSCommandPath }
-  else { $WheelDir = (Get-Location).Path }
-}
+# Windows PowerShell 5.1 default ke TLS 1.0, yang ditolak github.com. Naikkan
+# ke TLS 1.2 sebelum panggilan HTTPS apa pun.
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 function Write-Step([string]$Message) {
   Write-Host ""
@@ -135,19 +139,74 @@ try {
 }
 Write-Ok 'Server bisa dihubungi.'
 
-# --- 6. Cari wheel + cek checksum ---
-Write-Step 'Cari file agent...'
-$wheel = Get-ChildItem -Path $WheelDir -Filter 'rapiin_agent-*.whl' | Sort-Object Name -Descending | Select-Object -First 1
-if (-not $wheel) {
-  Write-Fail "File rapiin_agent-*.whl tidak ketemu di $WheelDir. Taruh wheel di folder yang sama dengan script ini."
-  exit 1
+# --- 6. Siapkan wheel: pakai lokal bila ada, selain itu unduh dari rilis ---
+Write-Step 'Siapkan file agent...'
+if ([string]::IsNullOrWhiteSpace($WheelDir)) {
+  if ($PSScriptRoot) { $WheelDir = $PSScriptRoot }
+  elseif ($PSCommandPath) { $WheelDir = Split-Path -Parent $PSCommandPath }
+  else { $WheelDir = (Get-Location).Path }
 }
+
+$wheel = Get-ChildItem -Path $WheelDir -Filter 'rapiin_agent-*.whl' -ErrorAction SilentlyContinue |
+  Sort-Object Name -Descending | Select-Object -First 1
 $sumFile = Join-Path $WheelDir 'SHA256SUMS'
+
+if ($wheel) {
+  Write-Ok "Memakai wheel yang sudah ada: $($wheel.Name)"
+} else {
+  # Tidak ada wheel lokal, jadi unduh rilis resmi dari GitHub.
+  $owner = ($Repository -split '/')[0]
+  $repoName = ($Repository -split '/')[1]
+  $headers = @{ 'User-Agent' = 'RAPIIN-Installer'; 'Accept' = 'application/vnd.github+json' }
+
+  if ([string]::IsNullOrWhiteSpace($Tag)) {
+    Write-Host "Mencari rilis terbaru di $Repository..."
+    try {
+      $release = Invoke-RestMethod -Headers $headers -TimeoutSec 30 `
+        "https://api.github.com/repos/$owner/$repoName/releases/latest"
+      $Tag = $release.tag_name
+    } catch {
+      Write-Fail "Tidak bisa mengambil daftar rilis: $($_.Exception.Message)"
+      exit 1
+    }
+  }
+  if ([string]::IsNullOrWhiteSpace($Tag)) {
+    Write-Fail "Tidak menemukan rilis di $Repository."
+    exit 1
+  }
+
+  # Nama aset mengikuti versi pada tag: rapiin-v1.1.0 -> rapiin_agent-1.1.0-*.whl
+  $version = $Tag -replace '^rapiin-v', ''
+  $wheelName = "rapiin_agent-$version-py3-none-any.whl"
+  $baseUrl = "https://github.com/$Repository/releases/download/$Tag"
+
+  $downloadDir = Join-Path $env:TEMP "rapiin-agent-$version"
+  New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
+  $wheelPath = Join-Path $downloadDir $wheelName
+  $sumPath = Join-Path $downloadDir 'SHA256SUMS'
+
+  Write-Host "Mengunduh rilis $Tag..."
+  try {
+    Invoke-WebRequest -UseBasicParsing -TimeoutSec 300 -Uri "$baseUrl/$wheelName" -OutFile $wheelPath
+    Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$baseUrl/SHA256SUMS" -OutFile $sumPath
+  } catch {
+    Write-Fail "Unduhan gagal: $($_.Exception.Message)"
+    Write-Host "Cek koneksi internet. Bila PC tanpa internet, minta wheel ke IT lalu jalankan ulang dengan -WheelDir <folder>."
+    exit 1
+  }
+  Write-Ok "Rilis $Tag terunduh."
+
+  $wheel = Get-Item $wheelPath
+  $sumFile = $sumPath
+}
+
+# --- 7. Verifikasi checksum ---
 if (Test-Path $sumFile) {
   $expected = (Select-String -Path $sumFile -Pattern ([regex]::Escape($wheel.Name)) | Select-Object -First 1).Line
   $actual = (Get-FileHash -Algorithm SHA256 $wheel.FullName).Hash.ToLower()
   if (-not $expected) {
-    Write-Host '(info) Nama wheel tidak ada di SHA256SUMS, lewati cek checksum.'
+    Write-Fail "Nama wheel tidak ada di SHA256SUMS, tidak bisa memverifikasi."
+    exit 1
   } elseif ($expected.ToLower() -notmatch $actual) {
     Write-Fail 'Checksum wheel TIDAK COCOK. Jangan lanjut, minta file yang benar ke IT.'
     exit 1
@@ -155,10 +214,11 @@ if (Test-Path $sumFile) {
     Write-Ok 'Checksum cocok.'
   }
 } else {
-  Write-Host '(info) SHA256SUMS tidak ada, lewati cek checksum.'
+  Write-Fail 'SHA256SUMS tidak ada, tidak bisa memverifikasi unduhan.'
+  exit 1
 }
 
-# --- 7. Pasang agent ---
+# --- 8. Pasang agent ---
 Write-Step 'Pasang agent...'
 $alreadyInstalled = $false
 try {
@@ -185,7 +245,7 @@ if ($userPath -notlike "*$binDir*") {
 }
 $env:Path = "$binDir;$env:Path"
 
-# --- 8. Daftar device (password diketik di program, bukan di script) ---
+# --- 9. Daftar device (password diketik di program, bukan di script) ---
 Write-Step 'Daftarkan device ini...'
 if (-not (Test-Path $Workspace)) {
   New-Item -ItemType Directory -Path $Workspace -Force | Out-Null
@@ -196,7 +256,7 @@ if ($LASTEXITCODE -ne 0) {
   exit 1
 }
 
-# --- 9. Verifikasi ---
+# --- 10. Verifikasi ---
 Write-Step 'Verifikasi...'
 & $rapiinExe verify
 if ($LASTEXITCODE -ne 0) {
