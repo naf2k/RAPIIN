@@ -176,8 +176,9 @@ bukti Windows 18 Sep 2026, lihat §6). Acceptance diulang penuh di commit rilis 
 
 ```text
 ~/orca/projects/rapiin/          ← KANONIS (satu repo): server/ + agent/ + frontend/ + ops/ + deploy/ + docs/
-~/orca/workspaces/BERESIN/ui/    ← Legacy: UI vanilla dibekukan + arsip backend 17 Sep 2026
+~/orca/workspaces/BERESIN/        ← Legacy: arsip UI vanilla + backend (dibekukan 17 Sep 2026)
 ~/Documents/rapiin-windows-test/ ← Paket tes Windows (script+wheel+SHA256SUMS+petunjuk)
+                                   (path ini sudah tidak ada di mesin pilot; catatan historis)
 ```
 
 Frontend React (`frontend/`, dulu repo terpisah `hafgufa`) digabung ke monorepo
