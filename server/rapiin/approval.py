@@ -305,10 +305,7 @@ def now_iso() -> str:
 
 
 def pending_approvals_for_user(conn, user_id: int) -> list[dict]:
-    conn.execute(
-        "UPDATE approvals SET status='REJECTED', decided_at=? WHERE user_id=? AND status='PENDING' AND expires_at IS NOT NULL AND expires_at < ?",
-        (utcnow_iso(), user_id, utcnow_iso()),
-    )
+    expire_stale_approvals(conn, user_id=user_id)
     rows = conn.execute(
         "SELECT * FROM approvals WHERE user_id = ? AND status = 'PENDING' ORDER BY id DESC", (user_id,)
     ).fetchall()
@@ -321,10 +318,7 @@ def all_pending_approvals(conn, *, include_decided: bool = False, limit: int = 2
     The supervisor console has a "done" view, so the same sweep that expires
     stale requests can also return what has already been decided.
     """
-    conn.execute(
-        "UPDATE approvals SET status='REJECTED', decided_at=? WHERE status='PENDING' AND expires_at IS NOT NULL AND expires_at < ?",
-        (utcnow_iso(), utcnow_iso()),
-    )
+    expire_stale_approvals(conn)
     if include_decided:
         rows = conn.execute(
             "SELECT * FROM approvals ORDER BY CASE status WHEN 'PENDING' THEN 0 ELSE 1 END, id DESC LIMIT ?",
@@ -335,3 +329,139 @@ def all_pending_approvals(conn, *, include_decided: bool = False, limit: int = 2
             "SELECT * FROM approvals WHERE status = 'PENDING' ORDER BY id DESC"
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def expire_stale_approvals(conn, *, user_id: int | None = None) -> int:
+    """Auto-reject expired approvals and reconcile the tasks they were blocking.
+
+    An approval that lapses must not leave its task parked in
+    WAITING_APPROVAL forever (PRD 18): once the card is gone there is nothing
+    left for the user to act on, so the task is closed out.
+    """
+    now = utcnow_iso()
+    select = (
+        "SELECT DISTINCT task_id FROM approvals "
+        "WHERE status='PENDING' AND expires_at IS NOT NULL AND expires_at < ?"
+    )
+    update = (
+        "UPDATE approvals SET status='REJECTED', decided_at=? "
+        "WHERE status='PENDING' AND expires_at IS NOT NULL AND expires_at < ?"
+    )
+    params: list = [now]
+    if user_id is not None:
+        select += " AND user_id = ?"
+        update += " AND user_id = ?"
+        params.append(user_id)
+    task_ids = [row["task_id"] for row in conn.execute(select, params).fetchall() if row["task_id"]]
+    conn.execute(update, ([now, now, user_id] if user_id is not None else [now, now]))
+    reconciled = 0
+    for task_id in task_ids:
+        if reconcile_task_approval(conn, task_id):
+            reconciled += 1
+    return reconciled
+
+
+def _finalize_task(conn, task: dict, status: str, *, error: str | None = None, approval_status: str | None = None) -> None:
+    from .tasks import update_task
+
+    update_task(conn, task["id"], status=status, completed=True, error=error, approval_status=approval_status)
+    record_audit(
+        conn,
+        actor="RAPIIN",
+        actor_role="SYSTEM",
+        user_id=task["user_id"],
+        device_id=task.get("device_id"),
+        action="task_reconciled",
+        resource=f"task:{task['id']}",
+        result=status,
+        error=error,
+        task_id=task["id"],
+    )
+
+
+def reconcile_task_approval(conn, task_id: int | None) -> bool:
+    """Close a WAITING_APPROVAL task that has no live approval left.
+
+    Returns True when the task was moved to a terminal state. Tasks that still
+    have a pending (unexpired) card, or an in-flight device/worker job, are
+    left untouched so the normal execution path can finish them.
+    """
+    if not task_id:
+        return False
+    row = conn.execute(
+        "SELECT id, user_id, device_id, status, progress FROM tasks WHERE id = ?", (task_id,)
+    ).fetchone()
+    if not row or row["status"] != "WAITING_APPROVAL":
+        return False
+    task = dict(row)
+    now = utcnow_iso()
+    approvals = [
+        dict(a)
+        for a in conn.execute(
+            "SELECT status, expires_at FROM approvals WHERE task_id = ?", (task_id,)
+        ).fetchall()
+    ]
+    if approvals:
+        live_pending = any(
+            a["status"] == "PENDING" and (not a["expires_at"] or a["expires_at"] > now)
+            for a in approvals
+        )
+        if live_pending:
+            return False
+        approved = any(a["status"] == "APPROVED" for a in approvals)
+        if not approved:
+            # Every card was rejected or allowed to expire.
+            _finalize_task(conn, task, "CANCELLED", approval_status="REJECTED")
+            return True
+    else:
+        # No card was ever persisted for a task parked on approval.
+        _finalize_task(conn, task, "CANCELLED")
+        return True
+
+    # Approved, but the task never reached a terminal state. Decide from job
+    # evidence rather than assumption: a missing result is not a success.
+    jobs = [
+        row["status"]
+        for row in conn.execute(
+            "SELECT status FROM agent_jobs WHERE task_id = ?", (task_id,)
+        ).fetchall()
+    ]
+    if any(status in {"PENDING", "CLAIMED"} for status in jobs):
+        # A job is still in flight; its lease/watchdog owns the outcome.
+        return False
+    if jobs and all(status == "SUCCEEDED" for status in jobs):
+        _finalize_task(conn, task, "COMPLETED", approval_status="APPROVED")
+        return True
+    if jobs:
+        _finalize_task(
+            conn,
+            task,
+            "FAILED",
+            error="Operasi disetujui tetapi hasil dari perangkat gagal; task ditutup otomatis.",
+            approval_status="APPROVED",
+        )
+        return True
+    # Approved yet no device job was ever recorded: nothing ran.
+    _finalize_task(
+        conn,
+        task,
+        "FAILED",
+        error="Operasi disetujui tetapi tidak ada job perangkat yang tercatat; task ditutup otomatis.",
+        approval_status="APPROVED",
+    )
+    return True
+
+
+def sweep_zombie_tasks(conn) -> int:
+    """Expire stale cards and reconcile every task stuck on approval.
+
+    Runs from the periodic device monitor so a task cannot stay
+    WAITING_APPROVAL after its approval has been decided or has lapsed.
+    """
+    expire_stale_approvals(conn)
+    rows = conn.execute("SELECT id FROM tasks WHERE status = 'WAITING_APPROVAL'").fetchall()
+    changed = 0
+    for row in rows:
+        if reconcile_task_approval(conn, row["id"]):
+            changed += 1
+    return changed

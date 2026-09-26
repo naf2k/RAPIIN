@@ -31,7 +31,13 @@ class Settings(BaseSettings):
     ai_api_key_file: str = ""
     ai_model: str = "ai-rapiin"
     ai_timeout_seconds: float = 120.0
-    ai_max_iterations: int = 12
+    # One iteration is a single model turn. A staged file task is typically
+    # scan -> classify -> recommend -> mkdir -> move -> verify, and the model
+    # often narrates between steps, so 12 turns truncates real work. 25 leaves
+    # room for those stages without allowing an unbounded loop: every turn
+    # still costs a full ai_timeout_seconds budget and the surrounding job
+    # leases/watchdogs remain the hard stops.
+    ai_max_iterations: int = 25
     ai_max_retries: int = 5
 
     # Operations Center. External integrations are opt-in and fail closed.

@@ -51,6 +51,8 @@ def _device_monitor_tick() -> None:
         mark_stale_devices_offline(conn)
         from .agent_jobs import requeue_expired_jobs
         requeue_expired_jobs(conn)
+        from .approval import sweep_zombie_tasks
+        sweep_zombie_tasks(conn)
         conn.commit()
     finally:
         conn.close()

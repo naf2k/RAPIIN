@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from .audit import record_audit
 from .database import connect, utcnow_iso
+from .workspace import WorkspaceViolation, ground_and_validate
 
 # Large user folders can legitimately take longer than a minute to enumerate
 # and hash. The desktop agent renews its lease while it works, so the server
@@ -34,6 +35,14 @@ def enqueue_job(
     payload: dict,
     idempotency_key: str | None = None,
 ) -> int:
+    # Anchor every path in the payload to the device's registered workspace
+    # before the job exists. A payload that escapes the roots is refused here,
+    # so no wrong or stale path can ever be handed to the employee's machine.
+    arguments = payload.get("arguments") if isinstance(payload, dict) else None
+    if isinstance(arguments, dict):
+        grounded = ground_and_validate(conn, device_id, arguments)
+        if grounded != arguments:
+            payload = {**payload, "arguments": grounded}
     if idempotency_key:
         existing = conn.execute(
             "SELECT id FROM agent_jobs WHERE idempotency_key = ?", (idempotency_key,)

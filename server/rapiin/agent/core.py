@@ -13,6 +13,7 @@ from ..audit import record_audit
 from ..config import settings
 from ..permissions import PermissionEngine, check_path_allowed, sandbox_root
 from ..redaction import redact_text
+from ..workspace import WorkspaceViolation, ground_and_validate
 from ..tasks import update_task
 from .prompts import SUPERVISOR_SYSTEM_PROMPT, USER_SYSTEM_PROMPT
 
@@ -107,6 +108,22 @@ class HermesCore:
                     arguments = json.loads(raw_args) if raw_args else {}
                 except json.JSONDecodeError:
                     arguments = {}
+
+                # Anchor every path to the device's registered workspace before
+                # it can reach an approval card or the employee's computer. A
+                # wrong or stale path is refused here, not on the device.
+                try:
+                    arguments = ground_and_validate(conn, device_id, arguments)
+                except WorkspaceViolation as exc:
+                    tool_events.append({"tool": name, "status": "BLOCKED", "error": str(exc)})
+                    messages.append(
+                        self.provider.tool_result_message(
+                            call_id,
+                            json.dumps({"status": "BLOCKED", "message": str(exc)}, ensure_ascii=False),
+                            name=name,
+                        )
+                    )
+                    continue
 
                 approval_kind = permissions.action_approval_kind(name, count=_count_args(arguments))
 
