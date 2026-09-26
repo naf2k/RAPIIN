@@ -4,17 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rapiin-agent"
-version = "1.1.1"
+version = "1.1.2"
 description = "RAPIIN Desktop Agent - menjalankan pekerjaan file lokal di komputer pegawai"
 requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.27",
-    # cryptography 49+ dropped Intel macOS wheels (arm64 only), so on an Intel
-    # Mac pip/uv falls back to the Rust source build and fails when Rust is not
-    # installed. Pinning below 49 keeps prebuilt wheels for macOS (universal2),
-    # Windows and Linux, so a plain `uv tool install` needs no toolchain.
-    # CI cannot catch a regression here: macos-latest runners are arm64.
-    "cryptography>=42.0,<49",
+    # Jangan batasi di bawah 50: cryptography 49+ hanya menerbitkan wheel macOS
+    # arm64, sehingga Mac Intel membangun dari sumber dan butuh Rust + Xcode
+    # Command Line Tools. Pin <49 sempat dipakai agar Mac Intel dapat wheel
+    # universal2, tetapi 48.x membawa dua CVE HIGH (CVE-2026-69247,
+    # CVE-2026-69249) yang ditolak gerbang keamanan Trivy. Keamanan menang;
+    # prasyarat Mac Intel ditangani di installer (lihat ops/install_rapiin_release.sh).
+    "cryptography>=42.0",
     "keyring>=25.0",
     "pypdf>=4.2",
     "python-docx>=1.1",

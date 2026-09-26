@@ -45,6 +45,22 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
+# cryptography 49+ tidak lagi menerbitkan wheel macOS Intel, jadi di Mac Intel
+# paket itu dibangun dari sumber. Itu butuh Rust dan Xcode Command Line Tools,
+# dan tanpa keduanya pemasangan berhenti dengan error maturin yang sulit dibaca.
+if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "x86_64" ]; then
+  if ! xcode-select -p >/dev/null 2>&1; then
+    echo "[info] Mac ini Intel, sehingga 'cryptography' harus dibangun dari sumber." >&2
+    echo "[gagal] Xcode Command Line Tools belum terpasang." >&2
+    echo "        Jalankan: xcode-select --install" >&2
+    echo "        (unduhan besar, butuh izin admin), lalu ulangi script ini." >&2
+    echo "        Alternatif: minta IT memasangnya lebih dulu." >&2
+    exit 1
+  fi
+  echo "[info] Mac Intel: Rust akan dipasang otomatis (sekitar 13 MB) untuk"
+  echo "       membangun cryptography. Pemasangan pertama bisa 5-15 menit."
+fi
+
 # Tentukan rilis: pakai RAPIIN_AGENT_TAG bila diisi, selain itu ambil terbaru.
 if [ -z "$RELEASE_TAG" ]; then
   echo "[info] Mencari rilis terbaru di $REPOSITORY..."
