@@ -12,7 +12,10 @@ import {
   Laptop,
   LogOut,
   Power,
+  ShieldAlert,
   ShieldCheck,
+  Trash2,
+  Undo2,
   UserRound,
 } from "lucide-react";
 
@@ -20,8 +23,31 @@ import { Button } from "@/components/ui/button";
 import { NotificationRows, useNotifications } from "@/components/ui/rapiin-notifications";
 import { ApiError, apiGet, apiPost, apiPut } from "@/lib/api";
 import { clearSession, useSessionUser } from "@/lib/session";
-import type { Device, Profile, UserSettings } from "@/lib/types";
+import type {
+  Device,
+  Profile,
+  TrashEntry,
+  UserPolicyResponse,
+  UserPolicyTool,
+  UserSettings,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+const TOOL_LABELS: Record<string, string> = {
+  file_move: "Memindahkan file",
+  file_copy: "Menyalin file",
+  file_rename: "Mengubah nama file",
+  file_delete: "Menghapus file",
+  file_write: "Membuat file",
+  file_edit: "Mengubah isi file",
+  batch_executor: "Operasi massal",
+  bulk_delete: "Hapus massal",
+  file_mkdir: "Membuat folder",
+};
+
+function toolLabel(name: string): string {
+  return TOOL_LABELS[name] ?? name;
+}
 
 const surfaceClass = "rounded-xl border border-neutral-800 bg-neutral-900/35";
 
@@ -68,6 +94,9 @@ export function UserSettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [device, setDevice] = useState<Device | null>(null);
   const [saved, setSaved] = useState(false);
+  const [policy, setPolicy] = useState<UserPolicyResponse | null>(null);
+  const [trash, setTrash] = useState<TrashEntry[]>([]);
+  const [policyError, setPolicyError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,8 +105,10 @@ export function UserSettingsPage() {
       apiGet<UserSettings>("/user/settings"),
       apiGet<Profile>("/user/profile"),
       apiGet<Device[]>("/user/devices"),
+      apiGet<UserPolicyResponse>("/user/policy"),
+      apiGet<TrashEntry[]>("/user/trash"),
     ])
-      .then(([settings, me, devices]) => {
+      .then(([settings, me, devices, loadedPolicy, loadedTrash]) => {
         if (cancelled) return;
         setAutoStart(settings[STARTUP_MODE_KEY] === "auto");
         setNotifications({
@@ -86,6 +117,8 @@ export function UserSettingsPage() {
         });
         setProfile(me);
         setDevice(devices[0] ?? null);
+        setPolicy(loadedPolicy);
+        setTrash(loadedTrash);
       })
       .catch(() => {
         if (cancelled) return;
@@ -97,6 +130,48 @@ export function UserSettingsPage() {
       cancelled = true;
     };
   }, []);
+
+  const refreshPolicy = () => {
+    apiGet<UserPolicyResponse>("/user/policy")
+      .then(setPolicy)
+      .catch(() => undefined);
+  };
+
+  const refreshTrash = () => {
+    apiGet<TrashEntry[]>("/user/trash")
+      .then(setTrash)
+      .catch(() => undefined);
+  };
+
+  const changeToolMode = (tool: UserPolicyTool, mode: "DEFAULT" | "USER" | "AUTO") => {
+    setPolicyError(null);
+    apiPut(`/user/policy/${tool.tool_name}`, { approval_kind: mode })
+      .then(refreshPolicy)
+      .catch((error) =>
+        setPolicyError(error instanceof ApiError ? error.message : "Kebijakan tidak dapat disimpan."),
+      );
+  };
+
+  const toggleFullAuto = (enabled: boolean) => {
+    setPolicyError(null);
+    apiPut("/user/full-auto", { enabled })
+      .then((result) => {
+        setPolicy((current) => (current ? { ...current, full_auto: (result as { full_auto: boolean }).full_auto } : current));
+        refreshPolicy();
+      })
+      .catch((error) =>
+        setPolicyError(error instanceof ApiError ? error.message : "Mode tanpa izin tidak dapat diubah."),
+      );
+  };
+
+  const undoTrash = (entry: TrashEntry) => {
+    setPolicyError(null);
+    apiPost(`/user/trash/${entry.id}/undo`)
+      .then(() => refreshTrash())
+      .catch((error) =>
+        setPolicyError(error instanceof ApiError ? error.message : "Undo tidak dapat dijalankan."),
+      );
+  };
 
   const toggleNotification = (key: "completed" | "errors") => {
     setNotifications((current) => {
@@ -240,6 +315,84 @@ export function UserSettingsPage() {
             checked={autoStart}
             onChange={toggleAutoStart}
           />
+        </section>
+
+        <section className={cn(surfaceClass, "overflow-hidden")} aria-labelledby="user-policy-heading">
+          <div className="border-b border-neutral-800 px-5 py-4 sm:px-6">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-5 w-5 text-neutral-500" />
+              <h2 id="user-policy-heading" className="text-base font-medium text-neutral-100">Kebijakan izin</h2>
+            </div>
+            <p className="mt-1 text-sm text-neutral-500">
+              Atur tool mana yang perlu persetujuan Anda. Default tetap aman: perubahan file butuh izin.
+            </p>
+          </div>
+
+          <FullAutoCard policy={policy} onChange={toggleFullAuto} />
+
+          <div className="divide-y divide-neutral-800">
+            {policy ? (
+              policy.tools.map((tool) => (
+                <ToolPolicyRow key={tool.tool_name} tool={tool} onChange={changeToolMode} />
+              ))
+            ) : (
+              <p className="px-5 py-4 text-sm text-neutral-500 sm:px-6">Memuat kebijakan…</p>
+            )}
+          </div>
+
+          {policyError && (
+            <p role="alert" className="border-t border-neutral-800 px-5 py-3 text-sm text-amber-300 sm:px-6">
+              {policyError}
+            </p>
+          )}
+
+          <div className="border-t border-neutral-800">
+            <div className="flex items-center justify-between px-5 py-3 sm:px-6">
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-neutral-600">
+                Sampah (bisa di-undo)
+              </p>
+              <button
+                type="button"
+                onClick={refreshTrash}
+                className="text-xs text-neutral-500 transition-colors hover:text-neutral-200"
+              >
+                Segarkan
+              </button>
+            </div>
+            {trash.length === 0 ? (
+              <p className="px-5 pb-4 text-sm text-neutral-600 sm:px-6">Tidak ada file di sampah.</p>
+            ) : (
+              <ul className="divide-y divide-neutral-800">
+                {trash.map((entry) => (
+                  <li key={entry.id} className="flex items-center justify-between gap-4 px-5 py-3 sm:px-6">
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2 text-sm text-neutral-300">
+                        <Trash2 className="h-4 w-4 text-neutral-600" />
+                        <span className="font-mono text-xs">{entry.id}</span>
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-neutral-600">
+                        {entry.item_count} item · {new Date(entry.created_at).toLocaleString("id-ID")}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={Boolean(entry.restored_at)}
+                      onClick={() => undoTrash(entry)}
+                      className={cn(
+                        "inline-flex flex-shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition-colors",
+                        entry.restored_at
+                          ? "cursor-not-allowed border-neutral-800 text-neutral-600"
+                          : "border-neutral-700 text-neutral-200 hover:bg-neutral-900 hover:text-white",
+                      )}
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                      {entry.restored_at ? "Sudah dipulihkan" : "Undo"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
 
         <section className={cn(surfaceClass, "overflow-hidden")} aria-labelledby="user-notifications-heading">
@@ -434,6 +587,106 @@ function DefinitionRow({ label, value, mono = false }: { label: string; value: R
     <div className="grid gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-4">
       <dt className="text-sm text-neutral-600">{label}</dt>
       <dd className={cn("text-sm text-neutral-300 sm:text-right", mono && "font-mono text-xs")}>{value}</dd>
+    </div>
+  );
+}
+
+function FullAutoCard({
+  policy,
+  onChange,
+}: {
+  policy: UserPolicyResponse | null;
+  onChange: (enabled: boolean) => void;
+}) {
+  const enabled = policy?.full_auto ?? false;
+  return (
+    <div
+      className={cn(
+        "m-5 rounded-lg border p-4 sm:m-6",
+        enabled ? "border-amber-400/40 bg-amber-400/5" : "border-neutral-800 bg-neutral-950",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <ShieldAlert className={cn("mt-0.5 h-5 w-5", enabled ? "text-amber-300" : "text-neutral-500")} />
+        <div className="flex-1">
+          <p className="text-sm font-medium text-neutral-200">Mode tanpa izin (full-auto)</p>
+          <p className="mt-1 text-sm leading-6 text-neutral-500">
+            Semua pekerjaan file dijalankan tanpa kartu persetujuan, termasuk penghapusan. File yang
+            dihapus <span className="text-neutral-300">dipindahkan ke Sampah</span> dan masih bisa
+            di-undo. Sandbox perangkat tetap berlaku; folder sistem tetap diblokir.
+          </p>
+          <label className="mt-3 flex cursor-pointer items-center gap-3">
+            <span className="relative inline-flex h-6 w-11 flex-shrink-0">
+              <input
+                type="checkbox"
+                checked={enabled}
+                onChange={() => onChange(!enabled)}
+                disabled={!policy}
+                className="peer sr-only"
+              />
+              <span className="absolute inset-0 rounded-full bg-neutral-700 transition-colors duration-150 peer-checked:bg-amber-400 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-300 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-neutral-950" />
+              <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform duration-150 peer-checked:translate-x-5" />
+            </span>
+            <span className="text-sm text-neutral-300">
+              {enabled ? "Aktif — tanpa izin" : "Nonaktif — minta izin"}
+            </span>
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const KIND_OPTIONS: { value: "DEFAULT" | "USER" | "AUTO"; label: string }[] = [
+  { value: "USER", label: "Butuh izin" },
+  { value: "AUTO", label: "Tanpa izin" },
+  { value: "DEFAULT", label: "Ikut default" },
+];
+
+function ToolPolicyRow({
+  tool,
+  onChange,
+}: {
+  tool: UserPolicyTool;
+  onChange: (tool: UserPolicyTool, mode: "DEFAULT" | "USER" | "AUTO") => void;
+}) {
+  const override = tool.override_kind ?? "DEFAULT";
+  const fullAuto = tool.effective_kind === "FULL_AUTO";
+  return (
+    <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="min-w-0">
+        <p className="flex items-center gap-2 text-sm text-neutral-200">
+          {toolLabel(tool.tool_name)}
+          {tool.destructive && (
+            <span className="rounded border border-amber-400/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-300">
+              destruktif
+            </span>
+          )}
+        </p>
+        <p className="mt-1 font-mono text-[11px] text-neutral-600">
+          {tool.tool_name} · berlaku: {fullAuto ? "FULL_AUTO" : tool.effective_kind.toLowerCase()}
+          {tool.source !== "default" ? ` (override ${tool.source})` : ""}
+        </p>
+      </div>
+      <div className="flex flex-shrink-0 gap-1 rounded-lg border border-neutral-800 p-0.5">
+        {KIND_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(tool, option.value)}
+            disabled={fullAuto && option.value !== "DEFAULT"}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-xs transition-colors",
+              override === option.value
+                ? "bg-neutral-100 text-neutral-950"
+                : "text-neutral-400 hover:text-neutral-100",
+              fullAuto && option.value !== "DEFAULT" && "cursor-not-allowed opacity-40",
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

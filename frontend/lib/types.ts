@@ -252,6 +252,33 @@ export interface ActionPolicy {
   bulk_threshold: number;
 }
 
+export type EffectivePolicyKind = "AUTO" | "USER" | "SUPERVISOR" | "FULL_AUTO";
+
+export interface UserPolicyTool {
+  tool_name: string;
+  effective_kind: EffectivePolicyKind;
+  default_kind: PolicyKind;
+  override_kind: PolicyKind | null;
+  source: "user" | "global" | "default";
+  destructive: boolean;
+}
+
+export interface UserPolicyResponse {
+  full_auto: boolean;
+  tools: UserPolicyTool[];
+}
+
+export interface TrashEntry {
+  id: string;
+  user_id: number;
+  device_id: number | null;
+  task_id: number | null;
+  root: string | null;
+  created_at: string;
+  item_count: number;
+  restored_at: string | null;
+}
+
 export interface LoginResponse {
   token: string;
   user_id: number;

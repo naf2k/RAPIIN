@@ -102,6 +102,23 @@ def _ground_one(raw: str, roots: list[str]) -> str:
     return os.path.join(roots[0], path)
 
 
+def _base_folder_for_lists(grounded: dict, roots: list[str]) -> str | None:
+    """Find the folder that relative ``paths``/``files`` entries are under.
+
+    Models often send ``source`` (a folder) together with bare filenames in
+    ``paths``. Anchoring those names to the workspace root would invent a path
+    that does not exist, so the folder from ``source``/``directory`` wins when
+    it resolves inside the allowed roots.
+    """
+    for key in ("source", "directory"):
+        value = grounded.get(key)
+        if isinstance(value, str) and value:
+            candidate = _normalize(value)
+            if path_within(candidate, roots) and os.path.isdir(candidate):
+                return candidate
+    return None
+
+
 def ground_arguments(arguments: dict, roots: list[str]) -> dict:
     """Return a copy with missing/relative/stale paths anchored to a root."""
     if not roots or not arguments:
@@ -111,12 +128,23 @@ def ground_arguments(arguments: dict, roots: list[str]) -> dict:
         value = grounded.get(key)
         if isinstance(value, str) and value:
             grounded[key] = _ground_one(value, roots)
+    base = _base_folder_for_lists(grounded, roots)
     for key in PATH_LIST_KEYS:
         value = grounded.get(key)
         if isinstance(value, list):
-            grounded[key] = [
-                _ground_one(str(item), roots) if item else item for item in value
-            ]
+            rewritten = []
+            for item in value:
+                if not item:
+                    rewritten.append(item)
+                    continue
+                original = str(item)
+                grounded_item = _ground_one(original, roots)
+                # A bare filename listed next to its folder belongs to that
+                # folder, not to the workspace root.
+                if base is not None and not os.path.isabs(original):
+                    grounded_item = os.path.join(base, os.path.basename(original.lstrip("./")))
+                rewritten.append(grounded_item)
+            grounded[key] = rewritten
     return grounded
 
 

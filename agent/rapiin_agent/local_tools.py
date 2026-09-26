@@ -283,6 +283,14 @@ def run_tool(kind: str, arguments: dict) -> dict:
         return _mutate(arguments, "delete")
     if kind == "bulk_delete":
         return _mutate(arguments, "delete")
+    if kind == "file_restore":
+        from .trash import restore_trash
+
+        return restore_trash(str(arguments.get("trash_id") or ""))
+    if kind == "trash_list":
+        from .trash import list_trash
+
+        return list_trash()
     if kind == "file_mkdir":
         return _mkdir(arguments)
     if kind == "file_write":
@@ -552,6 +560,12 @@ def _mutate(arguments: dict, operation: str) -> dict:
         return {"status": "OK", "executed_count": 1, "verified_count": 1, "summary": [{"source": str(src), "destination": str(dst), "status": "VERIFIED"}]}
 
     if operation == "delete":
+        if arguments.get("reversible"):
+            # FULL_AUTO has no approval card, so a delete must be undoable.
+            from .trash import trash_paths
+
+            outcome = trash_paths(paths, note=str(arguments.get("note") or ""))
+            return outcome
         results = []
         errors = []
         executed = verified = 0

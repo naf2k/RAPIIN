@@ -32,6 +32,15 @@ AUTO_ACTIONS = {
     "filesystem_scanner", "metadata_extractor", "file_search", "duplicate_detector",
     "document_parser", "pdf_parser", "spreadsheet_parser", "verification",
     "file_classifier", "semantic_indexer", "semantic_search", "file_mkdir",
+    "trash_list", "file_restore",
+}
+
+# Tools that change files. In the default flow they are gated by an approval
+# and then executed on the device; in FULL_AUTO they still run on the device
+# (that is where the files are), but without a card.
+MUTATION_ACTIONS = {
+    "file_move", "file_copy", "file_rename", "file_delete", "file_mkdir",
+    "file_write", "file_edit", "batch_executor", "bulk_delete",
 }
 
 # Actions that require user approval
@@ -39,6 +48,15 @@ USER_APPROVAL_ACTIONS = {"file_move", "file_rename", "file_copy", "file_write", 
 
 # Destructive / bulk actions require stronger (supervisor) approval
 SUPERVISOR_APPROVAL_ACTIONS = {"file_delete", "batch_executor", "bulk_delete"}
+
+# Actions that destroy data without a recoverable copy. Under FULL_AUTO these
+# are routed through the trash ledger so the user can still undo them.
+DESTRUCTIVE_ACTIONS = {"file_delete", "bulk_delete", "batch_executor"}
+
+# Explicit opt-out mode: every tool, including destructive ones, runs without
+# an approval card. The user must choose this themselves; it is never a default.
+FULL_AUTO = "FULL_AUTO"
+POLICY_KINDS = {"AUTO", "USER", "SUPERVISOR"}
 
 # Environment variable to locate the sandbox root when present.
 _DEFAULT_ROOT_CANDIDATES = [
@@ -96,21 +114,81 @@ def check_path_allowed(root: Path, raw: str) -> tuple[bool, str]:
 
 
 class PermissionEngine:
-    def __init__(self, role: str = "USER", policies: dict[str, dict] | None = None):
+    def __init__(
+        self,
+        role: str = "USER",
+        policies: dict[str, dict] | None = None,
+        user_policies: dict[str, dict] | None = None,
+        full_auto: bool = False,
+    ):
         self.role = role
         self.policies = policies or {}
+        self.user_policies = user_policies or {}
+        self.full_auto = bool(full_auto)
 
     @classmethod
-    def from_db(cls, conn, role: str = "USER"):
-        rows = conn.execute("SELECT tool_name, approval_kind, bulk_threshold FROM action_policies").fetchall()
-        return cls(role=role, policies={row["tool_name"]: dict(row) for row in rows})
+    def from_db(cls, conn, role: str = "USER", user_id: int | None = None):
+        """Load the effective policy set for a user.
+
+        Resolution order (highest wins): the user's own row in
+        ``user_action_policies`` -> the global ``action_policies`` row -> the
+        built-in default. FULL_AUTO is a user-level switch that bypasses the
+        per-tool decision entirely.
+        """
+        rows = conn.execute(
+            "SELECT tool_name, approval_kind, bulk_threshold FROM action_policies"
+        ).fetchall()
+        policies = {row["tool_name"]: dict(row) for row in rows}
+        user_policies: dict[str, dict] = {}
+        full_auto = False
+        if user_id is not None:
+            user_rows = conn.execute(
+                "SELECT tool_name, approval_kind FROM user_action_policies WHERE user_id = ?",
+                (user_id,),
+            ).fetchall()
+            user_policies = {row["tool_name"]: dict(row) for row in user_rows}
+            flag = conn.execute(
+                "SELECT full_auto_mode FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            if flag:
+                try:
+                    full_auto = bool(flag["full_auto_mode"])
+                except (KeyError, IndexError, TypeError):
+                    full_auto = False
+        return cls(role=role, policies=policies, user_policies=user_policies, full_auto=full_auto)
+
+    def configured_kind(self, tool_name: str) -> tuple[str | None, str]:
+        """Return (kind, source) for a tool from user/global config only."""
+        if tool_name in self.user_policies:
+            return self.user_policies[tool_name]["approval_kind"], "user"
+        if tool_name in self.policies:
+            return self.policies[tool_name]["approval_kind"], "global"
+        return None, "default"
+
+    def default_kind(self, tool_name: str) -> str:
+        if tool_name in AUTO_ACTIONS:
+            return "AUTO"
+        if tool_name in SUPERVISOR_APPROVAL_ACTIONS:
+            return "SUPERVISOR"
+        if tool_name in USER_APPROVAL_ACTIONS:
+            return "USER"
+        return "AUTO"
+
+    def effective_kind(self, tool_name: str) -> str:
+        """The approval kind actually in force, including FULL_AUTO."""
+        if self.full_auto:
+            return FULL_AUTO
+        kind, _ = self.configured_kind(tool_name)
+        return kind or self.default_kind(tool_name)
 
     def action_approval_kind(self, tool_name: str, *, count: int = 1) -> str | None:
         """Return required approval kind: 'USER', 'SUPERVISOR', or None (auto)."""
-        configured = self.policies.get(tool_name)
-        if configured:
-            kind = configured["approval_kind"]
-            threshold = int(configured.get("bulk_threshold") or 20)
+        if self.full_auto:
+            # The user explicitly chose to run everything without approval.
+            return None
+        kind, source = self.configured_kind(tool_name)
+        threshold = int(self.policies.get(tool_name, {}).get("bulk_threshold") or 20)
+        if kind is not None:
             if count > threshold and kind == "USER":
                 return "SUPERVISOR"
             return None if kind == "AUTO" else kind

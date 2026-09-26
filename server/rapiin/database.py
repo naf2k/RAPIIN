@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('USER', 'SUPERVISOR')),
     is_active INTEGER NOT NULL DEFAULT 1,
+    full_auto_mode INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 
@@ -198,6 +199,32 @@ CREATE TABLE IF NOT EXISTS action_policies (
     bulk_threshold INTEGER NOT NULL DEFAULT 20,
     updated_by INTEGER REFERENCES users(id),
     updated_at TEXT NOT NULL
+);
+
+-- Per-user policy (Opsi B). A row here wins over the global action_policies
+-- row for the same tool. Absence falls back to the global row, then to the
+-- built-in default. FULL_AUTO is a separate user-level switch (users.full_auto_mode),
+-- not a per-tool value, so this CHECK stays limited to the three approval kinds.
+CREATE TABLE IF NOT EXISTS user_action_policies (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    tool_name TEXT NOT NULL,
+    approval_kind TEXT NOT NULL CHECK (approval_kind IN ('AUTO','USER','SUPERVISOR')),
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, tool_name)
+);
+
+-- Trash ledger: every destructive operation done without an approval moves
+-- files here instead of unlinking them, so the user can undo it.
+CREATE TABLE IF NOT EXISTS trash_entries (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    device_id INTEGER REFERENCES devices(id),
+    task_id INTEGER,
+    root TEXT,
+    created_at TEXT NOT NULL,
+    item_count INTEGER NOT NULL DEFAULT 0,
+    restored_at TEXT,
+    manifest_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS conversation_jobs (
@@ -479,6 +506,7 @@ MIGRATIONS = [
     "ALTER TABLE ops_agent_usage ADD COLUMN estimated_cost_usd REAL NOT NULL DEFAULT 0",
     "ALTER TABLE audit_log ADD COLUMN previous_hash TEXT",
     "ALTER TABLE audit_log ADD COLUMN event_hash TEXT",
+    "ALTER TABLE users ADD COLUMN full_auto_mode INTEGER NOT NULL DEFAULT 0",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_approvals_idempotency ON ops_approvals(idempotency_key) WHERE idempotency_key IS NOT NULL",
     "DROP INDEX IF EXISTS idx_approvals_pending_lookup",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_approvals_pending_dedupe ON approvals(user_id, kind, status, COALESCE(task_id, -1), COALESCE(tool_name, ''), COALESCE(snapshot_hash, '')) WHERE status = 'PENDING'",
@@ -494,11 +522,27 @@ def _migrate(conn) -> None:
             pass  # column already present
 
 
+# Postgres needs ADD COLUMN IF NOT EXISTS; SQLite does not support that syntax,
+# which is why the two migration lists are kept apart.
+POSTGRES_MIGRATIONS = [
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_auto_mode INTEGER NOT NULL DEFAULT 0",
+]
+
+
+def _migrate_postgres(conn) -> None:
+    for statement in POSTGRES_MIGRATIONS:
+        try:
+            conn.execute(statement)
+        except Exception:  # noqa: BLE001 - column already present or dialect quirk
+            pass
+
+
 def init_db() -> sqlite3.Connection:
     conn = connect()
     if settings.rapiin_database_url:
         from .postgres_support import postgres_schema
         conn.executescript(postgres_schema(SCHEMA))
+        _migrate_postgres(conn)
     else:
         conn.executescript(SCHEMA)
         _migrate(conn)

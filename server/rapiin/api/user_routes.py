@@ -389,6 +389,147 @@ class RecommendationApply(BaseModel):
     recommendation_id: str | int
 
 
+class UserPolicyUpdate(BaseModel):
+    approval_kind: str  # AUTO | USER | SUPERVISOR | FULL_AUTO (reset to default)
+
+
+class FullAutoUpdate(BaseModel):
+    enabled: bool
+
+
+@router.get("/policy")
+def user_policy_get(user=Depends(require_user), conn=Depends(get_db)):
+    """The user's effective policy per tool, plus the full-auto switch."""
+    from ..permissions import (
+        AUTO_ACTIONS,
+        DESTRUCTIVE_ACTIONS,
+        SUPERVISOR_APPROVAL_ACTIONS,
+        USER_APPROVAL_ACTIONS,
+        PermissionEngine,
+    )
+
+    engine = PermissionEngine.from_db(conn, role="USER", user_id=user["id"])
+    tools = sorted(AUTO_ACTIONS | USER_APPROVAL_ACTIONS | SUPERVISOR_APPROVAL_ACTIONS)
+    result = []
+    for tool in tools:
+        configured, source = engine.configured_kind(tool)
+        result.append({
+            "tool_name": tool,
+            "effective_kind": engine.effective_kind(tool),
+            "default_kind": engine.default_kind(tool),
+            "override_kind": configured,
+            "source": source,
+            "destructive": tool in DESTRUCTIVE_ACTIONS,
+        })
+    flag = conn.execute("SELECT full_auto_mode FROM users WHERE id = ?", (user["id"],)).fetchone()
+    return {
+        "full_auto": bool(flag["full_auto_mode"]) if flag else False,
+        "tools": result,
+    }
+
+
+@router.put("/policy/{tool_name}")
+def user_policy_put(tool_name: str, body: UserPolicyUpdate, user=Depends(require_user), conn=Depends(get_db)):
+    """Set or clear the user's own override for one tool.
+
+    ``approval_kind='DEFAULT'`` removes the override so the global/built-in
+    policy applies again. Destructive tools may be set to AUTO only here, by
+    the user, and only as an explicit action.
+    """
+    from ..permissions import AUTO_ACTIONS, SUPERVISOR_APPROVAL_ACTIONS, USER_APPROVAL_ACTIONS
+
+    known = AUTO_ACTIONS | USER_APPROVAL_ACTIONS | SUPERVISOR_APPROVAL_ACTIONS
+    if tool_name not in known:
+        raise HTTPException(status_code=404, detail="Tool policy tidak dikenal.")
+    kind = body.approval_kind.upper()
+    if kind == "DEFAULT":
+        conn.execute(
+            "DELETE FROM user_action_policies WHERE user_id = ? AND tool_name = ?",
+            (user["id"], tool_name),
+        )
+        record_audit(
+            conn, actor=user["name"], actor_role="USER", user_id=user["id"],
+            action="policy_updated", resource=f"policy:{tool_name}",
+            error="override dihapus (kembali ke default)",
+        )
+        return {"tool_name": tool_name, "override_kind": None, "default_restored": True}
+    if kind not in {"AUTO", "USER", "SUPERVISOR"}:
+        raise HTTPException(status_code=422, detail="Approval kind tidak valid.")
+    conn.execute(
+        """INSERT INTO user_action_policies (user_id, tool_name, approval_kind, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(user_id, tool_name) DO UPDATE SET approval_kind=excluded.approval_kind,
+           updated_at=excluded.updated_at""",
+        (user["id"], tool_name, kind, utcnow_iso()),
+    )
+    record_audit(
+        conn, actor=user["name"], actor_role="USER", user_id=user["id"],
+        action="policy_updated", resource=f"policy:{tool_name}",
+        error=f"approval_kind={kind}",
+    )
+    return {"tool_name": tool_name, "override_kind": kind}
+
+
+@router.put("/full-auto")
+def user_full_auto_put(body: FullAutoUpdate, user=Depends(require_user), conn=Depends(get_db)):
+    """Enable or disable FULL_AUTO for this user.
+
+    FULL_AUTO runs every tool (including destructive ones) without an approval
+    card. Deletes stay recoverable via the trash ledger. The change is audited
+    with the new value so there is a record of who turned it on and when.
+    """
+    enabled = 1 if body.enabled else 0
+    conn.execute("UPDATE users SET full_auto_mode = ? WHERE id = ?", (enabled, user["id"]))
+    record_audit(
+        conn, actor=user["name"], actor_role="USER", user_id=user["id"],
+        action="policy_updated", resource="policy:full_auto",
+        error=f"full_auto_mode={enabled}",
+    )
+    return {"full_auto": bool(enabled)}
+
+
+@router.get("/trash")
+def user_trash_list(user=Depends(require_user), conn=Depends(get_db)):
+    from ..trash import list_trash_entries
+
+    return list_trash_entries(conn, user_id=user["id"])
+
+
+@router.post("/trash/{trash_id}/undo")
+def user_trash_undo(trash_id: str, user=Depends(require_user), conn=Depends(get_db)):
+    """Restore a trash batch on the device that produced it."""
+    from ..agent_jobs import enqueue_job, find_online_device
+    from ..tasks import create_task
+    from ..trash import get_trash_entry, mark_trash_restored
+
+    entry = get_trash_entry(conn, user_id=user["id"], trash_id=trash_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Batch trash tidak ditemukan.")
+    if entry.get("restored_at"):
+        raise HTTPException(status_code=409, detail="Batch trash ini sudah dipulihkan.")
+    device = find_online_device(conn, device_id=entry.get("device_id"), user_id=user["id"])
+    if not device:
+        raise HTTPException(status_code=409, detail="Perangkat asal sedang offline; unduh tidak dapat dijalankan.")
+    task_id = create_task(conn, user_id=user["id"], device_id=device["id"], type="restore")
+    enqueue_job(
+        conn,
+        task_id=task_id,
+        device_id=device["id"],
+        user_id=user["id"],
+        kind="file_restore",
+        payload={"tool": "file_restore", "arguments": {"trash_id": trash_id}},
+        idempotency_key=f"restore:{trash_id}",
+    )
+    mark_trash_restored(conn, user_id=user["id"], trash_id=trash_id)
+    update_task(conn, task_id, status="RUNNING")
+    record_audit(
+        conn, actor=user["name"], actor_role="USER", user_id=user["id"],
+        device_id=device["id"], action="trash_restore_requested",
+        resource=f"trash:{trash_id}", task_id=task_id,
+    )
+    return {"trash_id": trash_id, "task_id": task_id, "device_id": device["id"], "status": "RUNNING"}
+
+
 @router.post("/recommendations/apply")
 def apply_recommendation(body: RecommendationApply, user=Depends(require_user), conn=Depends(get_db)):
     """Turn a structured recommendation into an approval-gated action.

@@ -163,6 +163,22 @@ class HermesCore:
                         raise ToolExecutionBlocked("Operations Center sedang dalam emergency pause. Tidak ada tool yang dijalankan.")
                     output = self._execute_tool(conn, user_id, task_id, device_id, name, arguments, permissions)
                     tool_events.append({"tool": name, "status": "OK", "result": output})
+                    if isinstance(output, dict) and output.get("trash_id"):
+                        # Remember the batch so the user can undo a delete that
+                        # ran without an approval card (FULL_AUTO).
+                        try:
+                            from ..trash import record_trash_entry
+
+                            record_trash_entry(
+                                conn,
+                                user_id=user_id,
+                                device_id=device_id,
+                                task_id=task_id,
+                                trash_id=output.get("trash_id"),
+                                result=output,
+                            )
+                        except Exception:  # noqa: BLE001 - never fail the tool over bookkeeping
+                            pass
                     from ..redaction import redact_value
                     content = json.dumps(redact_value({"status": "OK", **output}), ensure_ascii=False)
                     if task_id:
@@ -213,7 +229,15 @@ class HermesCore:
         "filesystem_scanner", "metadata_extractor", "file_search",
         "duplicate_detector", "document_parser", "pdf_parser", "spreadsheet_parser",
         "verification", "file_classifier", "semantic_indexer", "semantic_search",
-        "folder_organizer", "file_mkdir",
+        "folder_organizer", "file_mkdir", "trash_list", "file_restore",
+    }
+
+    # Mutation tools always target the device that owns the files. In the
+    # default flow they are queued only after an approval; in FULL_AUTO the
+    # approval is skipped but the job still runs on the device.
+    DEVICE_MUTATION_TOOLS = {
+        "file_move", "file_copy", "file_rename", "file_delete", "file_write",
+        "file_edit", "batch_executor", "bulk_delete",
     }
 
     def _execute_tool(self, conn, user_id, task_id, device_id, name, arguments, permissions):
@@ -222,15 +246,31 @@ class HermesCore:
         # Device paths are meaningful on the employee computer, not on the
         # server. Every delegated local tool enforces the registered agent
         # workspace itself; server-side validation applies only to server tools.
-        if name not in self.DEVICE_DELEGATED_TOOLS:
+        if name not in self.DEVICE_DELEGATED_TOOLS and name not in self.DEVICE_MUTATION_TOOLS:
             _validate_tool_paths(arguments)
 
-        # Try to delegate to the employee's device agent first.
+        # Destination-only folder argument for trash/restore tools is resolved
+        # on the device; nothing to validate server-side.
         if name in self.DEVICE_DELEGATED_TOOLS:
             delegated = self._try_delegate_to_device(conn, user_id, task_id, device_id, name, arguments)
             if delegated is not None:
                 return delegated
             raise ToolExecutionBlocked("Desktop Agent tidak tersedia atau tidak merespons. Task tidak dijalankan pada server.")
+
+        if name in self.DEVICE_MUTATION_TOOLS:
+            # A mutation must run on the device that owns the files. It reaches
+            # here without an approval only in FULL_AUTO; either way it is
+            # delegated, never executed against the server filesystem.
+            if permissions is not None and getattr(permissions, "full_auto", False) and name in {
+                "file_delete", "bulk_delete", "batch_executor",
+            }:
+                # No approval card will catch a mistake here, so the device must
+                # move the files to its trash folder and keep a manifest.
+                arguments = {**arguments, "reversible": True}
+            delegated = self._try_delegate_to_device(conn, user_id, task_id, device_id, name, arguments)
+            if delegated is not None:
+                return delegated
+            raise ToolExecutionBlocked("Desktop Agent tujuan sedang offline. Tidak ada perubahan file yang dijalankan.")
 
         return execute_tool(conn, user_id=user_id, task_id=task_id, device_id=device_id, name=name, arguments=arguments)
 

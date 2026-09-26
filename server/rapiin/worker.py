@@ -201,7 +201,7 @@ def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: in
                 conversation_history=history,
                 task_id=task_id,
                 device_id=device_id,
-                permissions=PermissionEngine.from_db(conn, role="USER"),
+                permissions=PermissionEngine.from_db(conn, role="USER", user_id=user_id),
                 on_delta=lambda text: publish(task_id, {"type": "assistant_delta", "delta": text}),
             )
         except Exception as exc:  # noqa: BLE001
