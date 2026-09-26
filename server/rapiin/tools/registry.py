@@ -26,6 +26,12 @@ def _verification_tool(conn, *, user_id: int, arguments: dict) -> dict:
         return verify_tool.verify_hash(source, destination)
     raise ValueError("Operasi verifikasi harus move, copy, delete, atau hash.")
 
+def _device_only_tool(conn, *, user_id: int, arguments: dict) -> dict:
+    raise RuntimeError(
+        "Tool ini hanya berjalan di Desktop Agent pemilik file, bukan di server."
+    )
+
+
 # Auto (no approval) tools and mutation tools are mapped here.
 TOOL_IMPLEMENTATIONS = {
     "filesystem_scanner": fs_tool.scan_directory,
@@ -49,7 +55,16 @@ TOOL_IMPLEMENTATIONS = {
     "batch_executor": fs_tool.execute_batch,
     "bulk_delete": fs_tool.delete_files,
     "verification": _verification_tool,
+    # Trash lives on the device that owns the bytes; the manifests are written
+    # by the Desktop Agent. These must never run against the server filesystem,
+    # so the implementations only exist to make the registry complete: the
+    # agent path always delegates them to the device (see
+    # Agent.DEVICE_DELEGATED_TOOLS). Reaching them here means delegation was
+    # skipped, which we refuse rather than resurrect the wrong machine's files.
+    "trash_list": _device_only_tool,
+    "file_restore": _device_only_tool,
 }
+
 
 # Tools exposed to the model.
 TOOLS_SCHEMA = [
@@ -304,6 +319,30 @@ TOOLS_SCHEMA = [
                 "type": "object",
                 "properties": {"path": {"type": "string", "description": "Folder yang akan dianalisis."}},
                 "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trash_list",
+            "description": "Menampilkan daftar file yang dihapus dan masih bisa dipulihkan (Sampah RAPIIN), beserta trash_id tiap batch.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "file_restore",
+            "description": "Memulihkan file yang dihapus dari Sampah RAPIIN kembali ke lokasi asalnya. Gunakan trash_id dari trash_list (atau kosongkan untuk memulihkan batch terakhir). Berjalan otomatis.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "trash_id": {
+                        "type": "string",
+                        "description": "ID batch sampah dari trash_list. Kosongkan untuk batch terbaru.",
+                    }
+                },
             },
         },
     },

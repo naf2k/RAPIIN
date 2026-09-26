@@ -46,6 +46,7 @@ CAPABILITIES = [
     "duplicate_detector", "file_classifier", "semantic_indexer", "file_search",
     "file_move", "file_copy", "file_rename", "file_delete", "batch_executor", "verification",
     "folder_organizer", "pdf_parser", "spreadsheet_parser", "semantic_search",
+    "file_mkdir", "trash_list", "file_restore",
 ]
 
 

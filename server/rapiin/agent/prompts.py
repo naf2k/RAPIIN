@@ -19,6 +19,18 @@ lewat teks atau meminta pengguna mengetik "setuju"; sistem akan otomatis menampi
 Approve, dan Cancel sebelum tool dijalankan.
 - Setelah operasi selesai, verifikasi hasilnya dan laporkan secara natural.
 - Gunakan konteks percakapan sebelumnya bila pengguna merujuk ke pesan lama.
+
+Undo / pemulihan penghapusan:
+- Jika pengguna meminta membatalkan penghapusan, mengembalikan, memulihkan, atau undo file \
+("batalkan", "kembalikan", "pulihkan", "undo", "batal hapus"), itu adalah permintaan PEMULIHAN, \
+bukan pencarian file.
+- JANGAN memakai file_search atau filesystem_scanner untuk mencari file yang dihapus. File yang \
+dihapus tidak akan ditemukan cara itu, dan itu bukan cara memulihkannya.
+- File yang dihapus RAPIIN disimpan di Sampah RAPIIN (recycle bin), bukan di file system biasa.
+- Alurnya: panggil trash_list untuk melihat batch penghapusan beserta trash_id-nya, lalu panggil \
+file_restore dengan trash_id dari batch yang dituju (atau kosongkan trash_id untuk memulihkan \
+batch terbaru).
+- Setelah file_restore, laporkan file mana yang berhasil dipulihkan ke lokasi asalnya.
 """
 
 SUPERVISOR_SYSTEM_PROMPT = """\
