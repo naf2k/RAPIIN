@@ -216,8 +216,18 @@ def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: in
             return
 
         final = result["final_response"]
-        publish(task_id, {"type": "assistant_final", "content": final})
-        add_message(conn, conversation_id, "assistant", final)
+        waiting = [e for e in result["tool_events"] if e["status"] in {"WAITING_USER_APPROVAL", "WAITING_SUPERVISOR_APPROVAL"}]
+        # If the user already decided the approval card while the model was
+        # still finishing, the decision path owns the outcome message. Writing
+        # the stale "menunggu persetujuan" answer here would land *after* the
+        # confirmation ("sudah dijalankan" / "ditolak") and mislead the user.
+        approvals_decided = False
+        if waiting and task_id:
+            rows = conn.execute("SELECT status FROM approvals WHERE task_id = ?", (task_id,)).fetchall()
+            approvals_decided = bool(rows) and not any(r["status"] == "PENDING" for r in rows)
+        if not approvals_decided:
+            publish(task_id, {"type": "assistant_final", "content": final})
+            add_message(conn, conversation_id, "assistant", final)
         if result.get("cancelled"):
             update_task(conn, task_id, status="CANCELLED", completed=True)
             record_audit(
@@ -232,8 +242,11 @@ def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: in
             (conversation_id, conversation_id),
         )
 
-        waiting = [e for e in result["tool_events"] if e["status"] in {"WAITING_USER_APPROVAL", "WAITING_SUPERVISOR_APPROVAL"}]
-        if waiting:
+        if approvals_decided:
+            # Decided out-of-band: the approval path already set the final
+            # status (COMPLETED / CANCELLED) and posted the outcome message.
+            pass
+        elif waiting:
             update_task(conn, task_id, status="WAITING_APPROVAL")
         elif any(e["status"] in {"ERROR", "BLOCKED"} for e in result["tool_events"]):
             error_message = next(

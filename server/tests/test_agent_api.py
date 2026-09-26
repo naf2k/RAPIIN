@@ -162,3 +162,103 @@ def test_agent_result_keeps_conversation_running_until_final_answer(client):
         task = get_task(conn, task_id)
     assert task["status"] == "RUNNING"
     assert task["progress"] == 95
+
+
+def test_agent_failed_job_keeps_conversation_running(client):
+    """A failed device job must not flash FAILED while the worker still owns it.
+
+    The agent loop turns the tool error into the user's answer, so the task has
+    to stay RUNNING until the worker publishes its final response. Otherwise the
+    UI shows an error with no answer and the failure lingers on a later
+    COMPLETED (seen when an agent rejects a protected path such as /Library).
+    """
+    device_key, device_id = _register_user_with_key(client, "agent4@example.com")
+
+    from rapiin.agent_jobs import enqueue_job
+    from rapiin.database import db_session, utcnow_iso
+    from rapiin.tasks import create_task, get_task
+
+    with db_session() as conn:
+        user_id = conn.execute("SELECT id FROM users WHERE email = 'agent4@example.com'").fetchone()["id"]
+        task_id = create_task(conn, user_id=user_id, device_id=device_id, type="conversation")
+        conversation_id = conn.execute(
+            "INSERT INTO conversations(user_id, title, created_at, updated_at) VALUES (?, 'active', ?, ?)",
+            (user_id, utcnow_iso(), utcnow_iso()),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO conversation_jobs(task_id, user_id, conversation_id, device_id, status, created_at) VALUES (?, ?, ?, ?, 'CLAIMED', ?)",
+            (task_id, user_id, conversation_id, device_id, utcnow_iso()),
+        )
+        job_id = enqueue_job(
+            conn,
+            task_id=task_id,
+            device_id=device_id,
+            user_id=user_id,
+            kind="filesystem_scanner",
+            payload={"tool": "filesystem_scanner", "arguments": {"path": "/Users/example/Library"}},
+        )
+
+    poll = client.post(
+        "/api/agent/poll",
+        json={"device_id": device_id, "device_key": device_key},
+    ).json()
+    assert poll["job"]["id"] == job_id
+
+    report = client.post(
+        "/api/agent/result",
+        json={
+            "job_id": job_id,
+            "device_id": device_id,
+            "device_key": device_key,
+            "status": "FAILED",
+            "error": "Folder sistem tidak dapat diakses RAPIIN: /Users/example/Library",
+        },
+    )
+    assert report.status_code == 200, report.text
+
+    with db_session() as conn:
+        task = get_task(conn, task_id)
+    assert task["status"] == "RUNNING"
+    assert task["progress"] == 95
+    assert not task.get("error"), "worker still owns the turn; no error may be latched"
+
+
+def test_agent_failed_job_marks_task_when_unowned(client):
+    """With no owning conversation job, a failed device job does fail the task."""
+    device_key, device_id = _register_user_with_key(client, "agent5@example.com")
+
+    from rapiin.agent_jobs import enqueue_job
+    from rapiin.database import db_session
+    from rapiin.tasks import create_task, get_task
+
+    with db_session() as conn:
+        user_id = conn.execute("SELECT id FROM users WHERE email = 'agent5@example.com'").fetchone()["id"]
+        task_id = create_task(conn, user_id=user_id, device_id=device_id, type="conversation")
+        job_id = enqueue_job(
+            conn,
+            task_id=task_id,
+            device_id=device_id,
+            user_id=user_id,
+            kind="filesystem_scanner",
+            payload={"tool": "filesystem_scanner", "arguments": {"path": "/Users/example/Library"}},
+        )
+
+    client.post(
+        "/api/agent/poll",
+        json={"device_id": device_id, "device_key": device_key},
+    )
+    client.post(
+        "/api/agent/result",
+        json={
+            "job_id": job_id,
+            "device_id": device_id,
+            "device_key": device_key,
+            "status": "FAILED",
+            "error": "Job perangkat gagal.",
+        },
+    )
+
+    with db_session() as conn:
+        task = get_task(conn, task_id)
+    assert task["status"] == "FAILED"
+    assert task.get("error")

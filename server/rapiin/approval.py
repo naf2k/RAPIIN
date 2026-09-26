@@ -216,6 +216,7 @@ def respond_approval(
                 "UPDATE tasks SET status = 'CANCELLED', approval_status = 'REJECTED', completed_at = ? WHERE id = ?",
                 (now, task_id),
             )
+            _announce_rejection(conn, task_id)
 
     record_audit(
         conn,
@@ -302,6 +303,24 @@ def _execute_approved_action(conn, approval: dict) -> None:
 
 def now_iso() -> str:
     return utcnow_iso()
+
+
+def _announce_rejection(conn, task_id: int) -> None:
+    """Tell the conversation its approval card was rejected.
+
+    The Hermes worker may still be finishing, but once the card is rejected the
+    action never runs. Without this the chat can keep showing the model's
+    "menunggu persetujuan" answer as the last word.
+    """
+    row = conn.execute(
+        "SELECT conversation_id FROM conversation_jobs WHERE task_id = ? ORDER BY id DESC LIMIT 1",
+        (task_id,),
+    ).fetchone()
+    if not row or not row["conversation_id"]:
+        return
+    from .memory import add_message
+
+    add_message(conn, row["conversation_id"], "assistant", "Tindakan dibatalkan: Anda menolak permintaan persetujuan ini, jadi tidak ada file yang diubah.")
 
 
 def pending_approvals_for_user(conn, user_id: int) -> list[dict]:

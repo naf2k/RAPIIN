@@ -105,12 +105,14 @@ def _ground_one(raw: str, roots: list[str]) -> str:
 def _base_folder_for_lists(grounded: dict, roots: list[str]) -> str | None:
     """Find the folder that relative ``paths``/``files`` entries are under.
 
-    Models often send ``source`` (a folder) together with bare filenames in
-    ``paths``. Anchoring those names to the workspace root would invent a path
-    that does not exist, so the folder from ``source``/``directory`` wins when
-    it resolves inside the allowed roots.
+    Models often send a folder together with bare filenames in ``paths`` (for
+    example ``path`` = the folder, ``paths`` = ["a.txt"]). Anchoring those names
+    to the workspace root would invent a path that does not exist — and worse,
+    could match a same-named file at the root and act on the wrong file. Any
+    path argument that resolves to an existing directory inside the roots is
+    therefore accepted as the base, not only ``source``/``directory``.
     """
-    for key in ("source", "directory"):
+    for key in ("source", "directory", "path", "target", "destination"):
         value = grounded.get(key)
         if isinstance(value, str) and value:
             candidate = _normalize(value)
