@@ -8,9 +8,38 @@ connection. The frontend polls the task status.
 from __future__ import annotations
 
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
-from .database import connect
+from .database import connect, is_transient_db_error
+
+# A long AI turn can outlive a short lease. The in-process registry keeps a
+# periodic sweep from requeuing a task that is still running here, and the
+# generous lease covers a worker that lives in a separate process.
+CONVERSATION_LEASE_MINUTES = 30
+MAX_CONVERSATION_REQUEUES = 3
+_RUNNING_TASKS: set[int] = set()
+_RUNNING_LOCK = threading.Lock()
+
+
+def _safe_close(conn) -> None:
+    """Close without raising: a dead connection is already unusable."""
+    try:
+        conn.close()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _retry_transient(fn, *, attempts: int = 5, base_delay: float = 0.5):
+    """Run ``fn``, retrying only connection-level failures with backoff."""
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001
+            if not is_transient_db_error(exc) or attempt == attempts - 1:
+                raise
+            time.sleep(base_delay * (attempt + 1))
+    raise AssertionError("unreachable")
 
 
 def spawn_conversation_task(*, user_id: int, conversation_id: int, task_id: int, device_id: int | None) -> None:
@@ -39,10 +68,71 @@ def spawn_conversation_task(*, user_id: int, conversation_id: int, task_id: int,
     thread.start()
 
 
+def _dispatch_conversation_task(task_id: int) -> None:
+    """Hand a task to Redis when available, otherwise run it in this process."""
+    from .queue_backend import enqueue_conversation_task
+    if enqueue_conversation_task(task_id):
+        return
+    threading.Thread(
+        target=_claim_and_run,
+        kwargs={"task_id": task_id},
+        name=f"rapiin-recovery-{task_id}",
+        daemon=True,
+    ).start()
+
+
+def _task_status(task_id: int):
+    conn = connect()
+    try:
+        return conn.execute("SELECT status, error FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    finally:
+        _safe_close(conn)
+
+
+def _write_conversation_job(task_id: int, sql: str, params: tuple) -> None:
+    """Apply a bookkeeping write, retrying a dropped connection."""
+    def _update():
+        conn = connect()
+        try:
+            conn.execute(sql, params)
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+            raise
+        finally:
+            _safe_close(conn)
+    try:
+        _retry_transient(_update)
+    except Exception:  # noqa: BLE001
+        # Never let a daemon thread die on a bookkeeping write; the recovery
+        # sweep reconciles the job on its next tick.
+        pass
+
+
+def _finish_conversation_job(task_id: int, status: str, error: str | None) -> None:
+    from .database import utcnow_iso
+    _write_conversation_job(
+        task_id,
+        "UPDATE conversation_jobs SET status=?, error=?, lease_expires_at=NULL, finished_at=? WHERE task_id=? AND status='CLAIMED'",
+        (status, error, utcnow_iso(), task_id),
+    )
+
+
+def _requeue_conversation_job(task_id: int) -> None:
+    _write_conversation_job(
+        task_id,
+        "UPDATE conversation_jobs SET status='PENDING', lease_expires_at=NULL WHERE task_id=? AND status='CLAIMED'",
+        (task_id,),
+    )
+
+
 def _claim_and_run(*, task_id: int) -> None:
     conn = connect()
     try:
-        lease = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+        lease = (datetime.now(timezone.utc) + timedelta(minutes=CONVERSATION_LEASE_MINUTES)).isoformat()
         job = conn.execute(
             """UPDATE conversation_jobs SET status='CLAIMED', attempt_count=attempt_count+1, lease_expires_at=?
                WHERE task_id=? AND status='PENDING' RETURNING *""",
@@ -50,57 +140,141 @@ def _claim_and_run(*, task_id: int) -> None:
         ).fetchone()
         conn.commit()
     finally:
-        conn.close()
+        _safe_close(conn)
     if not job:
         return
     data = dict(job)
+    with _RUNNING_LOCK:
+        _RUNNING_TASKS.add(task_id)
     try:
-        _run_task(user_id=data["user_id"], conversation_id=data["conversation_id"], task_id=data["task_id"], device_id=data["device_id"])
-        check = connect()
         try:
-            task = check.execute("SELECT status, error FROM tasks WHERE id = ?", (task_id,)).fetchone()
-        finally:
-            check.close()
+            outcome = _run_task(
+                user_id=data["user_id"],
+                conversation_id=data["conversation_id"],
+                task_id=data["task_id"],
+                device_id=data["device_id"],
+            ) or "DONE"
+        except Exception as exc:  # defensive: _run_task normally records its errors
+            outcome = "REQUEUE" if is_transient_db_error(exc) else "FAILED"
+            if outcome == "FAILED":
+                _finish_conversation_job(task_id, "FAILED", str(exc))
+                return
+
+        if outcome == "REQUEUE":
+            if int(data.get("attempt_count") or 0) >= MAX_CONVERSATION_REQUEUES:
+                # The connection kept dying. Give the user a real answer rather
+                # than looping forever.
+                _mark_task_failed(task_id, "Koneksi database terputus berulang; task dihentikan.")
+                _finish_conversation_job(task_id, "FAILED", "Koneksi database terputus berulang.")
+            else:
+                _requeue_conversation_job(task_id)
+            return
+
+        try:
+            task = _retry_transient(lambda: _task_status(task_id))
+        except Exception as exc:  # noqa: BLE001
+            if is_transient_db_error(exc):
+                _requeue_conversation_job(task_id)
+                return
+            raise
         if task and task["status"] in {"COMPLETED", "WAITING_APPROVAL", "CANCELLED"}:
-            status, error = "SUCCEEDED", None
+            _finish_conversation_job(task_id, "SUCCEEDED", None)
         else:
-            status, error = "FAILED", (task["error"] if task else "Task hilang setelah worker berjalan")
-    except Exception as exc:  # defensive: _run_task normally records its errors
-        status, error = "FAILED", str(exc)
+            _finish_conversation_job(task_id, "FAILED", (task["error"] if task else "Task hilang setelah worker berjalan"))
+    finally:
+        with _RUNNING_LOCK:
+            _RUNNING_TASKS.discard(task_id)
+
+
+def _mark_task_failed(task_id: int, message: str) -> None:
+    from .database import utcnow_iso
+
+    def _update():
+        conn = connect()
+        try:
+            conn.execute(
+                "UPDATE tasks SET status='FAILED', error=?, completed_at=? WHERE id = ?",
+                (message, utcnow_iso(), task_id),
+            )
+            conn.commit()
+        finally:
+            _safe_close(conn)
+    try:
+        _retry_transient(_update)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _expired_claim_ids() -> list[int]:
+    """Task ids whose CLAIMED lease has lapsed (read-only)."""
+    from .database import utcnow_iso
     conn = connect()
     try:
-        from .database import utcnow_iso
-        conn.execute(
-            "UPDATE conversation_jobs SET status=?, error=?, lease_expires_at=NULL, finished_at=? WHERE task_id=? AND status='CLAIMED'",
-            (status, error, utcnow_iso(), task_id),
-        )
-        conn.commit()
-    except Exception:
-        # The application schema is always present in production. This guard
-        # prevents a daemon thread from leaking during isolated test teardown.
-        conn.rollback()
+        rows = conn.execute(
+            "SELECT task_id FROM conversation_jobs "
+            "WHERE status='CLAIMED' AND (lease_expires_at IS NULL OR lease_expires_at < ?)",
+            (utcnow_iso(),),
+        ).fetchall()
     finally:
-        conn.close()
+        _safe_close(conn)
+    return [row["task_id"] for row in rows]
+
+
+def _reclaim_claim(task_id: int) -> bool:
+    """Flip one expired CLAIMED job back to PENDING. True when it changed."""
+    from .database import utcnow_iso
+
+    def _update():
+        conn = connect()
+        try:
+            cur = conn.execute(
+                "UPDATE conversation_jobs SET status='PENDING', lease_expires_at=NULL "
+                "WHERE task_id=? AND status='CLAIMED' AND (lease_expires_at IS NULL OR lease_expires_at < ?)",
+                (task_id, utcnow_iso()),
+            )
+            conn.commit()
+            return cur.rowcount == 1
+        finally:
+            _safe_close(conn)
+    return bool(_retry_transient(_update))
+
+
+def requeue_stale_conversation_jobs() -> int:
+    """Resume work interrupted by host sleep/wake or a database restart.
+
+    Runs from the periodic monitor so a dropped connection cannot strand a task
+    until the next server restart. A healthy in-flight task holds a far-future
+    lease, and a task running in this process is skipped explicitly, so an
+    active job is never flipped back to PENDING (which would double-run it).
+    """
+    with _RUNNING_LOCK:
+        running = set(_RUNNING_TASKS)
+    recovered = 0
+    for task_id in _expired_claim_ids():
+        if task_id in running:
+            continue
+        if _reclaim_claim(task_id):
+            _dispatch_conversation_task(task_id)
+            recovered += 1
+    return recovered
 
 
 def recover_conversation_jobs() -> int:
     """Requeue expired work and dispatch every persisted pending AI job."""
-    from .database import utcnow_iso
+    with _RUNNING_LOCK:
+        running = set(_RUNNING_TASKS)
+    for task_id in _expired_claim_ids():
+        if task_id not in running:
+            _reclaim_claim(task_id)
     conn = connect()
     try:
-        conn.execute(
-            "UPDATE conversation_jobs SET status='PENDING', lease_expires_at=NULL WHERE status='CLAIMED' AND lease_expires_at < ?",
-            (utcnow_iso(),),
-        )
-        ids = [row["task_id"] for row in conn.execute("SELECT task_id FROM conversation_jobs WHERE status='PENDING'").fetchall()]
-        conn.commit()
+        pending = [row["task_id"] for row in conn.execute("SELECT task_id FROM conversation_jobs WHERE status='PENDING'").fetchall()]
     finally:
-        conn.close()
-    for pending_task_id in ids:
-        from .queue_backend import enqueue_conversation_task
-        if not enqueue_conversation_task(pending_task_id):
-            threading.Thread(target=_claim_and_run, kwargs={"task_id": pending_task_id}, name=f"rapiin-recovery-{pending_task_id}", daemon=True).start()
-    return len(ids)
+        _safe_close(conn)
+    for pending_task_id in pending:
+        if pending_task_id not in running:
+            _dispatch_conversation_task(pending_task_id)
+    return len(pending)
 
 
 def run_queue_worker(stop_event=None) -> None:
@@ -129,9 +303,15 @@ def run_queue_worker(stop_event=None) -> None:
             task_id = dequeue_conversation_task(timeout=2)
             if task_id is not None:
                 _claim_and_run(task_id=task_id)
-        except Exception:  # noqa: BLE001 - a transient outage must not kill the worker
-            logger.exception("Queue worker poll failed; retrying")
-            time.sleep(1)
+        except Exception as exc:  # noqa: BLE001 - a transient outage must not kill the worker
+            if is_transient_db_error(exc):
+                # Host sleep/wake or a database restart: reconnect on the next
+                # tick instead of flooding the log with stack traces.
+                logger.warning("Queue worker connection lost; retrying: %s", exc)
+                time.sleep(2)
+            else:
+                logger.exception("Queue worker poll failed; retrying")
+                time.sleep(1)
         if stop_event:
             time.sleep(0.05)
 
@@ -205,6 +385,10 @@ def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: in
                 on_delta=lambda text: publish(task_id, {"type": "assistant_delta", "delta": text}),
             )
         except Exception as exc:  # noqa: BLE001
+            if is_transient_db_error(exc):
+                # Connection lost mid-turn: the work is interrupted, not wrong.
+                # Let the recovery sweep requeue it instead of latching FAILED.
+                return "REQUEUE"
             update_task(conn, task_id, status="FAILED", error=str(exc), completed=True)
             notify_task_outcome(conn, user_id=user_id, task_type="percakapan", status="FAILED", task_id=task_id, error=str(exc))
             record_audit(
@@ -213,7 +397,7 @@ def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: in
                 result="FAILED", error=str(exc), task_id=task_id,
             )
             conn.commit()
-            return
+            return "DONE"
 
         final = result["final_response"]
         waiting = [e for e in result["tool_events"] if e["status"] in {"WAITING_USER_APPROVAL", "WAITING_SUPERVISOR_APPROVAL"}]
@@ -267,7 +451,14 @@ def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: in
             action="assistant_reply", resource=f"conversation:{conversation_id}", task_id=task_id,
         )
         conn.commit()
-    except Exception:  # noqa: BLE001 - never let a worker thread die silently
-        conn.rollback()
+        return "DONE"
+    except Exception as exc:  # noqa: BLE001 - never let a worker thread die silently
+        try:
+            conn.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        if is_transient_db_error(exc):
+            return "REQUEUE"
+        raise
     finally:
-        conn.close()
+        _safe_close(conn)

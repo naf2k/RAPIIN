@@ -436,6 +436,50 @@ def utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Exception classes that only ever mean "the connection is gone", never "the
+# data is wrong". Matched by name so this module stays import-safe under SQLite
+# (where psycopg may not be installed).
+_CONNECTION_ERROR_NAMES = {
+    "InterfaceError",
+    "IdleInTransactionSessionTimeout",
+    "ConnectionException",
+    "AdminShutdown",
+    "OperationalErrorPg",
+}
+
+# Messages emitted by a dropped/terminated connection. Host sleep/wake, a
+# PostgreSQL restart and SQLite lock contention all land here.
+_TRANSIENT_MARKERS = (
+    "server closed the connection",
+    "consuming input failed",
+    "connection is closed",
+    "connection already closed",
+    "idle-in-transaction timeout",
+    "terminating connection",
+    "database is locked",
+    "could not connect",
+    "connection refused",
+    "connection reset",
+    "broken pipe",
+    "recovery is in progress",
+    "the database system is starting up",
+)
+
+
+def is_transient_db_error(exc: BaseException) -> bool:
+    """True when a failure is a connectable outage worth retrying.
+
+    A dropped connection (host sleep/wake, database restart) or SQLite lock
+    contention is safe to retry. A schema/constraint error is not, so it must
+    never be treated as transient.
+    """
+    for klass in type(exc).__mro__:
+        if klass.__name__ in _CONNECTION_ERROR_NAMES:
+            return True
+    text = str(exc).lower()
+    return any(marker in text for marker in _TRANSIENT_MARKERS)
+
+
 def connect(db_path: Path | None = None):
     if settings.rapiin_database_url and db_path is None:
         import psycopg

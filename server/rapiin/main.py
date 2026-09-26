@@ -56,6 +56,13 @@ def _device_monitor_tick() -> None:
         conn.commit()
     finally:
         conn.close()
+    # Separate connection: this sweep retries its own writes and must not be
+    # aborted by the maintenance transaction above.
+    try:
+        from .worker import requeue_stale_conversation_jobs
+        requeue_stale_conversation_jobs()
+    except Exception:  # noqa: BLE001 - recovery is best-effort per tick
+        logger.exception("Conversation job recovery sweep failed")
 
 
 def _ops_tick() -> None:
