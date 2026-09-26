@@ -402,7 +402,9 @@ _AGENT_TEXT_EXTENSIONS = {
     ".cfg", ".toml", ".rtf",
 }
 
-_AGENT_READ_ONLY_BINARY = {".pdf", ".doc", ".docx", ".ppt", ".pptx"}
+# DOCX is editable (paragraph-level via python-docx); the rest stay read-only
+# because a naive rewrite would corrupt them.
+_AGENT_READ_ONLY_BINARY = {".pdf", ".doc", ".ppt", ".pptx"}
 
 
 def _mkdir(arguments: dict) -> dict:
@@ -473,6 +475,8 @@ def _edit_file(arguments: dict) -> dict:
             shutil.copy2(str(target), str(backup))
         if suffix == ".xlsx":
             outcome = _edit_xlsx(target, arguments)
+        elif suffix == ".docx":
+            outcome = _edit_docx(target, arguments)
         else:
             outcome = _edit_text_file(target, arguments)
         if not outcome["verified"]:
@@ -546,6 +550,76 @@ def _edit_xlsx(target: Path, arguments: dict) -> dict:
     stored = check[sheet_name][cell].value
     check.close()
     return {"changed": 1, "verified": stored == arguments.get("value")}
+
+
+def _edit_docx(target: Path, arguments: dict) -> dict:
+    """Edit a DOCX at paragraph level, then re-read to verify the change."""
+    try:
+        import docx  # type: ignore
+    except ImportError as exc:  # pragma: no cover - dependency is bundled
+        raise ValueError("Dukungan DOCX belum terpasang di agent.") from exc
+
+    document = docx.Document(str(target))
+    operation = arguments.get("operation") or "append"
+    if operation == "replace":
+        old = arguments.get("old")
+        new = arguments.get("new", "")
+        if old is None or old == "":
+            raise ValueError("Parameter old wajib diisi untuk replace DOCX.")
+        changed = 0
+        # Run-level replace keeps existing formatting whenever possible.
+        for para in document.paragraphs:
+            for run in para.runs:
+                if old in run.text:
+                    run.text = run.text.replace(old, new)
+                    changed += 1
+        # Cross-run match: the phrase spans several runs, so collapse them.
+        if changed == 0:
+            for para in document.paragraphs:
+                if old in para.text:
+                    if para.runs:
+                        para.runs[0].text = para.text.replace(old, new)
+                        for run in para.runs[1:]:
+                            run.text = ""
+                        changed += 1
+        if changed == 0:
+            raise ValueError("Teks old tidak ditemukan di dokumen.")
+    elif operation == "append":
+        text = arguments.get("text", "")
+        if text == "":
+            raise ValueError("Parameter text wajib diisi untuk append DOCX.")
+        document.add_paragraph(text)
+        changed = 1
+    elif operation == "insert":
+        text = arguments.get("text", "")
+        if text == "":
+            raise ValueError("Parameter text wajib diisi untuk insert DOCX.")
+        try:
+            line_no = int(arguments.get("line", 1))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Parameter line harus nomor baris.") from exc
+        paragraphs = document.paragraphs
+        index = max(0, min(line_no - 1, len(paragraphs) - 1))
+        if paragraphs:
+            paragraphs[index].insert_paragraph_before(text)
+        else:
+            document.add_paragraph(text)
+        changed = 1
+    else:
+        raise ValueError("Operasi edit DOCX harus replace, insert, atau append.")
+
+    document.save(str(target))
+
+    # Re-open the saved file and confirm the mutation actually landed.
+    check = docx.Document(str(target))
+    body = "\n".join(p.text for p in check.paragraphs)
+    if operation == "replace":
+        verified = (old not in body) and (new == "" or new in body)
+    elif operation == "append":
+        verified = bool(check.paragraphs) and check.paragraphs[-1].text == arguments.get("text", "")
+    else:
+        verified = arguments.get("text", "") in body
+    return {"changed": changed, "verified": verified}
 
 
 def _mutate(arguments: dict, operation: str) -> dict:

@@ -219,7 +219,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "file_edit",
-            "description": "Mengubah file yang SUDAH ADA (teks: replace/insert/append; XLSX: tulis cell). Selalu menyimpan backup .bak. PDF/DOCX/PPTX tidak didukung dan akan ditolak. Membutuhkan persetujuan pengguna.",
+            "description": "Mengubah file yang SUDAH ADA (teks: replace/insert/append; XLSX: tulis cell; DOCX: replace/insert/append paragraf). Selalu menyimpan backup. PDF/PPTX tidak didukung dan akan ditolak. Membutuhkan persetujuan pengguna.",
             "parameters": {
                 "type": "object",
                 "properties": {

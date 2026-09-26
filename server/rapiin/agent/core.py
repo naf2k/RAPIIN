@@ -179,6 +179,21 @@ class HermesCore:
                             )
                         except Exception:  # noqa: BLE001 - never fail the tool over bookkeeping
                             pass
+                    if (
+                        name == "file_restore"
+                        and isinstance(output, dict)
+                        and output.get("trash_id")
+                        and output.get("status") in {"OK", "PARTIAL"}
+                    ):
+                        # An undo performed through chat must close the ledger
+                        # entry the same way the /trash/{id}/undo endpoint does;
+                        # otherwise the batch stays listed as undoable forever.
+                        try:
+                            from ..trash import mark_trash_restored
+
+                            mark_trash_restored(conn, user_id=user_id, trash_id=output["trash_id"])
+                        except Exception:  # noqa: BLE001
+                            pass
                     from ..redaction import redact_value
                     content = json.dumps(redact_value({"status": "OK", **output}), ensure_ascii=False)
                     if task_id:

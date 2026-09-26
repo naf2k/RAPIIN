@@ -29,7 +29,8 @@ def record_trash_entry(
     root = result.get("trash_dir")
     items = [
         entry for entry in result.get("summary", [])
-        if isinstance(entry, dict) and entry.get("status") == "TRASHED"
+        if isinstance(entry, dict)
+        and (entry.get("status") == "TRASHED" or entry.get("trashed_to"))
     ]
     conn.execute(
         """

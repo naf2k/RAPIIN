@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rapiin-agent"
-version = "1.1.5"
+version = "1.1.6"
 description = "RAPIIN Desktop Agent - menjalankan pekerjaan file lokal di komputer pegawai"
 requires-python = ">=3.10"
 dependencies = [

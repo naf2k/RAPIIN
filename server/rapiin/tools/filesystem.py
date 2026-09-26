@@ -398,7 +398,7 @@ BINARY_MAGIC = {
 }
 
 # Binary formats the editor refuses honestly instead of corrupting.
-READ_ONLY_BINARY_EXTENSIONS = {".pdf", ".doc", ".docx", ".ppt", ".pptx"}
+READ_ONLY_BINARY_EXTENSIONS = {".pdf", ".doc", ".ppt", ".pptx"}
 
 
 def create_directory(conn, *, user_id: int, arguments: dict) -> dict:
@@ -547,6 +547,72 @@ def _edit_text(path: Path, arguments: dict) -> dict:
     return {"changed": changed, "verified": reread == updated}
 
 
+def _edit_docx(path: Path, arguments: dict) -> dict:
+    """Edit a DOCX at paragraph level, then re-open to verify the change."""
+    try:
+        import docx
+    except ImportError as exc:
+        raise ValueError("Dukungan DOCX belum terpasang di server.") from exc
+
+    document = docx.Document(str(path))
+    operation = arguments.get("operation") or "append"
+    if operation == "replace":
+        old = arguments.get("old")
+        new = arguments.get("new", "")
+        if old is None or old == "":
+            raise ValueError("Parameter old wajib diisi untuk replace DOCX.")
+        changed = 0
+        for para in document.paragraphs:
+            for run in para.runs:
+                if old in run.text:
+                    run.text = run.text.replace(old, new)
+                    changed += 1
+        if changed == 0:
+            for para in document.paragraphs:
+                if old in para.text:
+                    if para.runs:
+                        para.runs[0].text = para.text.replace(old, new)
+                        for run in para.runs[1:]:
+                            run.text = ""
+                        changed += 1
+        if changed == 0:
+            raise ValueError("Teks old tidak ditemukan di dokumen.")
+    elif operation == "append":
+        text = arguments.get("text", "")
+        if text == "":
+            raise ValueError("Parameter text wajib diisi untuk append DOCX.")
+        document.add_paragraph(text)
+        changed = 1
+    elif operation == "insert":
+        text = arguments.get("text", "")
+        if text == "":
+            raise ValueError("Parameter text wajib diisi untuk insert DOCX.")
+        try:
+            line_no = int(arguments.get("line", 1))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Parameter line harus nomor baris.") from exc
+        paragraphs = document.paragraphs
+        index = max(0, min(line_no - 1, len(paragraphs) - 1))
+        if paragraphs:
+            paragraphs[index].insert_paragraph_before(text)
+        else:
+            document.add_paragraph(text)
+        changed = 1
+    else:
+        raise ValueError("Operasi edit DOCX harus replace, insert, atau append.")
+
+    document.save(str(path))
+    check = docx.Document(str(path))
+    body = "\n".join(p.text for p in check.paragraphs)
+    if operation == "replace":
+        verified = (old not in body) and (new == "" or new in body)
+    elif operation == "append":
+        verified = bool(check.paragraphs) and check.paragraphs[-1].text == arguments.get("text", "")
+    else:
+        verified = arguments.get("text", "") in body
+    return {"changed": changed, "verified": verified}
+
+
 def _edit_spreadsheet(path: Path, arguments: dict) -> dict:
     try:
         import openpyxl
@@ -587,6 +653,8 @@ def edit_file(conn, *, user_id: int, arguments: dict) -> dict:
     backup = _backup_once(path)
     if suffix == ".xlsx":
         outcome = _edit_spreadsheet(path, arguments)
+    elif suffix == ".docx":
+        outcome = _edit_docx(path, arguments)
     else:
         outcome = _edit_text(path, arguments)
     if not outcome["verified"]:
