@@ -79,14 +79,26 @@ except Exception:  # pragma: no cover
     Presentation = None
 
 
-def _metadata(path: Path) -> dict:
+def _metadata(path: Path, *, root: Path | None = None) -> dict:
     stat = path.stat()
-    return {
+    entry = {
         "name": path.name,
         "extension": path.suffix.lower(),
         "size": stat.st_size,
         "modified": stat.st_mtime,
     }
+    # Always carry the real location. Without it a consumer only sees the
+    # basename and cannot tell a root file from one nested in a subfolder, so
+    # it rebuilds `root/<name>` and targets the wrong path (the nested-file
+    # bug). `path` is absolute; `relative_path` is relative to the scanned
+    # root when one is given, which is the form a planner can safely reuse.
+    entry["path"] = str(path)
+    if root is not None:
+        try:
+            entry["relative_path"] = str(path.relative_to(root))
+        except ValueError:
+            entry["relative_path"] = path.name
+    return entry
 
 
 def _files_under(root: Path) -> list[Path]:
@@ -732,7 +744,7 @@ def _scan(arguments: dict) -> dict:
         "status": "OK",
         "directory": str(root),
         "file_count": len(files),
-        "files": [_metadata(f) for f in files[:200]],
+        "files": [_metadata(f, root=root) for f in files[:200]],
         "truncated": len(files) > 200,
         "recommendations": recs,
     }
@@ -760,7 +772,7 @@ def _search(arguments: dict) -> dict:
                 continue
             if ext and f.suffix.lower() != ext:
                 continue
-            matches.append(_metadata(f))
+            matches.append(_metadata(f, root=root if root.is_dir() else None))
             if len(matches) >= 200:
                 break
     return {"status": "OK", "query": query, "count": len(matches), "results": matches}
