@@ -524,15 +524,33 @@ def _risk_of(name: str) -> str:
 
 
 def tool_include_for_task(text: str, prior_user_text: str = "") -> bool:
-    """Expose filesystem capabilities only for an explicit file-related turn."""
+    """Expose filesystem capabilities only for an explicit file-related turn.
+
+    Indonesian office users type colloquially ("rapihin", "beresin", "atur"),
+    so the matcher works on short stems rather than baku-only forms. Exposing
+    the tools costs little (the model still decides whether to call one), while
+    a missed match makes RAPIIN silently chat instead of doing the work.
+    """
     normalized = text.casefold()
     signals = (
+        # objects / nouns
         "file", "folder", "dokumen", "pdf", "spreadsheet", "excel", "arsip",
-        "duplikat", "download", "desktop", "scan", "cari", "pindah", "salin",
-        "rename", "ubah nama", "ubah isi", "hapus", "rapikan", "bereskan", "kelompokkan",
-        "indeks", "drive", "berkas", "edit", "mkdir", "file baru", "folder baru",
+        "berkas", "duplikat", "duplicate", "download", "desktop", "drive",
+        "sampah", "trash", "recycle", "backup", "penghapusan",
+        # operations (baku + kolokial, diwakili oleh stem pendek)
+        "scan", "pindai", "indeks", "klasifi", "kategori", "kelompok", "kelompokin",
+        "pindah", "pindahin", "salin", "salinin", "copy", "rename", "ganti",
+        "ubah", "hapus", "buang", "singkirkan", "bersih", "rapi", "rapih",
+        "beres", "atur", "susun", "urut", "tata", "organisir", "organize",
+        "cari", "temu", "daftar", "list", "buat", "bikin", "tambah", "edit",
+        "mkdir", "undo", "pulihkan", "kembalikan", "batalkan", "restore", "batal",
+        "file baru", "folder baru",
     )
     if any(signal in normalized for signal in signals):
         return True
-    referential = ("itu", "tadi", "lanjut", "yang sama", "tersebut")
-    return any(word in normalized for word in referential) and any(signal in prior_user_text.casefold() for signal in signals)
+    referential = (
+        "itu", "tadi", "lanjut", "yang sama", "tersebut", "lanjutkan", "gas",
+    )
+    return any(word in normalized for word in referential) and any(
+        signal in prior_user_text.casefold() for signal in signals
+    )

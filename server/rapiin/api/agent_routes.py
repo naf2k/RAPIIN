@@ -111,10 +111,23 @@ def result(body: ResultRequest, conn=Depends(get_db)):
                 failed = int(tool_result.get("failed_count", 0) or 0) if isinstance(tool_result, dict) else 0
                 result_status = tool_result.get("status") if isinstance(tool_result, dict) else None
                 if result_status != "OK" or failed:
-                    update_task(
-                        conn, task["id"], status="FAILED", completed=True, result=body.result,
-                        error=tool_result.get("message") or f"{failed} item gagal atau tidak terverifikasi.",
-                    )
+                    # A device tool can report a sub-status ERROR while the
+                    # enclosing conversation turn is still running: the worker
+                    # owns that task and will roll up the final outcome. Only
+                    # fail the task here when nothing else still owns it,
+                    # otherwise a transient tool hiccup would mark a turn
+                    # FAILED and leave the error behind on a later COMPLETED.
+                    still_owned = conn.execute(
+                        "SELECT 1 FROM conversation_jobs WHERE task_id = ? AND status = 'CLAIMED'",
+                        (task["id"],),
+                    ).fetchone()
+                    if still_owned:
+                        update_task(conn, task["id"], status="RUNNING", progress=95, result=body.result)
+                    else:
+                        update_task(
+                            conn, task["id"], status="FAILED", completed=True, result=body.result,
+                            error=tool_result.get("message") or f"{failed} item gagal atau tidak terverifikasi.",
+                        )
                 else:
                     processed = tool_result.get("verified_count") or tool_result.get("file_count") or 0
                     total = tool_result.get("planned_count") or tool_result.get("file_count") or processed
@@ -127,7 +140,7 @@ def result(body: ResultRequest, conn=Depends(get_db)):
                         # answer after receiving this device tool result.
                         update_task(conn, task["id"], status="RUNNING", progress=95, processed_count=processed, total_count=total, result=body.result)
                     else:
-                        update_task(conn, task["id"], status="COMPLETED", progress=100, processed_count=processed, total_count=total, completed=True, result=body.result)
+                        update_task(conn, task["id"], status="COMPLETED", progress=100, processed_count=processed, total_count=total, completed=True, result=body.result, error="")
             else:
                 update_task(conn, task["id"], status="FAILED", error=body.error or "Job perangkat gagal.", completed=True)
     return {"job_id": job["id"], "status": job["status"]}

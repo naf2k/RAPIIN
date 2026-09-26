@@ -244,7 +244,9 @@ def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: in
             notify_task_outcome(conn, user_id=user_id, task_type="percakapan", status="FAILED", task_id=task_id, error=error_message)
         else:
             update_task(conn, task_id, status="VERIFYING", progress=99)
-            update_task(conn, task_id, status="COMPLETED", progress=100, completed=True, result={"tool_events": result["tool_events"]})
+            # error="" clears any stale message a mid-turn device tool may have
+            # left when it briefly reported a sub-status failure.
+            update_task(conn, task_id, status="COMPLETED", progress=100, completed=True, result={"tool_events": result["tool_events"]}, error="")
             notify_task_outcome(conn, user_id=user_id, task_type="percakapan", status="COMPLETED", task_id=task_id)
 
         record_audit(
