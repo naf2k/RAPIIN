@@ -32,7 +32,7 @@ AUTO_ACTIONS = {
     "filesystem_scanner", "metadata_extractor", "file_search", "duplicate_detector",
     "document_parser", "pdf_parser", "spreadsheet_parser", "verification",
     "file_classifier", "semantic_indexer", "semantic_search", "file_mkdir",
-    "trash_list", "file_restore",
+    "trash_list", "file_restore", "device_status",
 }
 
 # Tools that change files. In the default flow they are gated by an approval

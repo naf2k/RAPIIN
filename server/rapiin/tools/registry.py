@@ -32,6 +32,43 @@ def _device_only_tool(conn, *, user_id: int, arguments: dict) -> dict:
     )
 
 
+def device_status(conn, *, user_id: int, arguments: dict | None = None) -> dict:
+    """Report the health of this user's registered device(s) from server state.
+
+    Runs server-side: the heartbeat and connection health live in the DB, not
+    on the employee computer, so there is nothing to delegate to the agent.
+    """
+    from ..devices import device_status_view
+
+    rows = conn.execute(
+        "SELECT id, device_name, os, agent_version, status, last_heartbeat_at, "
+        "capabilities, workspace_root, allowed_roots FROM devices "
+        "WHERE user_id = ? ORDER BY id DESC",
+        (user_id,),
+    ).fetchall()
+    devices = []
+    for row in rows:
+        view = device_status_view(conn, row)
+        devices.append({
+            "device_id": view.get("id"),
+            "name": view.get("device_name"),
+            "os": view.get("os"),
+            "agent_version": view.get("agent_version"),
+            "status": view.get("status"),
+            "connection_health": view.get("connection_health"),
+            "heartbeat_age_seconds": view.get("heartbeat_age_seconds"),
+            "workspace_root": view.get("workspace_root"),
+            "busy": bool(view.get("current_task")),
+        })
+    online = sum(1 for d in devices if d["status"] == "ONLINE")
+    return {
+        "status": "OK",
+        "device_count": len(devices),
+        "online_count": online,
+        "devices": devices,
+    }
+
+
 # Auto (no approval) tools and mutation tools are mapped here.
 TOOL_IMPLEMENTATIONS = {
     "filesystem_scanner": fs_tool.scan_directory,
@@ -55,6 +92,7 @@ TOOL_IMPLEMENTATIONS = {
     "batch_executor": fs_tool.execute_batch,
     "bulk_delete": fs_tool.delete_files,
     "verification": _verification_tool,
+    "device_status": device_status,
     # Trash lives on the device that owns the bytes; the manifests are written
     # by the Desktop Agent. These must never run against the server filesystem,
     # so the implementations only exist to make the registry complete: the
@@ -344,6 +382,14 @@ TOOLS_SCHEMA = [
                     }
                 },
             },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "device_status",
+            "description": "Memeriksa status perangkat Desktop Agent milik pengguna: online/offline, kesehatan koneksi, versi agent, dan apakah sedang sibuk. Gunakan saat pengguna bertanya apakah device/agent online atau terhubung.",
+            "parameters": {"type": "object", "properties": {}},
         },
     },
 ]

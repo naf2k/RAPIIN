@@ -117,7 +117,7 @@ const secondaryQuickActions = [
   { label: "Periksa Device", Icon: MonitorCheck },
 ] as const;
 
-const followUpPrompts = ["Cek file yang duplikat", "Cari file laporan bulan lalu"];
+const followUpPrompts: string[] = [];
 
 const STATUS_LABELS: Partial<Record<TaskStatus, string>> = {
   PENDING: "Menyiapkan pekerjaan",
@@ -360,6 +360,55 @@ const MUTATING_TOOLS = new Set([
 
 function didMutate(toolEvents: ToolEvent[]): boolean {
   return toolEvents.some((event) => MUTATING_TOOLS.has(event.tool));
+}
+
+/**
+ * Build the "Tindak lanjut" chips from what the turn actually did, so the
+ * suggestions match the last action instead of always showing the same two
+ * hardcoded prompts. Falls back to the generic pair for plain answers.
+ */
+function deriveFollowUps(input: {
+  toolEvents: ToolEvent[];
+  recommendations: OrganizerRecommendation[];
+  listing: FileListing | null;
+}): string[] {
+  const { toolEvents, recommendations, listing } = input;
+  const used = new Set(toolEvents.map((event) => event.tool));
+  const folder = listing?.directory;
+  const out: string[] = [];
+  const add = (text: string, guard = true) => {
+    if (guard && !out.includes(text)) out.push(text);
+  };
+
+  // Ordered from most specific (what just happened) to most generic.
+  if (recommendations.length > 0) add("Terapkan rekomendasi yang tersedia");
+  if (used.has("duplicate_detector")) add("Rapikan file duplikat ini");
+  if (used.has("filesystem_scanner") || used.has("file_search")) {
+    if (folder) {
+      add(`Rapikan folder ${folder}`);
+      add(`Cari dokumen di ${folder}`);
+    } else {
+      add("Rapikan folder Downloads");
+      add("Cek file yang duplikat");
+    }
+  }
+  if (used.has("folder_organizer")) {
+    add("Rapikan folder Downloads");
+    add("Cek file yang duplikat");
+  }
+  if (used.has("trash_list")) add("Pulihkan penghapusan terakhir");
+  if (used.has("file_delete")) add("Pulihkan file yang baru dihapus");
+  if (used.has("file_move") || used.has("file_copy")) add("Cek file yang duplikat");
+  if (used.has("file_edit") || used.has("document_parser") || used.has("pdf_parser") || used.has("spreadsheet_parser")) {
+    if (folder) add(`Cari dokumen di ${folder}`);
+    add("Cari file laporan bulan lalu");
+  }
+  if (used.has("device_status")) add("Rapikan folder Downloads", false);
+
+  // Generic fallback keeps the rail useful for plain conversational answers.
+  add("Cek file yang duplikat");
+  add("Cari file laporan bulan lalu");
+  return out.slice(0, 2);
 }
 
 function buildFlow(input: {
@@ -616,6 +665,7 @@ export default function RuixenMoonChat({
         const total = resolvedTask?.total_count || turn.flow?.total || turn.total;
         const processed = resolvedTask?.processed_count ?? turn.processed;
         const nextApproval = approval ?? turn.approval;
+        const listing = parseFileListing(parsed.toolEvents, parsed.toolResult);
         const merged: ChatTurn = {
           ...turn,
           // Anything the model wrote and never handed over as a final answer
@@ -631,7 +681,12 @@ export default function RuixenMoonChat({
           recommendations: parsed.recommendations,
           directory: parsed.directory,
           approval: nextApproval,
-          listing: parseFileListing(parsed.toolEvents, parsed.toolResult),
+          listing,
+          followUps: deriveFollowUps({
+            toolEvents: parsed.toolEvents,
+            recommendations: parsed.recommendations,
+            listing,
+          }),
           seenStatuses: resolvedTask
             ? addStatus(turn.seenStatuses, resolvedTask.status)
             : turn.seenStatuses,
