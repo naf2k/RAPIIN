@@ -1,8 +1,6 @@
 """Tests for the Desktop Agent job queue API."""
 import json
 
-from rapiin.security import hash_token
-
 
 def _register_user_with_key(client, email):
     resp = client.post(

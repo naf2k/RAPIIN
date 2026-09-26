@@ -1,5 +1,4 @@
 """Isolation and permission tests."""
-from pathlib import Path
 
 from .test_auth import _register_user
 

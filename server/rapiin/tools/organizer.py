@@ -8,10 +8,9 @@ normal approval flow and reuses filesystem tools.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from ..permissions import check_path_allowed, resolve_path, sandbox_root
-from .analysis import CATEGORY_RULES, classify_file
+from .analysis import classify_file
 from .duplicate import find_duplicates
 from .filesystem import _files_under
 

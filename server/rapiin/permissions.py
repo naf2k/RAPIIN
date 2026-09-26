@@ -12,7 +12,6 @@ Default policy follows PRD section 17:
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 # Capabilities per PRD

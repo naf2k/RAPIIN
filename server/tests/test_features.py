@@ -10,9 +10,9 @@ def _login(client, email, password="Password123!"):
 
 def test_task_completion_creates_notifications(client, monkeypatch):
     """A completed task creates a USER notification (and supervisor on failure)."""
-    from .test_chat import DummyProvider
-
     import rapiin.ai.provider as provider_mod
+
+    from .test_chat import DummyProvider
 
     monkeypatch.setattr(provider_mod, "get_provider", lambda: DummyProvider())
 

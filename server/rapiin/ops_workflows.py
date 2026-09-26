@@ -3,14 +3,13 @@ from __future__ import annotations
 
 import hmac
 import json
-import os
 import shlex
 import shutil
 import subprocess
 import tempfile
 import time
-import urllib.request
 import urllib.parse
+import urllib.request
 from pathlib import Path
 
 from .config import settings

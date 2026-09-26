@@ -4,7 +4,6 @@ from __future__ import annotations
 import re
 from typing import Any, Iterator
 
-
 _IDENTITY_TABLES = {
     "users", "devices", "conversations", "messages", "tasks", "approvals", "auth_tokens",
     "metric_events", "audit_log", "memory", "agent_files", "agent_jobs", "notifications",

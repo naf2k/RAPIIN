@@ -7,8 +7,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 
-from ..ai.provider import get_provider
 from ..agent.core import HermesCore
+from ..ai.provider import get_provider
 from ..approval import all_pending_approvals, get_approval, respond_approval
 from ..audit import record_audit
 from ..supervisor import (

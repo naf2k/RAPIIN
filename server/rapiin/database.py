@@ -413,6 +413,7 @@ def connect(db_path: Path | None = None):
     if settings.rapiin_database_url and db_path is None:
         import psycopg
         from psycopg.rows import dict_row
+
         from .postgres_support import PostgresConnection
 
         return PostgresConnection(

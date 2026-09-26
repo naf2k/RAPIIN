@@ -8,8 +8,23 @@ import pytest
 from rapiin.database import connect, utcnow_iso
 from rapiin.ops_incidents import create_proposal, ingest_signal, respond_approval, seed_ops
 from rapiin.ops_notifications import deliver_pending
-from rapiin.ops_runtime import _daily_budget_available, dispatch_incident, read_usage_report, recover_expired_assignments
-from rapiin.ops_workflows import REPO_ROOT, _latest_checks_passed, _sandbox_profile, cancel_code_change, cleanup_code_worktree, deploy, provision_worktree, run_checks, run_coder
+from rapiin.ops_runtime import (
+    _daily_budget_available,
+    dispatch_incident,
+    read_usage_report,
+    recover_expired_assignments,
+)
+from rapiin.ops_workflows import (
+    REPO_ROOT,
+    _latest_checks_passed,
+    _sandbox_profile,
+    cancel_code_change,
+    cleanup_code_worktree,
+    deploy,
+    provision_worktree,
+    run_checks,
+    run_coder,
+)
 
 
 def test_read_usage_report_supports_official_hermes_fields(tmp_path):
@@ -309,6 +324,7 @@ def test_dispatch_defers_assignments_when_capacity_is_full():
 def test_ops_cli_module_entrypoint_emits_report(monkeypatch, capsys):
     """`python -m rapiin.ops_cli verify` must run, not silently no-op."""
     import inspect
+
     from rapiin import ops_cli
     monkeypatch.setattr(ops_cli, "readiness", lambda: {"ready": True, "checks": {}})
     monkeypatch.setattr("sys.argv", ["rapiin-ops", "verify"])

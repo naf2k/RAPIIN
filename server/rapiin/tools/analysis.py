@@ -6,7 +6,6 @@ small extracted-text preview is stored in the agent_files index.
 """
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from ..database import utcnow_iso

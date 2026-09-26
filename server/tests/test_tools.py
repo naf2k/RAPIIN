@@ -1,14 +1,11 @@
 """Tests for document parsers, classifiers and filesystem verification."""
-import os
 import shutil
-import tempfile
-from pathlib import Path
 
 import pytest
 
 from rapiin.permissions import sandbox_root
 from rapiin.tools import filesystem, verify
-from rapiin.tools.analysis import classify_file, parse_and_summarize
+from rapiin.tools.analysis import classify_file
 from rapiin.tools.parsing import parse_file
 
 

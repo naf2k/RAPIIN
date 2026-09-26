@@ -1,13 +1,11 @@
 """Tests for approval resume execution and DB migrations."""
-import os
 import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
 
-from rapiin.database import SCHEMA, connect, utcnow_iso
+from rapiin.database import connect
 from rapiin.permissions import sandbox_root
-from rapiin.security import hash_password
 
 
 def test_approved_approval_never_falls_back_to_server_filesystem():

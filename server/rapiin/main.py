@@ -71,7 +71,13 @@ def _ops_tick() -> None:
             ("monitor.operations.heartbeat", '{"status":"running"}', now),
         )
         conn.commit()
-        from .ops_incidents import auto_resolve, collect_runtime_signals, expire_pending_approvals, ingest_signal, queue_daily_digest
+        from .ops_incidents import (
+            auto_resolve,
+            collect_runtime_signals,
+            expire_pending_approvals,
+            ingest_signal,
+            queue_daily_digest,
+        )
         from .ops_notifications import deliver_pending
         # Each phase commits on its own. A single tick-wide transaction would
         # stay open across slow work (Telegram calls, Hermes runs) and trip
@@ -253,6 +259,7 @@ def ready():
 @app.get("/internal/metrics", response_class=PlainTextResponse)
 def internal_metrics(request: Request):
     import hmac
+
     from fastapi import HTTPException
     expected = settings.rapiin_monitoring_token
     supplied = request.headers.get("authorization", "").removeprefix("Bearer ").strip()

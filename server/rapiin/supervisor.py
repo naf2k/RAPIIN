@@ -1,9 +1,6 @@
 """Supervisor monitoring summaries (authorized, monitor-first)."""
 from __future__ import annotations
 
-import json
-import time
-
 from .devices import mark_stale_devices_offline
 from .tasks import list_tasks
 

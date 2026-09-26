@@ -66,7 +66,7 @@ os.environ["OPS_TELEGRAM_BOT_TOKEN_FILE"] = ""
 @pytest.fixture(autouse=True)
 def _reset_db():
     """Drop all tables before each test so tests are isolated."""
-    from rapiin.database import connect, init_db, SCHEMA
+    from rapiin.database import SCHEMA, connect, init_db
 
     if TEST_DATABASE_URL:
         import psycopg

@@ -1,5 +1,6 @@
 """Hardening tests: provider failure, incremental indexing, metrics."""
 import time
+
 import pytest
 
 from .test_auth import _register_user
@@ -82,7 +83,6 @@ def test_blocked_tool_event_is_not_marked_completed(client, monkeypatch):
 
 def test_incremental_index_skips_unchanged(client):
     """Second index run skips files whose size+mtime did not change."""
-    from pathlib import Path
 
     from rapiin.permissions import sandbox_root
 

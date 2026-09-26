@@ -40,9 +40,15 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-# NOTE: no `lint.select` yet. A first pass found 492 findings across this
-# package, so gating CI on lint would fail the build today. Narrow the rule set
-# and clean the codebase first, then add a blocking lint job.
+
+[tool.ruff.lint]
+# Lint gating bertahap: HANYA subset yang sudah bersih yang di-enforce. Ini
+# sengaja sempit supaya CI tidak merah; perluas perlahan setelah tiap rule
+# dibersihkan. Sisa rule (B008, UP017, BLE001, RUF012, ...) belum di-gate.
+select = ["F", "E9", "I"]
+# F841 (unused variable) masih ada 5 temuan di kode produksi yang perbaikannya
+# menyentuh logika; ditunda ke pekerjaan terpisah agar gate ini tetap hijau.
+ignore = ["F841"]
 
 [tool.setuptools.packages.find]
 include = ["rapiin*"]

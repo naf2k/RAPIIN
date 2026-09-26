@@ -1,5 +1,5 @@
-import threading
 import json
+import threading
 
 
 def _device(client, email):
@@ -237,6 +237,7 @@ def test_ai_wait_does_not_hold_sqlite_write_lock(client):
 
 def test_ai_provider_streams_text_and_rebuilds_tool_calls(monkeypatch):
     import json
+
     from rapiin.ai.provider import OpenAICompatibleProvider
 
     chunks = [

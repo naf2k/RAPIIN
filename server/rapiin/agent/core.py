@@ -11,9 +11,9 @@ import json
 from ..approval import create_approval
 from ..audit import record_audit
 from ..config import settings
-from ..permissions import PermissionEngine, check_path_allowed, resolve_path, sandbox_root
-from ..tasks import update_task
+from ..permissions import PermissionEngine, check_path_allowed, sandbox_root
 from ..redaction import redact_text
+from ..tasks import update_task
 from .prompts import SUPERVISOR_SYSTEM_PROMPT, USER_SYSTEM_PROMPT
 
 

@@ -1,8 +1,8 @@
 """Authentication routes - /api/auth/*."""
 from __future__ import annotations
 
-import os
 import json
+import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
@@ -11,15 +11,15 @@ from ..audit import record_audit
 from ..database import utcnow_iso
 from ..devices import get_device_by_name_for_user, register_device
 from ..security import (
+    clear_login_failures,
     generate_token,
     hash_password,
     hash_token,
+    login_is_blocked,
+    password_is_strong,
+    record_login_failure,
     token_expiry,
     verify_password,
-    password_is_strong,
-    login_is_blocked,
-    record_login_failure,
-    clear_login_failures,
 )
 from .deps import get_db, require_user
 

@@ -3,17 +3,17 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import shutil
-import time
+import subprocess
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .config import settings
 from .database import utcnow_iso
-from .ops_incidents import _event, get_incident, seed_ops
 from .ops_adapter import OpsToolGateway
+from .ops_incidents import _event, get_incident, seed_ops
 from .ops_safety import sanitize_text
 
 READ_ONLY_ROLES = {"LEAD", "SECURITY", "DIAGNOSTIC"}

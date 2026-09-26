@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import re
 
-
 SENSITIVE_KEY = re.compile(r"(password|passwd|secret|token|api[_-]?key|credential|private[_-]?key)", re.I)
 PATTERNS = (
     re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/-]{12,}"),

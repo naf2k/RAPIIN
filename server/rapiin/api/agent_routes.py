@@ -12,9 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..agent_jobs import claim_next_job, finish_job, renew_job_lease
-from ..audit import record_audit
-from ..database import utcnow_iso
-from ..devices import get_device_by_key_hash, heartbeat as do_heartbeat
+from ..devices import get_device_by_key_hash
+from ..devices import heartbeat as do_heartbeat
 from ..tasks import get_task, update_task
 from .deps import get_db
 

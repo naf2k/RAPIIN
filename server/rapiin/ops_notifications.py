@@ -10,7 +10,6 @@ from .config import settings
 from .database import utcnow_iso
 from .ops_safety import sanitize_text
 
-
 SEVERITY_COPY = {
     "CRITICAL": ("🔴", "Sangat penting", "Layanan dapat berhenti, data berisiko, atau keamanan dapat terdampak."),
     "HIGH": ("🟠", "Penting", "Sebagian fungsi RAPIIN mungkin terganggu dan perlu segera diperiksa."),

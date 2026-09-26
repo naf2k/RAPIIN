@@ -5,9 +5,9 @@ executes that action immediately (PRD section 18: approval then execute).
 """
 from __future__ import annotations
 
-import json
 import hashlib
 import hmac
+import json
 import threading
 from datetime import datetime, timedelta, timezone
 
@@ -242,7 +242,6 @@ def _execute_approved_action(conn, approval: dict) -> None:
         tool_args = {}
 
     from .tasks import get_task
-    from .tools.registry import execute_tool
 
     task_id = approval["task_id"]
     task = get_task(conn, task_id) if task_id else None

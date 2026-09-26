@@ -108,6 +108,7 @@ def run_queue_worker(stop_event=None) -> None:
     import json
     import logging
     import time
+
     from .database import utcnow_iso
     from .queue_backend import dequeue_conversation_task
 
@@ -157,11 +158,11 @@ def _run_task(*, user_id: int, conversation_id: int, task_id: int, device_id: in
     from .agent.core import HermesCore
     from .ai import provider as provider_mod
     from .audit import record_audit
+    from .events import publish
     from .memory import add_message, get_conversation_messages, get_memory
     from .notifications import notify_task_outcome
     from .permissions import PermissionEngine
     from .tasks import get_task, update_task
-    from .events import publish
 
     conn = connect()
     try:

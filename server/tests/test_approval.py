@@ -53,7 +53,7 @@ def test_supervisor_required_for_supervisor_approval(client):
     assert sup_login.status_code == 200, sup_login.text
     sup_token = sup_login.json()["token"]
 
-    from rapiin.approval import create_approval, get_approval
+    from rapiin.approval import create_approval
     from rapiin.database import db_session
 
     with db_session() as conn:

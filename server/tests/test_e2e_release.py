@@ -1,10 +1,8 @@
 """Release-path E2E: local recommendation -> approval -> agent execution."""
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
-
 
 AGENT_ROOT = Path(__file__).resolve().parents[2] / "agent"
 if str(AGENT_ROOT) not in sys.path:
