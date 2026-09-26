@@ -20,6 +20,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: cd server && uv sync --extra dev --locked
+      # Lint gating bertahap: hanya subset di [tool.ruff.lint] yang di-enforce.
+      - run: cd server && uv run --with ruff ruff check .
       - run: cd server && uv run pytest -q
       - run: cd server && uv run --with pip-audit pip-audit
 
@@ -35,6 +37,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: cd agent && uv sync --extra dev --locked
+      # Lint gating bertahap: hanya subset di [tool.ruff.lint] yang di-enforce.
+      - run: cd agent && uv run --with ruff ruff check .
       - run: cd agent && uv run pytest -q
       - run: cd agent && uv build
       - uses: actions/upload-artifact@v4
