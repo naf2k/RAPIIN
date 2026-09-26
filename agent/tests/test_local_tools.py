@@ -1,6 +1,5 @@
 """Tests for the Desktop Agent local tools (agent package)."""
 import json
-import os
 import shutil
 import sys
 import tempfile
@@ -8,8 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from rapiin_agent import local_tools
-from rapiin_agent import config
+from rapiin_agent import config, local_tools
 
 
 def _set_workspace(tmp: str):

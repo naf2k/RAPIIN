@@ -39,4 +39,8 @@ packages = ["rapiin_agent"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-# NOTE: no `lint.select` yet; see server/pyproject.toml for the same rationale.
+
+[tool.ruff.lint]
+# Lihat server/pyproject.toml: gate bertahap, hanya subset yang sudah bersih.
+select = ["F", "E9", "I"]
+ignore = ["F841"]

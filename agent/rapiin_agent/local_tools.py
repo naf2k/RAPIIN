@@ -530,7 +530,6 @@ def _edit_xlsx(target: Path, arguments: dict) -> dict:
 
 def _mutate(arguments: dict, operation: str) -> dict:
     """Move/copy/rename/delete/batch inside the agent workspace."""
-    from .config import workspace_root
 
     _invalidate_analysis_caches()
 

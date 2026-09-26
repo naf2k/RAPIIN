@@ -14,30 +14,29 @@ from __future__ import annotations
 
 import argparse
 import getpass
-import json
 import platform
+import shlex
 import shutil
 import socket
-import threading
 import subprocess
 import sys
+import threading
 import time
-import shlex
-from xml.sax.saxutils import escape as xml_escape
 from pathlib import Path
+from xml.sax.saxutils import escape as xml_escape
 
 from . import __version__
 from .client import AgentAPI
 from .config import (
     DEFAULT_SERVER,
+    allowed_roots,
     clear_config,
+    get_state,
     is_configured,
     load_config,
     save_config,
     set_state,
-    get_state,
     update_config_value,
-    allowed_roots,
 )
 from .local_tools import run_tool
 
